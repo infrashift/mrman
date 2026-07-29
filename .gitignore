@@ -1,0 +1,13 @@
+# Reference source for the port (cloned locally, never committed)
+.reference/
+
+# Build artifacts
+/bin/
+/dist/
+coverage.out
+
+# Editor / OS noise
+.idea/
+.vscode/
+*.swp
+.DS_Store

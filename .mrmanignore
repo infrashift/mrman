@@ -1,0 +1,4 @@
+# Files excluded from mrman review sessions in this repo.
+# Same syntax as .gitignore; loaded after it, so `!` can un-ignore.
+go.sum
+coverage.out
