@@ -1,9 +1,9 @@
 // comments.go ports tuicr's src/app/comments.rs (comment navigator,
 // next/prev comment, find/delete at cursor, comment-mode transitions,
 // save_comment, comment-type cycling) plus the commit-scoped visibility
-// helpers from src/app/commits.rs. The commit selector itself lands in M5;
-// the visibility predicates run against the CommitSelectionRange /
-// ReviewCommits stubs on App.
+// helpers from src/app/commits.rs. The commit selector itself lives in
+// commits.go/commitselect.go (M5); the visibility predicates here run
+// against the shared CommitSelectionRange / ReviewCommits state.
 package app
 
 import (
@@ -200,26 +200,6 @@ func commentVisibleWith(c *model.Comment, set map[string]bool, hasSet bool) bool
 func (a *App) CommentVisible(c *model.Comment) bool {
 	set, hasSet := a.selectedCommitSet()
 	return commentVisibleWith(c, set, hasSet)
-}
-
-// CommitIDForNewComment is the single commit SHA to stamp on a new comment
-// when the inline selector shows exactly one commit. Nil otherwise (full
-// range, multi-commit subset, or no selector) — those comments get
-// CommitID nil so they stay visible across selections.
-func (a *App) CommitIDForNewComment() *string {
-	if a.CommitSelectionRange == nil {
-		return nil
-	}
-	start, end := a.CommitSelectionRange[0], a.CommitSelectionRange[1]
-	if start != end || start < 0 || start >= len(a.ReviewCommits) {
-		return nil
-	}
-	c := &a.ReviewCommits[start]
-	if isSpecialCommit(c) {
-		return nil
-	}
-	id := c.ID
-	return &id
 }
 
 // --- Comment navigator ---

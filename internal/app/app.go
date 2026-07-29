@@ -222,13 +222,54 @@ type App struct {
 	// visual mode.
 	VisualSelection *VisualSelection
 
-	// --- Commit-selector stubs (M5 lands the selector itself) ---
+	// --- Commit-selector state (M5, tuicr src/app/mod.rs + commits.rs) ---
 
 	// CommitSelectionRange is the inclusive (start, end) index range selected
-	// in the inline commit selector; nil means no selector.
+	// in the commit selector; nil means no selection.
 	CommitSelectionRange *model.IndexRange
-	// ReviewCommits is the commit list backing the selector, newest-first.
+	// ReviewCommits is the commit list backing the inline selector,
+	// newest-first (presentation order is CommitOrder's concern).
 	ReviewCommits []vcs.CommitInfo
+	// CommitList is the list the selector currently renders: the recent
+	// history (plus synthetic staged/unstaged rows) in target-select mode,
+	// or a copy of ReviewCommits for the inline selector. Newest-first.
+	CommitList []vcs.CommitInfo
+	// CommitListCursor / CommitListScrollOffset are the selector's cursor
+	// row and scroll position.
+	CommitListCursor       int
+	CommitListScrollOffset int
+	// CommitListViewportHeight is the selector's visible row count, set by
+	// the renderer; zero before the first render disables scroll clamping.
+	CommitListViewportHeight int
+	// VisibleCommitCount is how many CommitList entries are shown before
+	// the "show more" row.
+	VisibleCommitCount int
+	// CommitPageSize is the load-more page size (config; default 10).
+	CommitPageSize int
+	// HasMoreCommits is true while the backend may have older commits
+	// beyond the loaded history.
+	HasMoreCommits bool
+	// CommitOrder flips the inline selector's display order. Presentation
+	// only — ReviewCommits stays newest-first.
+	CommitOrder CommitOrder
+	// CommitSelectionStart picks which commits a fresh multi-commit review
+	// opens with (config).
+	CommitSelectionStart CommitSelectionStart
+	// ShowCommitSelector is the inline selector pane's visibility.
+	ShowCommitSelector bool
+	// SavedInlineSelection preserves the inline selection while the target
+	// selector is open, restored by ExitCommitSelectMode.
+	SavedInlineSelection *model.IndexRange
+	// TargetTab is the active tab of the review target selector.
+	TargetTab TargetTab
+	// CommitDiffCache caches loaded subrange diffs keyed by selection range
+	// so re-selecting a subrange skips the reload (the UI layer's inline
+	// reload flow populates it; ApplyLoadedSelection resets it).
+	CommitDiffCache map[model.IndexRange][]model.DiffFile
+	// pendingSelectedCommits stashes the rows resolved by
+	// ConfirmCommitSelection (newest-first, synthetic entries included)
+	// until ApplyLoadedSelection consumes them to build ReviewCommits.
+	pendingSelectedCommits []vcs.CommitInfo
 
 	// PendingEditorTarget is the queued external-editor target; the UI loop
 	// consumes it via TakePendingEditorTarget after leaving the TUI screen.

@@ -46,6 +46,9 @@ func NewApp(backend vcs.Backend, info *vcs.Info, files []model.DiffFile, session
 		ExpandedBottom:     map[GapID][]model.DiffLine{},
 		FileLineCountCache: map[int]uint32{},
 
+		CommitPageSize:  DefaultCommitPageSize,
+		CommitDiffCache: map[model.IndexRange][]model.DiffFile{},
+
 		// The default cycle is just the typeless None entry; callers with a
 		// comment_types config overwrite via SetCommentTypes.
 		CommentTypes: ResolveCommentTypes(nil),

@@ -5,6 +5,7 @@ import (
 
 	"github.com/infrashift/mrman/internal/app"
 	"github.com/infrashift/mrman/internal/cli"
+	"github.com/infrashift/mrman/internal/config"
 	"github.com/infrashift/mrman/internal/model"
 )
 
@@ -62,20 +63,20 @@ func TestReversed(t *testing.T) {
 
 func TestResolveThemeFlagPaths(t *testing.T) {
 	// Explicit theme flag wins.
-	resolved, _, err := resolveTheme(cli.TuiOptions{Theme: "tokyo-night-storm"})
+	resolved, _, err := resolveTheme(cli.TuiOptions{Theme: "tokyo-night-storm"}, config.Default())
 	if err != nil || resolved.Name != "tokyo-night-storm" {
 		t.Fatalf("got %v err=%v", resolved, err)
 	}
 	// Unknown theme flag is a hard error (tuicr parity).
-	if _, _, err := resolveTheme(cli.TuiOptions{Theme: "no-such"}); err == nil {
+	if _, _, err := resolveTheme(cli.TuiOptions{Theme: "no-such"}, config.Default()); err == nil {
 		t.Fatal("unknown theme must error")
 	}
 	// Bad appearance flag errors.
-	if _, _, err := resolveTheme(cli.TuiOptions{Appearance: "purple"}); err == nil {
+	if _, _, err := resolveTheme(cli.TuiOptions{Appearance: "purple"}, config.Default()); err == nil {
 		t.Fatal("bad appearance must error")
 	}
 	// Default resolves via system detection (stubbed dark).
-	resolved, _, err = resolveTheme(cli.TuiOptions{})
+	resolved, _, err = resolveTheme(cli.TuiOptions{}, config.Default())
 	if err != nil || resolved == nil {
 		t.Fatalf("default resolve failed: %v", err)
 	}

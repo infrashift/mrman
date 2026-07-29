@@ -12,6 +12,7 @@ import (
 	"github.com/infrashift/mrman/internal/input"
 	"github.com/infrashift/mrman/internal/model"
 	"github.com/infrashift/mrman/internal/output"
+	"github.com/infrashift/mrman/internal/persistence"
 	"github.com/infrashift/mrman/internal/theme"
 )
 
@@ -38,6 +39,9 @@ type Model struct {
 	// session is the persisted-session lifecycle; nil in tests that run
 	// without a store.
 	session *sessionLifecycle
+	// store backs new lifecycles opened after a selector confirm; may be
+	// nil (no persistence).
+	store *persistence.Store
 
 	// export configures notes export; PendingStdout collects --stdout
 	// output printed by Run after the program exits.
@@ -373,6 +377,8 @@ func (m *Model) dispatch(action input.Action) bool {
 		return m.dispatchComment(action)
 	case input.ModeVisualSelect:
 		return m.dispatchVisual(action)
+	case input.ModeCommitSelect:
+		return m.dispatchCommitSelect(action)
 	case input.ModeNormal:
 		if a.FocusedPanel == app.PanelFileList {
 			if handled := m.dispatchFileList(action); handled {
@@ -505,8 +511,15 @@ func (m *Model) runCommand(cmd input.Command) bool {
 		a.Dirty = true
 		a.RebuildAnnotations()
 		a.SetMessage(fmt.Sprintf("Cleared %d comment(s)", cleared))
+	case input.CmdStage:
+		if !a.CanStage() {
+			a.SetMessage("Staging is only available for unstaged reviews in git")
+			break
+		}
+		staged := a.StageReviewedFiles()
+		a.SetMessage(fmt.Sprintf("Staged %d reviewed file(s)", staged))
 	case input.CmdSetCommitsVisible, input.CmdSetCommitsHidden, input.CmdToggleCommits,
-		input.CmdReload, input.CmdEdit, input.CmdStage,
+		input.CmdReload, input.CmdEdit,
 		input.CmdTargetsLocal, input.CmdTargetsPrs, input.CmdSubmitPicker,
 		input.CmdSubmitComment, input.CmdSubmitApprove, input.CmdSubmitRequestChanges,
 		input.CmdSubmitDraft, input.CmdCommentsUnresolved, input.CmdCommentsAll,
@@ -515,6 +528,46 @@ func (m *Model) runCommand(cmd input.Command) bool {
 		a.SetMessage("Not available yet: :" + cmd.Raw)
 	default:
 		a.SetError("Unknown command: " + cmd.Raw)
+	}
+	return false
+}
+
+// dispatchCommitSelect handles the full-screen target selector.
+func (m *Model) dispatchCommitSelect(action input.Action) bool {
+	a := m.App
+	switch action.Kind {
+	case input.Quit:
+		return true
+	case input.CommitSelectDown:
+		a.CommitSelectDown()
+	case input.CommitSelectUp:
+		a.CommitSelectUp()
+	case input.ToggleCommitSelect:
+		if a.IsOnExpandRow() {
+			if err := a.ExpandCommit(); err != nil {
+				a.SetError("Load more failed: " + err.Error())
+			}
+		} else {
+			a.ToggleCommitSelectionAndAdvance()
+		}
+	case input.ConfirmCommitSelect:
+		if a.IsOnExpandRow() {
+			if err := a.ExpandCommit(); err != nil {
+				a.SetError("Load more failed: " + err.Error())
+			}
+		} else {
+			m.confirmSelection()
+		}
+	case input.ExitMode:
+		switch a.ExitCommitSelectMode() {
+		case app.ExitSelectorLoadWorkingTree, app.ExitSelectorReloadInline:
+			// Nothing loaded yet (fresh start): keep whatever is shown.
+		case app.ExitSelectorNone:
+		}
+	case input.TargetSelectorTabNext:
+		a.CycleTargetTab(true)
+	case input.TargetSelectorTabPrev:
+		a.CycleTargetTab(false)
 	}
 	return false
 }
@@ -789,6 +842,12 @@ func (m *Model) View() tea.View {
 
 	if a.InputMode == input.ModeHelp {
 		return m.helpView()
+	}
+	if a.InputMode == input.ModeCommitSelect {
+		view := tea.NewView(strings.Join(m.selectorView(), "\n"))
+		view.AltScreen = true
+		view.KeyboardEnhancements = tea.KeyboardEnhancements{ReportEventTypes: true}
+		return view
 	}
 
 	var mainCols []string

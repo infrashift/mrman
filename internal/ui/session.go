@@ -15,14 +15,20 @@ import (
 // eager creation, the stderr slug announcement, periodic external-change
 // merging, saves, and exit cleanup.
 type sessionLifecycle struct {
-	store       *persistence.Store
-	path        string
-	snapshot    *model.ReviewSession // last persisted state, the 3-way merge base
-	fileState   *fileState
-	wasCreated  bool // session was auto-created this run (delete-if-empty on exit)
-	watchEvery  time.Duration
-	lastWatchAt time.Time
+	store      *persistence.Store
+	path       string
+	snapshot   *model.ReviewSession // last persisted state, the 3-way merge base
+	fileState  *fileState
+	wasCreated bool // session was auto-created this run (delete-if-empty on exit)
+	watchEvery time.Duration
+	// watchDisabled turns the external-change poll off entirely
+	// (review_watch_interval_ms = 0).
+	watchDisabled bool
+	lastWatchAt   time.Time
 }
+
+// msDuration converts config milliseconds to a duration.
+func msDuration(ms int) time.Duration { return time.Duration(ms) * time.Millisecond }
 
 type fileState struct {
 	modTime time.Time
@@ -94,7 +100,7 @@ func (lc *sessionLifecycle) save(a *app.App) error {
 // running `mrman review add`) into the live session. Returns the number of
 // merged changes. Skipped while composing a comment and between intervals.
 func (lc *sessionLifecycle) pollExternalChanges(a *app.App, composing bool) int {
-	if lc.store == nil || lc.path == "" || composing {
+	if lc.store == nil || lc.path == "" || composing || lc.watchDisabled {
 		return 0
 	}
 	if time.Since(lc.lastWatchAt) < lc.watchEvery {
