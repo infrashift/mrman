@@ -271,6 +271,13 @@ type App struct {
 	// until ApplyLoadedSelection consumes them to build ReviewCommits.
 	pendingSelectedCommits []vcs.CommitInfo
 
+	// Pr is the PR-mode state; nil outside PR reviews.
+	Pr *PrState
+	// Submit is the in-progress submit flow; nil when idle.
+	Submit *SubmitState
+	// CommentTypePrefix controls the [TYPE] prefix on submitted bodies.
+	CommentTypePrefix bool
+
 	// PendingEditorTarget is the queued external-editor target; the UI loop
 	// consumes it via TakePendingEditorTarget after leaving the TUI screen.
 	PendingEditorTarget *editor.Target

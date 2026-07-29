@@ -9,6 +9,7 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/infrashift/mrman/internal/app"
+	"github.com/infrashift/mrman/internal/forge"
 	"github.com/infrashift/mrman/internal/input"
 	"github.com/infrashift/mrman/internal/model"
 	"github.com/infrashift/mrman/internal/output"
@@ -147,6 +148,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleKey(tea.Key(msg))
 	case tea.PasteMsg:
 		m.handlePaste(msg.Content)
+	case prSubmitResultMsg:
+		m.handleSubmitResult(msg)
 	}
 	return m, nil
 }
@@ -324,7 +327,21 @@ func (m *Model) handleKey(k tea.Key) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	// 6. Dispatch.
+	// 6. Submit modals may spawn async work.
+	switch a.InputMode {
+	case input.ModeSubmitActionPicker:
+		quit, cmd := m.dispatchSubmitPicker(action)
+		if quit {
+			return m, tea.Quit
+		}
+		return m, cmd
+	case input.ModeSubmitResolver:
+		return m, m.dispatchSubmitResolver(action)
+	case input.ModeSubmitConfirm:
+		return m, m.dispatchSubmitConfirm(action)
+	}
+
+	// 7. Dispatch.
 	if quit := m.dispatch(action); quit {
 		return m, tea.Quit
 	}
@@ -518,12 +535,30 @@ func (m *Model) runCommand(cmd input.Command) bool {
 		}
 		staged := a.StageReviewedFiles()
 		a.SetMessage(fmt.Sprintf("Staged %d reviewed file(s)", staged))
+	case input.CmdSubmitPicker:
+		a.StartSubmitPicker()
+	case input.CmdSubmitComment:
+		a.StartSubmitWith(forge.SubmitComment, false)
+	case input.CmdSubmitApprove:
+		a.StartSubmitWith(forge.SubmitApprove, false)
+	case input.CmdSubmitRequestChanges:
+		a.StartSubmitWith(forge.SubmitRequestChanges, false)
+	case input.CmdSubmitDraft:
+		a.StartSubmitWith(forge.SubmitDraft, false)
+	case input.CmdToggleVim:
+		m.CommentVimMode = !m.CommentVimMode
+		a.SetMessage(fmt.Sprintf("Comment vim mode: %v (next comment)", m.CommentVimMode))
+	case input.CmdSetVim:
+		m.CommentVimMode = true
+		a.SetMessage("Comment vim mode: on (next comment)")
+	case input.CmdSetNoVim:
+		m.CommentVimMode = false
+		a.SetMessage("Comment vim mode: off")
 	case input.CmdSetCommitsVisible, input.CmdSetCommitsHidden, input.CmdToggleCommits,
 		input.CmdReload, input.CmdEdit,
-		input.CmdTargetsLocal, input.CmdTargetsPrs, input.CmdSubmitPicker,
-		input.CmdSubmitComment, input.CmdSubmitApprove, input.CmdSubmitRequestChanges,
-		input.CmdSubmitDraft, input.CmdCommentsUnresolved, input.CmdCommentsAll,
-		input.CmdCommentsHide, input.CmdToggleVim, input.CmdSetVim, input.CmdSetNoVim,
+		input.CmdTargetsLocal, input.CmdTargetsPrs,
+		input.CmdCommentsUnresolved, input.CmdCommentsAll,
+		input.CmdCommentsHide,
 		input.CmdVersion:
 		a.SetMessage("Not available yet: :" + cmd.Raw)
 	default:
@@ -867,6 +902,12 @@ func (m *Model) View() tea.View {
 			overlay = overlay[len(overlay)-innerH:]
 		}
 		copy(diffInner[innerH-len(overlay):], overlay)
+	}
+	if modal := m.submitModalView(diffW); len(modal) > 0 {
+		if len(modal) > innerH {
+			modal = modal[:innerH]
+		}
+		copy(diffInner[innerH-len(modal):], modal)
 	}
 	mainCols = append(mainCols, m.titledPanel(
 		strings.Join(diffInner, "\n"), m.diffTitle(),

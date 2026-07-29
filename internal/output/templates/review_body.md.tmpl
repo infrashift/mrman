@@ -1,0 +1,9 @@
+{{- range $i, $c := .ReviewComments}}{{if $i}}
+
+{{end}}{{$c.Content}}{{end}}
+{{- if .MovedToSummary}}{{if .ReviewComments}}
+
+{{end}}## Unplaced comments
+
+{{range .MovedToSummary}}- {{if .Type}}[{{upper .Type}}] {{end}}{{.Path}}: {{.Content}}
+{{end}}{{end}}

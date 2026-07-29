@@ -12,9 +12,10 @@ import (
 // exportOptions carries the UI-level export configuration (template override
 // and legend flag arrive from config in M5; defaults match tuicr).
 type exportOptions struct {
-	TemplatePath string
-	ShowLegend   bool
-	ToStdout     bool
+	TemplatePath           string
+	ReviewBodyTemplatePath string
+	ShowLegend             bool
+	ToStdout               bool
 }
 
 // renderExport builds the notes markdown for the current session.

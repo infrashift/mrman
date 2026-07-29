@@ -27,8 +27,10 @@ func main() {
 			os.Exit(1)
 		}
 	case cli.CommandPr:
-		fmt.Fprintln(os.Stderr, "mrman: PR mode is not implemented yet (milestone M6)")
-		os.Exit(1)
+		if err := ui.RunPr(args.PrTarget, args.Tui); err != nil {
+			fmt.Fprintln(os.Stderr, "error:", err)
+			os.Exit(1)
+		}
 	case cli.CommandReviewList, cli.CommandReviewAdd, cli.CommandReviewComments:
 		if err := runReview(args); err != nil {
 			fmt.Fprintln(os.Stderr, "error:", err)

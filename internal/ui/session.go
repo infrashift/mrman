@@ -67,10 +67,16 @@ func openSession(store *persistence.Store, fresh *model.ReviewSession) (*session
 		}
 	}
 
+	announceSession(session)
+	return lc, session
+}
+
+// announceSession prints the session slug to stderr for collaborating
+// agents, before the TUI takes over the terminal.
+func announceSession(session *model.ReviewSession) {
 	if s, err := slug.ForSession(session); err == nil {
 		fmt.Fprintf(os.Stderr, "mrman-session: %s\n", s.String())
 	}
-	return lc, session
 }
 
 // save persists the live session with merge-on-write and refreshes the
