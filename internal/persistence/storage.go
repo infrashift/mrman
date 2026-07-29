@@ -41,6 +41,10 @@ type SessionSummary struct {
 	ReviewedCount int
 	// FileCount is the number of files in the session.
 	FileCount int
+	// GrantedEvents are the submit events an agent may post for this
+	// session right now, empty when none. Exposed so an agent can see what
+	// it may do without attempting it and being refused.
+	GrantedEvents []string
 	// Anchor is the slug anchor segment (branch, short SHA, or pr/<n>).
 	Anchor string
 	// Active reports whether a live TUI currently has the session open.
@@ -408,6 +412,7 @@ func (s *Store) summaryFromEntry(slugStr string, entry ManifestEntry, active map
 		FileCount:     entry.Display.FileCount,
 		Anchor:        entry.Display.Anchor,
 		Active:        active[normalizeActivePath(fullPath)],
+		GrantedEvents: s.GrantedEventsForPath(fullPath),
 	}
 }
 

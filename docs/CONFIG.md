@@ -140,6 +140,25 @@ with `:submit`. Both are Go `text/template` with embedded defaults, and a
 template that fails to parse falls back to its default with a warning rather
 than losing your review.
 
+## Agent submission
+
+There is no config key for this, deliberately. Authorizing an agent to
+submit a review is done per-session, at launch:
+
+```sh
+mrman pr 1 --auto                        # comment and draft
+mrman pr 1 --auto=comment,draft,approve  # explicitly wider
+```
+
+A persistent switch in this file was considered and rejected: it would be
+too easy to enable once and forget, and it would apply to every repository
+and every pull request until noticed. The grant is instead held against the
+running TUI's process, so it lasts exactly as long as you have the review
+open. `:agent` shows it, `:agent off` revokes it.
+
+`--auto` is refused alongside `--json`, and refused without a terminal, so
+that a command an agent runs can never create one.
+
 ## Ignoring files
 
 `.gitignore` is honored automatically. A `.mrmanignore` at the repository

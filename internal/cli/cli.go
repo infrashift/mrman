@@ -1,8 +1,11 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
+	"os"
 
+	"github.com/charmbracelet/x/term"
 	"github.com/spf13/cobra"
 
 	"github.com/infrashift/mrman/internal/version"
@@ -19,7 +22,45 @@ func Parse(argv []string) (*Args, error) {
 	if err := root.Execute(); err != nil {
 		return nil, err
 	}
+	if err := resolveAutoGrant(root, &args.Tui); err != nil {
+		return nil, err
+	}
 	return args, nil
+}
+
+// stdinIsTerminal is the TTY probe, a var so tests can drive both paths.
+//
+// This must be a real isatty, not a ModeCharDevice check: /dev/null is a
+// character device, so the naive test reports "terminal" for exactly the
+// redirect an agent shelling out would use.
+var stdinIsTerminal = func() bool {
+	return term.IsTerminal(os.Stdin.Fd())
+}
+
+// resolveAutoGrant turns the --auto flag into TuiOptions.GrantedEvents,
+// refusing it when it did not come from a person at a terminal.
+//
+// The TTY check is the second half of the interlock: --json already cannot
+// carry --auto, and this stops an agent reaching the interactive path by
+// shelling out to `mrman pr 1 --auto` instead.
+func resolveAutoGrant(root *cobra.Command, o *TuiOptions) error {
+	flag := root.PersistentFlags().Lookup("auto")
+	if flag == nil || !flag.Changed {
+		return nil
+	}
+	if !stdinIsTerminal() {
+		return errors.New(
+			"--auto requires an interactive terminal: it authorizes an agent to submit " +
+				"reviews, so it must be given by a person running mrman, not by a program " +
+				"invoking it")
+	}
+	events, err := ParseAutoGrant(flag.Value.String())
+	if err != nil {
+		return err
+	}
+	o.AutoSet = true
+	o.GrantedEvents = events
+	return nil
 }
 
 func newRootCmd(args *Args) *cobra.Command {
@@ -60,6 +101,9 @@ func addTuiFlags(cmd *cobra.Command, o *TuiOptions) {
 	f.BoolVar(&o.Stdout, "stdout", false, "export review markdown to stdout instead of the clipboard")
 	f.StringVar(&o.RepoURL, "repo-url", "", "override the forge repository for PR operations")
 	f.StringVar(&o.Forge, "forge", "", "forge for ambiguous targets: github|gitlab|azuredevops|forgejo")
+	f.BoolVar(&o.JSON, "json", false, "open the pull request headlessly and print its session as JSON")
+	f.String("auto", "", "authorize agent submits for this session: comment,draft,approve,request-changes (default comment,draft)")
+	f.Lookup("auto").NoOptDefVal = " " // bare --auto means "the default set"
 
 	cmd.MarkFlagsMutuallyExclusive("file", "path")
 	cmd.MarkFlagsMutuallyExclusive("file", "revisions")
@@ -68,6 +112,9 @@ func addTuiFlags(cmd *cobra.Command, o *TuiOptions) {
 	cmd.MarkFlagsMutuallyExclusive("all-files", "path")
 	cmd.MarkFlagsMutuallyExclusive("all-files", "revisions")
 	cmd.MarkFlagsMutuallyExclusive("all-files", "working-tree")
+	// Load-bearing: --json is the agent-invocable path, so it must never be
+	// able to issue a grant. See internal/cli/agentgrant.go.
+	cmd.MarkFlagsMutuallyExclusive("json", "auto")
 }
 
 func newTuiCmd(args *Args) *cobra.Command {
@@ -159,7 +206,34 @@ func newReviewCmd(args *Args) *cobra.Command {
 	comments.Flags().StringVar(&args.Review.Session, "session", "", "session slug or path (required)")
 	_ = comments.MarkFlagRequired("session")
 
-	review.AddCommand(list, add, comments)
+	watch := &cobra.Command{
+		Use:   "watch",
+		Short: "Stream session changes as newline-delimited JSON until it closes",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			args.Command = CommandReviewWatch
+			return nil
+		},
+	}
+	watchFlags := watch.Flags()
+	watchFlags.StringVar(&args.Review.Session, "session", "", "session slug or path (required)")
+	watchFlags.IntVar(&args.Review.TimeoutSeconds, "timeout", 0, "stop after N seconds (0 waits indefinitely)")
+	watchFlags.IntVar(&args.Review.IntervalMS, "interval", 0, "poll interval in milliseconds")
+	watchFlags.StringVar(&args.Review.Since, "since", "", "resume after this comment id instead of sending a snapshot")
+
+	submit := &cobra.Command{
+		Use:   "submit",
+		Short: "Submit a review to the forge (requires the session's agent-submit grant)",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			args.Command = CommandReviewSubmit
+			return nil
+		},
+	}
+	submitFlags := submit.Flags()
+	submitFlags.StringVar(&args.Review.Session, "session", "", "session slug or path (required)")
+	submitFlags.StringVar(&args.Review.Event, "event", "comment", "comment|approve|request-changes|draft")
+	submitFlags.StringVar(&args.Review.Username, "username", "", "comment author recorded on submit")
+
+	review.AddCommand(list, add, comments, watch, submit)
 	return review
 }
 

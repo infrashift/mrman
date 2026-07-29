@@ -102,6 +102,12 @@ func Comments(store *persistence.Store, opts Options, out io.Writer) error {
 	return writeJSON(out, collectComments(session))
 }
 
+// ResolveSessionPath resolves a slug or path to a session file, exported for
+// callers above this package that need the lookup the CLI does.
+func ResolveSessionPath(store *persistence.Store, repo, session string) (string, error) {
+	return resolveSessionPath(store, repo, session)
+}
+
 // resolveSessionPath ports tuicr's resolve_session_ref: direct paths win,
 // PR slugs resolve via the manifest, local slugs match within the repo
 // selector's listing (erroring on zero or multiple matches).

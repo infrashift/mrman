@@ -305,6 +305,89 @@ like mrman was emitting an empty section. It was not — the item was on the
 next line. Print the whole body, ideally through `cat -A` so the blank lines
 are visible.
 
+## 6. Exercise the agent-submit interlock
+
+An agent can read a pull request freely, but submitting a review is gated
+behind a grant only a human can issue. Walk it:
+
+**Nothing granted — the refusal must reach the forge not at all.**
+
+```console
+$ mrman pr 1 --json > /dev/null          # open the session headlessly
+$ mrman review add --session gh:github.com/OWNER/REPO/pr/1 \
+    --target-file src/cache.go --line 75 --side new \
+    --type note --username "Claude" "Draft comment."
+$ mrman review submit --session gh:github.com/OWNER/REPO/pr/1 --event comment
+{"error":"agent_submit_not_permitted","reason":"no_grant","requested_event":"comment",
+ "granted_events":[],"message":"This session has no agent-submit grant. Ask the user
+ to open the review interactively with: mrman pr <target> --auto=comment"}
+$ echo $?
+1
+```
+
+Confirm it truly did nothing:
+
+```sh
+gh api repos/OWNER/REPO/pulls/1/reviews --jq 'length'
+```
+
+**Try to grant it yourself — both routes are closed.**
+
+```console
+$ mrman pr 1 --json --auto
+error: if any flags in the group [json auto] are set none of the others can be
+
+$ mrman pr 1 --auto < /dev/null
+error: --auto requires an interactive terminal: it authorizes an agent to submit
+reviews, so it must be given by a person running mrman, not by a program invoking it
+```
+
+The second matters more than it looks. `/dev/null` is a character device, so
+a `ModeCharDevice` test would call it a terminal — the check has to be a real
+`isatty`, and there is a test pinning that.
+
+**Granted — from a terminal, by a person.**
+
+```sh
+mrman pr 1 --auto            # comment + draft
+mrman pr 1 --auto=comment,draft,approve
+```
+
+The header now carries a persistent `AGENT SUBMIT: comment,draft` chip in
+warning colors. `:agent` reports it; `:agent off` revokes it immediately.
+`mrman review list` shows `granted_events` so an agent can check before
+attempting.
+
+With the TUI open, an agent's `review submit --event comment` succeeds and
+`--event approve` still refuses — approving is what gets code merged, so a
+default grant excludes it. Quit the TUI and the grant is gone: it is held
+against that process, so there is no teardown step to skip or crash through.
+
+The whole path is covered by tests, including against a real pull request:
+
+```sh
+MRMAN_LIVE_PR=OWNER/REPO#1 MRMAN_LIVE_SUBMIT=1 \
+  go test ./internal/agentsubmit/ -run TestLiveAgentSubmit -v
+```
+
+```
+refused: This session has no agent-submit grant. Ask the user to open the review …
+forge unchanged after refusal: 4 reviews
+submitted: review=4811395236 state=COMMENTED inline=0 locked=1
+```
+
+### What the interlock is, and is not
+
+It is a **deliberate-action interlock**: agent submission cannot happen by
+accident, by an agent misreading its instructions, or by an agent deciding
+unilaterally that it would be helpful — and when it is possible, a human is
+looking at a screen that says so.
+
+It is **not a security boundary**. An agent with a shell can call the GitHub
+API directly and mrman cannot stop it. If that is your threat model, the
+control belongs at the credential: give agent sessions a token without
+`repo` scope, or no token at all.
+
 ## What live testing actually caught
 
 The read paths all worked first time. The one failure was in the test rather

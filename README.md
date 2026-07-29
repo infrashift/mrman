@@ -85,6 +85,20 @@ mrman review add --session <slug> --target-file src/x.go --line 42 \
 mrman review comments --session <slug>
 ```
 
+```sh
+mrman pr 1 --json                       # open a PR session headlessly, no TUI
+mrman review watch --session <slug>     # stream changes until submitted/closed
+mrman review submit --session <slug> --event comment   # requires a grant
+```
+
+Submitting is the one agent command that writes to a forge, and it is gated:
+it works only while a human has the review open with `mrman pr <target>
+--auto`, which cannot be passed alongside `--json` and requires a terminal —
+so a command an agent runs can never authorize one. The grant is held
+against the TUI's process and dies with it. This is a deliberate-action
+interlock, not a security boundary; see
+[`docs/MRMAN-GITHUB-WORKFLOW-TUTORIAL.md`](docs/MRMAN-GITHUB-WORKFLOW-TUTORIAL.md).
+
 All `review` output is JSON. [`skills/mrman/`](skills/mrman/) packages this
 as an agent skill, with tmux and zellij wrappers that open a review pane and
 hand the session slug back — it draws the line between *the user reviews

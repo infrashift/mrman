@@ -24,6 +24,9 @@ type SessionSummaryOutput struct {
 	FileCount     int    `json:"file_count"`
 	Anchor        string `json:"anchor"`
 	Active        bool   `json:"active"`
+	// GrantedEvents lists the submit events an agent may post for this
+	// session; absent when none are authorized.
+	GrantedEvents []string `json:"granted_events,omitempty"`
 }
 
 func summaryOutput(s persistence.SessionSummary) SessionSummaryOutput {
@@ -37,6 +40,7 @@ func summaryOutput(s persistence.SessionSummary) SessionSummaryOutput {
 		FileCount:     s.FileCount,
 		Anchor:        s.Anchor,
 		Active:        s.Active,
+		GrantedEvents: s.GrantedEvents,
 	}
 }
 

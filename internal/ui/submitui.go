@@ -11,7 +11,6 @@ import (
 	"github.com/infrashift/mrman/internal/app"
 	"github.com/infrashift/mrman/internal/forge"
 	"github.com/infrashift/mrman/internal/input"
-	"github.com/infrashift/mrman/internal/output"
 )
 
 // prSubmitResultMsg carries the async CreateReview outcome.
@@ -106,22 +105,10 @@ func (m *Model) spawnSubmit() tea.Cmd {
 		return nil
 	}
 
-	// Review body through the user-overridable template.
-	data := &output.ReviewBodyData{}
-	for _, c := range a.Submit.ReviewComments {
-		data.ReviewComments = append(data.ReviewComments,
-			output.ReviewBodyComment{Type: typeID(c.CommentType.ID()), Content: c.Content})
-	}
-	for _, item := range a.Submit.MovedToSummary() {
-		data.MovedToSummary = append(data.MovedToSummary, output.ReviewBodyComment{
-			Type: typeID(item.Comment.CommentType.ID()), Path: item.Path, Content: item.Comment.Content,
-		})
-	}
-	tmpl, tmplWarnings := output.LoadReviewBodyTemplate(m.export.ReviewBodyTemplatePath)
+	body, tmplWarnings, err := app.BuildReviewBody(a, m.export.ReviewBodyTemplatePath)
 	for _, w := range tmplWarnings {
 		a.SetWarning(w)
 	}
-	body, err := output.RenderReviewBody(tmpl, data)
 	if err != nil {
 		a.SetError("Review body template failed: " + err.Error())
 		return nil
@@ -140,24 +127,12 @@ func (m *Model) spawnSubmit() tea.Cmd {
 
 	backend := a.Pr.Backend
 	details := a.Pr.Details
-	req := forge.CreateReviewRequest{
-		Event:    a.Submit.Event,
-		CommitID: a.Submit.CommitID,
-		Body:     body,
-		Comments: a.Submit.Mappable,
-	}
+	req := app.SubmitRequest(a, body)
 	event := a.Submit.Event
 	return func() tea.Msg {
 		result, callErr := backend.CreateReview(context.Background(), details, req)
 		return prSubmitResultMsg{Gen: gen, Key: key, Event: event, Result: result, Err: callErr}
 	}
-}
-
-func typeID(id string) string {
-	if id == "none" {
-		return ""
-	}
-	return id
 }
 
 // handleSubmitResult applies an async submit outcome, discarding stale ones.

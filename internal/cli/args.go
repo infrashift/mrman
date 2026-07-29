@@ -23,6 +23,10 @@ const (
 	CommandReviewAdd
 	// CommandReviewComments prints a session's comments as JSON.
 	CommandReviewComments
+	// CommandReviewWatch streams session changes as newline-delimited JSON.
+	CommandReviewWatch
+	// CommandReviewSubmit posts a review, behind the agent-submit grant.
+	CommandReviewSubmit
 	// CommandVersion prints the version line.
 	CommandVersion
 )
@@ -41,6 +45,14 @@ type TuiOptions struct {
 	Stdout      bool
 	RepoURL     string
 	Forge       string
+	// JSON opens a pull-request session headlessly and prints it, instead
+	// of launching the TUI.
+	JSON bool
+	// AutoSet records that --auto was given; GrantedEvents is what it
+	// authorizes. Kept separate so "flag absent" and "flag present but
+	// granting nothing" cannot be confused.
+	AutoSet       bool
+	GrantedEvents []string
 }
 
 // ReviewOptions carries the flags of the review subcommands.
@@ -56,6 +68,12 @@ type ReviewOptions struct {
 	Side       string
 	Username   string
 	Comment    string
+	// Event is the submit event for `review submit`.
+	Event string
+	// TimeoutSeconds and IntervalMS bound `review watch`; Since resumes it.
+	TimeoutSeconds int
+	IntervalMS     int
+	Since          string
 }
 
 // Args is the fully parsed command line handed to main for dispatch.

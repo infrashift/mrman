@@ -22,6 +22,9 @@ const (
 	CmdClearCommentsOnly
 	CmdHelp
 	CmdVersion
+	// CmdAgentStatus prints the agent-submit grant; CmdAgentOff revokes it.
+	CmdAgentStatus
+	CmdAgentOff
 	CmdSetWrap
 	CmdToggleWrap
 	CmdToggleVim
@@ -71,6 +74,8 @@ var commandSpecs = []struct {
 	{"clearc", CmdClearCommentsOnly},
 	{"help", CmdHelp}, {"h", CmdHelp},
 	{"version", CmdVersion},
+	{"agent", CmdAgentStatus},
+	{"agent off", CmdAgentOff},
 	{"set wrap", CmdSetWrap},
 	{"set wrap!", CmdToggleWrap}, {"wrap", CmdToggleWrap},
 	{"vim", CmdToggleVim}, {"set vim!", CmdToggleVim},

@@ -187,6 +187,7 @@ selection while the mouse is enabled.
 | `:{N}` / `:o{N}` | Jump to line N on the new / old side |
 | `:help` `:h` | Help |
 | `:version` | Show the build |
+| `:agent` `:agent off` | Show / revoke the agent-submit grant |
 
 Tab completes commands; repeated presses cycle the matches.
 

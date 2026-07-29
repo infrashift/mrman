@@ -121,7 +121,7 @@ func (m *Model) handlePrReloadResult(msg prReloadResultMsg) tea.Cmd {
 		if m.session != nil {
 			m.session.finish(a)
 		}
-		lifecycle, session := openPrSession(m.store, fresh)
+		lifecycle, session := openPrSession(m.store, fresh, m.grantedEvents)
 		m.session = lifecycle
 		a.ApplyPullRequest(msg.Load, session)
 		a.SetMessage("Pull request advanced to " + shortSHA(msg.Load.Details.HeadSHA) +

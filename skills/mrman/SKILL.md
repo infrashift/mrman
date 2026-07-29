@@ -1,15 +1,17 @@
 ---
 name: mrman
-description: Use mrman's review CLI to read and add comments in active TUI review sessions, and launch mrman in tmux/zellij when a user needs an interactive review pane.
+description: Use mrman's review CLI to open pull-request sessions headlessly, stream a human's review comments as they are written, add your own findings, and submit a review when the user has authorized it. Also launches mrman in tmux/zellij when a user needs an interactive review pane.
 ---
 
 # mrman Review Workflow
 
-`mrman review` is the agent interface. The TUI is where the human reviews
-code; the CLI is how you discover active sessions, read their comments, and
-— only when it is appropriate — add your own.
+`mrman review` is the agent interface. The TUI is where a human reviews
+code; the CLI is how you open sessions, discover them, follow what the human
+writes, add your own findings, and — only when they have authorized it —
+submit.
 
-All `review` output is JSON.
+All output is JSON. Every command that reads is open to you. The one command
+that writes to a forge is not, and cannot be unlocked by anything you run.
 
 ## Decide which workflow this is, first
 
@@ -19,9 +21,8 @@ while they wait for your findings.
 
 **1. User-led review of changes you produced.**
 The user wants to read the patch and write comments themselves. Open or find
-the session, then read their comments with `mrman review comments` when they
-say the review is ready — or poll for new comment IDs if you are explicitly
-waiting. Do **not** add comments of your own, do not pre-review your own
+the session, then follow it with `mrman review watch`, which tells you when
+they submit or close it. Do **not** add comments of your own, do not pre-review your own
 patch, and never author a comment that could read as theirs.
 
 **2. You reviewing a patch.**
@@ -31,6 +32,28 @@ the findings with `mrman review add` and an explicit `--username` naming
 you. Ask before writing when either is unclear.
 
 If the request does not clearly say which, ask.
+
+## Start a session without a terminal
+
+If no session exists and you do not need a human watching, open one
+headlessly — no TUI, no multiplexer:
+
+```bash
+mrman pr 1 --json
+mrman pr owner/repo#1 --json
+```
+
+It prints the session and exits:
+
+```json
+{"slug":"gh:github.com/owner/repo/pr/1","kind":"pr","path":"...",
+ "repo":"owner/repo","number":1,"title":"...","head_sha":"...","base_sha":"...",
+ "file_count":2,"read_only":false,"granted_events":[]}
+```
+
+`granted_events` is always empty here, and cannot be otherwise: a headless
+open is a command you can issue, so it is not allowed to authorize anything.
+See "Submitting" below.
 
 ## Attach to a session
 
@@ -83,7 +106,29 @@ else while the wrapper blocks, read the comments after the user exits.
 
 ## Read the user's comments
 
-There is no push channel. Read on demand:
+Prefer `watch` over polling. It blocks and emits one JSON object per line as
+the session changes:
+
+```bash
+mrman review watch --session <slug>
+```
+
+```
+{"event":"snapshot","comments":[...]}
+{"event":"comment_added","comment":{...}}
+{"event":"comment_changed","comment":{...}}
+{"event":"comment_removed","id":"..."}
+{"event":"submitted","lifecycle_state":"submitted"}
+{"event":"closed","reason":"tui_exited"}
+```
+
+The stream ends on `submitted` or `closed`, and those are the two answers to
+"is the human finished" — you do not have to ask them. `submitted` means the
+review was pushed to the forge; `closed` means they quit. Use `--timeout`
+to bound the wait and `--since <comment-id>` to resume without re-reading
+what you already have.
+
+A one-shot read is still available when a stream does not suit:
 
 ```bash
 mrman review comments --session <slug>
@@ -102,11 +147,8 @@ Treat the types as the user's intent:
 Comment types are user-configurable, so a session may use different ids. A
 type's `definition` in the user's config says what it means.
 
-While waiting during a live review, poll roughly every 30 seconds and
-compare `id`s against the previous result; read immediately when the user
-says they are done. Stop once the review is finished or polling would block
-more useful work. Because the user can keep reviewing while you work, re-run
-`mrman review comments` before claiming you have addressed everything.
+Because the user can keep reviewing while you work, re-read before claiming
+you have addressed everything — or leave a `watch` running, which tells you.
 
 An empty result usually means the wrong session — ask whether they saved
 into the one you are reading.
@@ -157,6 +199,44 @@ mrman review add --session <slug> --username "Claude" --input - <<'JSON'
  "type": "issue", "content": "Unchecked error."}
 JSON
 ```
+
+## Submitting
+
+You cannot submit a review unless the user authorized it, and you cannot
+authorize yourself. The grant is issued only by a human running:
+
+```bash
+mrman pr 1 --auto                       # comment and draft
+mrman pr 1 --auto=comment,draft,approve # explicitly wider
+```
+
+It is held against that TUI's process, so it exists only while they have the
+review open and disappears when they close it. `mrman pr 1 --json --auto` is
+refused, and `--auto` without a terminal is refused, precisely so that a
+command *you* run cannot create one.
+
+Check before attempting: `review list` reports `granted_events` per session.
+
+```bash
+mrman review submit --session <slug> --event comment --username "Claude"
+```
+
+A refusal is JSON on stdout with exit status 1:
+
+```json
+{"error":"agent_submit_not_permitted","reason":"no_grant","requested_event":"approve",
+ "granted_events":["comment","draft"],
+ "message":"... Ask the user to reopen it with: mrman pr <target> --auto=approve"}
+```
+
+`reason` is `no_grant`, `grant_expired` (their session closed) or
+`event_not_granted`. **The remedy is always the user's to perform.** Do not
+look for another route to the same outcome — do not call the forge API
+directly, do not edit the session file, do not ask the user to paste a
+token. Report the refusal and what would lift it, then stop.
+
+Note that `comment` and `approve` are not interchangeable. An approval can
+get code merged; a default grant deliberately excludes it.
 
 ## Comments you must not touch
 

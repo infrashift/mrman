@@ -82,6 +82,7 @@ func helpContent(leader rune) []string {
 		"  :submit [comment|approve|request-changes|draft]",
 		"  :{N} :o{N}             jump to line N (new / old side)",
 		"  :version               show the build",
+		"  :agent :agent off      show / revoke the agent-submit grant",
 		"",
 		" Quit",
 		"  q           quit    ZZ/ZQ  quit           Ctrl-C twice  force quit",

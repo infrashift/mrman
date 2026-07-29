@@ -12,6 +12,15 @@ import (
 
 // Header renders the 1-row top bar: brand left, context chunks right.
 func Header(a *app.App, t *theme.Theme, width int) string {
+	return HeaderWithGrant(a, t, width, nil)
+}
+
+// HeaderWithGrant is Header plus the agent-submit indicator.
+//
+// A live grant is shown persistently and in warning colors, because the
+// whole interlock rests on the human knowing it is armed. It is deliberately
+// not tucked into a status message that expires.
+func HeaderWithGrant(a *app.App, t *theme.Theme, width int, grantedEvents []string) string {
 	emitter := &render.Emitter{}
 	brand := render.Span{Text: " mrman ", Style: render.Style{Fg: t.FgPrimary, Bg: t.StatusBarBg, Bold: true}}
 
@@ -35,16 +44,31 @@ func Header(a *app.App, t *theme.Theme, width int) string {
 		chunks = append(chunks, fmt.Sprintf("PRISTINE · %d files", len(a.DiffFiles)))
 	}
 
+	grantChip := ""
+	if len(grantedEvents) > 0 {
+		grantChip = " AGENT SUBMIT: " + strings.Join(grantedEvents, ",") + " "
+	}
+
 	right := " " + strings.Join(chunks, " · ") + " "
-	pad := width - render.StringWidth(brand.Text) - render.StringWidth(right)
+	pad := width - render.StringWidth(brand.Text) -
+		render.StringWidth(grantChip) - render.StringWidth(right)
 	if pad < 0 {
 		pad = 0
 	}
-	return emitter.Line([]render.Span{
+	spans := []render.Span{
 		brand,
 		{Text: strings.Repeat(" ", pad), Style: render.Style{Bg: t.StatusBarBg}},
-		{Text: right, Style: render.Style{Fg: t.FgSecondary, Bg: t.StatusBarBg}},
+	}
+	if grantChip != "" {
+		spans = append(spans, render.Span{
+			Text:  grantChip,
+			Style: render.Style{Fg: t.MessageWarningFg, Bg: t.MessageWarningBg, Bold: true},
+		})
+	}
+	spans = append(spans, render.Span{
+		Text: right, Style: render.Style{Fg: t.FgSecondary, Bg: t.StatusBarBg},
 	})
+	return emitter.Line(spans)
 }
 
 // prTitleBudget caps how much of a pull-request title the header shows

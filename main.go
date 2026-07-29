@@ -3,8 +3,16 @@
 package main
 
 import (
+	"bufio"
+	"errors"
+	"os/signal"
+	"syscall"
+	"time"
+
 	"fmt"
 	"os"
+
+	"github.com/infrashift/mrman/internal/agentsubmit"
 
 	"github.com/infrashift/mrman/internal/cli"
 	"github.com/infrashift/mrman/internal/persistence"
@@ -27,11 +35,19 @@ func main() {
 			os.Exit(1)
 		}
 	case cli.CommandPr:
+		if args.Tui.JSON {
+			if err := ui.RunPrHeadless(args.PrTarget, args.Tui, os.Stdout); err != nil {
+				fmt.Fprintln(os.Stderr, "error:", err)
+				os.Exit(1)
+			}
+			return
+		}
 		if err := ui.RunPr(args.PrTarget, args.Tui); err != nil {
 			fmt.Fprintln(os.Stderr, "error:", err)
 			os.Exit(1)
 		}
-	case cli.CommandReviewList, cli.CommandReviewAdd, cli.CommandReviewComments:
+	case cli.CommandReviewList, cli.CommandReviewAdd, cli.CommandReviewComments,
+		cli.CommandReviewWatch, cli.CommandReviewSubmit:
 		if err := runReview(args); err != nil {
 			fmt.Fprintln(os.Stderr, "error:", err)
 			os.Exit(1)
@@ -64,6 +80,50 @@ func runReview(args *cli.Args) error {
 		return reviewcli.Add(store, opts, os.Stdout)
 	case cli.CommandReviewComments:
 		return reviewcli.Comments(store, opts, os.Stdout)
+	case cli.CommandReviewWatch:
+		return runWatch(store, opts, args)
+	case cli.CommandReviewSubmit:
+		return runSubmit(store, opts, args)
 	}
 	return nil
+}
+
+// runWatch streams until the session closes or the user interrupts. SIGINT
+// ends the stream with a closed event rather than a broken pipe, so an agent
+// sees a clean terminator either way.
+func runWatch(store *persistence.Store, opts reviewcli.Options, args *cli.Args) error {
+	done := make(chan struct{})
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-signals
+		close(done)
+	}()
+	defer signal.Stop(signals)
+
+	out := bufio.NewWriter(os.Stdout)
+	defer out.Flush() //nolint:errcheck // the stream is already terminated
+	return reviewcli.Watch(store, opts, reviewcli.WatchOptions{
+		Interval: time.Duration(args.Review.IntervalMS) * time.Millisecond,
+		Timeout:  time.Duration(args.Review.TimeoutSeconds) * time.Second,
+		Since:    args.Review.Since,
+		Done:     done,
+	}, out)
+}
+
+// runSubmit posts a review, rendering an interlock refusal as JSON on stdout
+// so an agent can parse the reason rather than scraping a message.
+func runSubmit(store *persistence.Store, opts reviewcli.Options, args *cli.Args) error {
+	err := agentsubmit.Submit(store, agentsubmit.Options{
+		Options: opts,
+		Event:   args.Review.Event,
+	}, os.Stdout)
+	var denied *agentsubmit.SubmitDenied
+	if errors.As(err, &denied) {
+		if writeErr := agentsubmit.WriteDenial(os.Stdout, denied); writeErr != nil {
+			return writeErr
+		}
+		os.Exit(1)
+	}
+	return err
 }

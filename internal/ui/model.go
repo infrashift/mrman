@@ -77,6 +77,12 @@ type Model struct {
 	// an optimization, "" when reviewing outside a checkout.
 	localCheckout string
 
+	// grantedEvents is the agent-submit authorization this TUI was launched
+	// with (--auto). It follows the process, not the pull request: opening
+	// a different PR from the selector, or advancing to a new head, stays
+	// within the session the human authorized.
+	grantedEvents []string
+
 	// layout is the frame's hit-test map, rebuilt by every View.
 	layout layoutRects
 	// mouseEnabled mirrors the `mouse` config; when false no mouse mode is
@@ -653,6 +659,10 @@ func (m *Model) runCommand(cmd input.Command) bool {
 		m.queue(m.openInEditor())
 	case input.CmdVersion:
 		a.SetMessage("mrman " + version.String())
+	case input.CmdAgentStatus:
+		m.reportAgentGrant()
+	case input.CmdAgentOff:
+		m.revokeAgentGrant()
 	default:
 		a.SetError("Unknown command: " + cmd.Raw)
 	}
@@ -1122,7 +1132,7 @@ func (m *Model) View() tea.View {
 	}
 
 	frame := lipgloss.JoinVertical(lipgloss.Left,
-		Header(a, m.Theme, m.width),
+		HeaderWithGrant(a, m.Theme, m.width, m.grantedEvents),
 		body,
 		StatusBar(a, m.Theme, m.width),
 	)
