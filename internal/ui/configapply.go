@@ -48,6 +48,8 @@ func applyConfig(cfg config.Config, a *app.App, m *Model) {
 		m.leader = leader[0]
 	}
 	m.CommentVimMode = cfg.CommentVim
+	m.commentTabWidth = cfg.CommentTabWidth
+	m.mouseEnabled = cfg.Mouse
 	m.export.ShowLegend = cfg.ExportLegend
 	m.export.TemplatePath = cfg.Templates.Notes
 	m.export.ReviewBodyTemplatePath = cfg.Templates.ReviewBody

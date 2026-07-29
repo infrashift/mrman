@@ -24,8 +24,12 @@ const (
 	vimPendingCancel
 )
 
-func newVimState(a *app.App) *vimState {
-	return &vimState{editor: vimtext.New(a.CommentBuffer, a.CommentCursor)}
+func newVimState(a *app.App, tabWidth int) *vimState {
+	editor := vimtext.New(a.CommentBuffer, a.CommentCursor)
+	if tabWidth > 0 {
+		editor.TabWidth = tabWidth
+	}
+	return &vimState{editor: editor}
 }
 
 // label is the [..] tag shown in the input box header.

@@ -60,7 +60,7 @@ func Run(opts cli.TuiOptions) error {
 		}
 		backend = fb
 	default:
-		detected, dErr := detect.Detect(cwd, vcs.WhitespaceNormal, vcs.SystemRunner{})
+		detected, dErr := detect.Detect(cwd, whitespaceMode(cfg), vcs.SystemRunner{})
 		if dErr != nil {
 			if errors.Is(dErr, errs.ErrNotARepository) {
 				return fmt.Errorf("not inside a supported repository (git or jj): %w", dErr)
@@ -172,6 +172,16 @@ func Run(opts cli.TuiOptions) error {
 		fmt.Print(m.PendingStdout)
 	}
 	return err
+}
+
+// whitespaceMode maps the ignore_whitespace config onto the VCS diff mode.
+// It applies to local diffs only — a pull request's diff comes from the
+// forge already rendered, so there is nothing to re-run with a flag.
+func whitespaceMode(cfg config.Config) vcs.WhitespaceMode {
+	if cfg.IgnoreWhitespace {
+		return vcs.WhitespaceIgnoreAll
+	}
+	return vcs.WhitespaceNormal
 }
 
 func resolveTheme(opts cli.TuiOptions, cfg config.Config) (*theme.Theme, []string, error) {

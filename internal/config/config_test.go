@@ -412,7 +412,7 @@ func TestBackendAlwaysWarns(t *testing.T) {
 		if cfg.Backend != backend {
 			t.Errorf("Backend = %q, want %q", cfg.Backend, backend)
 		}
-		requireWarning(t, warnings, "mrman uses the git CLI")
+		requireWarning(t, warnings, "mrman uses the git CLI by design")
 	}
 }
 

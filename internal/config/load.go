@@ -205,7 +205,7 @@ func apply(raw map[string]any, cfg *Config, warnings *[]string) {
 	}
 	if v, ok := stringAt(raw, "backend"); ok {
 		cfg.Backend = v
-		*warnings = append(*warnings, "config `backend` is ignored — mrman uses the git CLI")
+		*warnings = append(*warnings, "config `backend` is ignored: mrman uses the git CLI by design, not for want of an alternative")
 	}
 	if v, ok := raw["comment_types"]; ok {
 		cfg.CommentTypes = parseCommentTypes(v, warnings)

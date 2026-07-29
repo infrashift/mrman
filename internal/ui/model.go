@@ -16,6 +16,7 @@ import (
 	"github.com/infrashift/mrman/internal/output"
 	"github.com/infrashift/mrman/internal/persistence"
 	"github.com/infrashift/mrman/internal/theme"
+	"github.com/infrashift/mrman/internal/version"
 )
 
 // tickMsg drives message expiry and periodic housekeeping (100ms heartbeat).
@@ -56,6 +57,9 @@ type Model struct {
 	// vim mode or not composing at all.
 	vim            *vimState
 	CommentVimMode bool
+	// commentTabWidth is the soft-tab width Tab inserts in the vim comment
+	// box (config `comment_tab_width`); 0 keeps vimtext's own default.
+	commentTabWidth int
 
 	// forge lazily resolves the driver backing the selector's Pull
 	// Requests tab; nil in tests and when no forge remote exists.
@@ -68,13 +72,21 @@ type Model struct {
 	// an optimization, "" when reviewing outside a checkout.
 	localCheckout string
 
+	// layout is the frame's hit-test map, rebuilt by every View.
+	layout layoutRects
+	// mouseEnabled mirrors the `mouse` config; when false no mouse mode is
+	// requested at all, so the terminal keeps its own selection.
+	mouseEnabled bool
+	// dragging is true between a diff press and its release.
+	dragging bool
+
 	width, height int
 }
 
 // enterComposeMode initializes the vim wrapper when enabled.
 func (m *Model) enterComposeMode() {
 	if m.CommentVimMode {
-		m.vim = newVimState(m.App)
+		m.vim = newVimState(m.App, m.commentTabWidth)
 	}
 }
 
@@ -180,6 +192,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.handlePrReloadResult(msg)
 	case prRangeDiffResultMsg:
 		m.handlePrRangeDiffResult(msg)
+	case tea.MouseMsg:
+		return m, m.handleMouse(msg)
+	case editorFinishedMsg:
+		m.handleEditorFinished(msg)
 	}
 	return m, nil
 }
@@ -644,8 +660,10 @@ func (m *Model) runCommand(cmd input.Command) bool {
 		m.setCommitSelectorVisible(false)
 	case input.CmdToggleCommits:
 		a.ToggleCommitSelector()
-	case input.CmdEdit, input.CmdVersion:
-		a.SetMessage("Not available yet: :" + cmd.Raw)
+	case input.CmdEdit:
+		m.queue(m.openInEditor())
+	case input.CmdVersion:
+		a.SetMessage("mrman " + version.String())
 	default:
 		a.SetError("Unknown command: " + cmd.Raw)
 	}
@@ -961,7 +979,11 @@ func (m *Model) dispatchNormal(action input.Action) bool {
 		m.cycleFocus(1)
 	case input.ToggleFocusReverse:
 		m.cycleFocus(-1)
-	case input.ToggleExpand:
+	case input.ToggleExpand, input.SelectFile, input.SelectFileFull:
+		// tuicr expands context gaps with Enter; mrman shipped Space.
+		// Both work: Enter for muscle memory, Space because it is already
+		// documented. They never collide — Enter in the file tree is
+		// dispatched by that pane's overlay before reaching here.
 		m.queue(m.expandGapAtCursor())
 	case input.CycleCommitNext:
 		m.queue(m.cycleCommit(true))
@@ -982,6 +1004,12 @@ func (m *Model) dispatchNormal(action input.Action) bool {
 			a.SetWarning("Pattern not found")
 		}
 	case input.ExportToClipboard:
+		// A live mouse drag makes y mean "copy what I highlighted", the
+		// same as in visual mode; with nothing highlighted it exports the
+		// whole review.
+		if m.yankMouseSelection() {
+			break
+		}
 		if out := m.exportToClipboard(); out != "" {
 			m.PendingStdout = out
 		}
@@ -1046,13 +1074,35 @@ func (m *Model) View() tea.View {
 	}
 	colH := innerH - stripH
 
+	// Screen geometry, recorded for mouse hit-testing as the frame is
+	// composed. Row 0 is the header; the strip (when shown) occupies
+	// rows 1..stripH; the columns start below it. Each titledPanel spends
+	// its first row on the title border, so bodies start one row in.
+	m.layout.reset()
+	colTop := 1 + stripH
+	if stripH > 0 {
+		m.layout.add(paneRect{
+			Panel: app.PanelCommitSelector, X: 1, Y: 2,
+			W: m.width - 2, H: stripH - 2, Offset: a.CommitListScrollOffset,
+		})
+	}
+
 	var mainCols []string
 	if a.ShowFileList {
 		flWidth := m.fileListWidth()
+		m.recordLeftColumnRects(flWidth, colTop, colH)
 		mainCols = append(mainCols, m.leftColumn(flWidth-2, colH))
 	}
 
 	diffW := m.diffInnerWidth()
+	diffX := 1
+	if a.ShowFileList {
+		diffX += m.fileListWidth()
+	}
+	m.layout.add(paneRect{
+		Panel: app.PanelDiff, X: diffX, Y: colTop + 1,
+		W: diffW, H: colH, Offset: a.DiffState.ScrollOffset,
+	})
 	diffInner := m.diffPane.BuildLines(a, diffW, colH)
 	if a.InputMode == input.ModeComment {
 		overlay := m.diffPane.commentInputOverlay(a, m.vim, diffW)
@@ -1090,7 +1140,18 @@ func (m *Model) View() tea.View {
 	view := tea.NewView(frame)
 	view.AltScreen = true
 	view.KeyboardEnhancements = tea.KeyboardEnhancements{ReportEventTypes: true}
+	view.MouseMode = m.mouseMode()
 	return view
+}
+
+// mouseMode requests cell-motion tracking only when the config wants mouse
+// support. Leaving it off keeps the terminal's native selection, which is
+// what a user who disabled mouse is asking for.
+func (m *Model) mouseMode() tea.MouseMode {
+	if m.mouseEnabled {
+		return tea.MouseModeCellMotion
+	}
+	return tea.MouseModeNone
 }
 
 func (m *Model) diffTitle() string {
@@ -1120,15 +1181,18 @@ func (m *Model) leftColumn(innerW, innerH int) string {
 			a.FocusedPanel == app.PanelFileList, innerW, innerH)
 	}
 
-	treeH := innerH - navH
-	a.FileListState.ViewportHeight = treeH - 2
+	// Each titledPanel costs two rows of border, and the unsplit column
+	// occupies innerH+2 screen rows; the split must total the same or the
+	// left column ends short of the diff beside it.
+	treeBody := innerH - navH
+	a.FileListState.ViewportHeight = treeBody
 	a.CommentNav.ViewportHeight = navH - 2
 
-	tree := m.fileList.BuildLines(a, innerW, treeH-2)
+	tree := m.fileList.BuildLines(a, innerW, treeBody)
 	nav := m.commentNav.BuildLines(a, innerW, navH-2)
 	return lipgloss.JoinVertical(lipgloss.Left,
 		m.titledPanel(strings.Join(tree, "\n"), m.fileList.Title(a),
-			a.FocusedPanel == app.PanelFileList, innerW, treeH-2),
+			a.FocusedPanel == app.PanelFileList, innerW, treeBody),
 		m.titledPanel(strings.Join(nav, "\n"), m.commentNav.Title(a),
 			a.FocusedPanel == app.PanelComments, innerW, navH-2),
 	)

@@ -36,6 +36,11 @@ mrman pr owner/repo#125    # ... or addressed explicitly
 mrman pr <PR/MR URL>       # ... or by URL (any supported forge)
 ```
 
+With no arguments mrman opens the target selector: pick a commit range or
+staged/unstaged changes on the **Local** tab, or `Tab` over to **Pull
+Requests** to browse what is open on the forge — `/` filters, `r` switches
+between everything open and what is waiting on your review.
+
 ### Keys (excerpt — press `?` in the app for everything)
 
 | Key | Action |
@@ -45,11 +50,27 @@ mrman pr <PR/MR URL>       # ... or by URL (any supported forge)
 | `c` / `C` / `v` | comment on line / file / visual range |
 | `r` / `R` | toggle file / hunk reviewed |
 | `m` / `M`, `dd`, `i` | next/prev comment, delete, edit |
-| `Space`, `o`/`O` | expand context gap, expand/collapse dirs |
-| `Tab`, `;e`, `;f` | focus panes, toggle file list, single-file view |
+| `Enter`/`Space`, `o`/`O` | expand context gap, expand/collapse dirs |
+| `(` / `)` | walk commit by commit through a multi-commit review |
+| `Tab`, `;e`, `;s`, `;f` | focus panes, toggle file list / commit selector / single-file view |
+| mouse | wheel scrolls, click jumps, drag selects (`mouse = false` to disable) |
 | `y` / `:clip` | export review markdown to the clipboard |
 | `:submit` | submit to the forge (picker: comment/approve/request-changes/draft) |
+| `:e` / `:edit` | reload the diff / open the focused file in `$EDITOR` |
+| `:comments unresolved\|all\|hide` | show the forge's existing comments |
 | `:q` `:w` `:wq` `ZZ` | quit / save session |
+
+Full list: [`docs/KEYBINDINGS.md`](docs/KEYBINDINGS.md), or press `?`.
+
+### Reviewing a pull request
+
+The forge's existing review threads and summaries render inline in the diff,
+read-only — mrman never replies, resolves or rewrites them. Hidden context
+expands on demand from the forge, `:e` refetches (a pull request that
+advanced to a new head opens the review for that head rather than
+re-anchoring your comments), and on a multi-commit pull request mrman marks
+the commits your last review already covered and preselects what landed
+since.
 
 ### Sessions and agent collaboration
 
@@ -69,7 +90,8 @@ All `review` output is JSON.
 ## Configuration
 
 `~/.config/mrman/config.toml` — friendly TOML validated by embedded CUE
-schemas (mistakes degrade to warnings with precise messages, never crashes):
+schemas (mistakes degrade to warnings with precise messages, never crashes).
+Every option is documented in [`docs/CONFIG.md`](docs/CONFIG.md):
 
 ```toml
 theme = "tokyo-night-storm"        # or theme_dark / theme_light + appearance
@@ -133,3 +155,13 @@ make package   # cross-platform release artifacts in ./dist
 
 The codebase mirrors tuicr's layout under `internal/`; tuicr's own test
 suite is ported throughout as the behavioral parity spec.
+
+### Deliberate differences from tuicr
+
+- **No self-updater.** Use your package manager or `go install`; there is no
+  `:update` and no startup version check.
+- **No Mercurial backend.** git, Jujutsu, `--file` and `-A` are supported.
+- **`Space` also expands context gaps**, alongside tuicr's `Enter`.
+- **Four forges instead of two**, through their APIs rather than by shelling
+  out to `gh` and `glab`.
+- **CUE-validated configuration** and **user-templatable markdown output**.

@@ -33,8 +33,6 @@ const (
 	ScrollRight
 	ScrollViewDown
 	ScrollViewUp
-	MouseScrollUp
-	MouseScrollDown
 	ToggleFocus
 	ToggleFocusReverse
 	SelectFile
