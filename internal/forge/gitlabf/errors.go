@@ -1,0 +1,89 @@
+package gitlabf
+
+import (
+	"errors"
+	"net/http"
+
+	gitlab "gitlab.com/gitlab-org/api/client-go"
+
+	"github.com/infrashift/mrman/internal/forge"
+	"github.com/infrashift/mrman/internal/forge/forgetypes"
+)
+
+// Actionable hints attached to translated errors. The submit-specific one
+// ports the tuicr glab.rs wording.
+const (
+	hintAuth = "GitLab authentication failed. Set GITLAB_TOKEN (or configure " +
+		"a token for this host) with the `api` scope — create one at " +
+		"https://HOST/-/user_settings/personal_access_tokens."
+	hintForbidden = "The token was accepted but this operation is forbidden — " +
+		"check the token's project access and that it has the `api` scope."
+	hintNotFound = "Merge request or project not found — check the target " +
+		"and that the token can see this project."
+	hintRateLimited = "GitLab rate limit exceeded. Wait for the limit to " +
+		"reset and try again."
+	hintReviewForbidden = "Cannot submit review: the GitLab token lacks merge " +
+		"request write permission. Use a token with the `api` scope and at " +
+		"least Reporter access to the project."
+)
+
+// err builds a forge.Error with the driver's identity filled in.
+func (d *Driver) err(op string, kind forge.ErrorKind, status int, hint string, err error) error {
+	fe := forge.NewError(forgetypes.KindGitLab, op, d.host, kind, err)
+	fe.Status = status
+	return fe.WithHint(hint)
+}
+
+// wrap translates client-go SDK errors into the forge error taxonomy.
+func (d *Driver) wrap(op string, err error) error {
+	if err == nil {
+		return nil
+	}
+	var fe *forge.Error
+	if errors.As(err, &fe) {
+		return err
+	}
+	// The SDK collapses 404s into a bare sentinel instead of an
+	// *ErrorResponse.
+	if errors.Is(err, gitlab.ErrNotFound) {
+		return d.err(op, forge.ErrorNotFound, http.StatusNotFound, hintNotFound, err)
+	}
+	var glErr *gitlab.ErrorResponse
+	if errors.As(err, &glErr) {
+		status := 0
+		if glErr.Response != nil {
+			status = glErr.Response.StatusCode
+		}
+		return d.err(op, forge.FromHTTPStatus(status), status, statusHint(status), err)
+	}
+	// Cancellation, transport failures, and everything else untyped.
+	return d.err(op, forge.Classify(err), 0, "", err)
+}
+
+// statusHint picks the default actionable hint for an HTTP status.
+func statusHint(status int) string {
+	switch status {
+	case http.StatusUnauthorized:
+		return hintAuth
+	case http.StatusForbidden:
+		return hintForbidden
+	case http.StatusNotFound, http.StatusGone:
+		return hintNotFound
+	case http.StatusTooManyRequests:
+		return hintRateLimited
+	}
+	return ""
+}
+
+// wrapCreateReview layers the submit-specific error mapping (ported from
+// tuicr's glab.rs) over the generic translator: permission failures name
+// the missing merge-request write access.
+func (d *Driver) wrapCreateReview(err error) error {
+	const op = "create_review"
+	var glErr *gitlab.ErrorResponse
+	if errors.As(err, &glErr) && glErr.Response != nil &&
+		glErr.Response.StatusCode == http.StatusForbidden {
+		return d.err(op, forge.ErrorForbidden, http.StatusForbidden, hintReviewForbidden, err)
+	}
+	return d.wrap(op, err)
+}

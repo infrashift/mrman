@@ -40,6 +40,10 @@ type Driver struct {
 	DefaultHosts []string
 	// New constructs the driver for a resolved host.
 	New func(cfg HostConfig) (Forge, error)
+	// NewForRepo constructs a repository-scoped driver; set for forges
+	// whose API clients bind to a repository coordinate at construction
+	// (Azure DevOps). Preferred over New when non-nil.
+	NewForRepo func(cfg HostConfig, repo forgetypes.Repository) (Forge, error)
 	// ParseRepoPath interprets pre-split (host, path segments) from a
 	// remote URL as a repository, overriding the registry's built-in
 	// interpretation when set.
@@ -111,6 +115,9 @@ func ForRepository(repo forgetypes.Repository, cfg config.ForgeConfig) (Forge, e
 	hc, err := ResolveHostConfig(repo.Host, repo.Kind, cfg)
 	if err != nil {
 		return nil, err
+	}
+	if d.NewForRepo != nil {
+		return d.NewForRepo(hc, repo)
 	}
 	return d.New(hc)
 }

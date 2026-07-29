@@ -1,6 +1,7 @@
 package theme
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -48,7 +49,7 @@ func ParseAppearance(s string) (Appearance, error) {
 }
 
 // Resolve implements tuicr's theme-resolution precedence
-// (resolve_theme_with_config) for built-in themes:
+// (resolve_theme_with_config):
 //
 //	flagTheme > cfgTheme > (cfgThemeDark/cfgThemeLight by appearance) >
 //	either theme_dark/theme_light alone (with a warning if an appearance
@@ -60,12 +61,16 @@ func ParseAppearance(s string) (Appearance, error) {
 // system/terminal darkness probe (OSC-11 or OS detection, wired by the
 // caller); nil defaults to dark, matching tuicr's unwrap_or(true).
 //
-// Unknown config theme names produce warnings and fall through; an unknown
-// flagTheme is a hard error (the only error case).
+// Theme names resolve through ResolveNamed: bundled names first, then
+// local themes from themesDir/<name>.toml (themesDir may be empty to
+// disable local themes). Unknown or broken config theme names produce
+// warnings and fall through; an unknown or broken flagTheme is a hard
+// error (the only error case).
 func Resolve(
 	flagTheme, cfgTheme, cfgThemeDark, cfgThemeLight string,
 	flagAppearance, cfgAppearance Appearance,
 	systemIsDark func() bool,
+	themesDir string,
 ) (*Theme, []string, error) {
 	var warnings []string
 
@@ -91,20 +96,29 @@ func Resolve(
 			value, key, builtinNamesDisplay()))
 	}
 
+	// resolveConfigKey resolves a theme_dark/theme_light value, demoting
+	// not-found and load failures to warnings.
+	resolveConfigKey := func(key, value string) *Theme {
+		t, themeWarnings, err := ResolveNamed(value, themesDir)
+		warnings = append(warnings, themeWarnings...)
+		switch {
+		case err == nil:
+			return t
+		case errors.Is(err, ErrLocalThemeNotFound):
+			warnUnknown(key, value)
+		default:
+			warnings = append(warnings, fmt.Sprintf(
+				"Warning: Failed to load theme '%s' from config key '%s': %v", value, key, err))
+		}
+		return nil
+	}
+
 	var themeDark, themeLight *Theme
 	if cfgThemeDark != "" {
-		if t, ok := Lookup(cfgThemeDark); ok {
-			themeDark = t
-		} else {
-			warnUnknown("theme_dark", cfgThemeDark)
-		}
+		themeDark = resolveConfigKey("theme_dark", cfgThemeDark)
 	}
 	if cfgThemeLight != "" {
-		if t, ok := Lookup(cfgThemeLight); ok {
-			themeLight = t
-		} else {
-			warnUnknown("theme_light", cfgThemeLight)
-		}
+		themeLight = resolveConfigKey("theme_light", cfgThemeLight)
 	}
 
 	warnAppearanceIgnored := func() {
@@ -115,23 +129,35 @@ func Resolve(
 	}
 
 	if flagTheme != "" {
-		t, ok := Lookup(flagTheme)
-		if !ok {
+		t, themeWarnings, err := ResolveNamed(flagTheme, themesDir)
+		warnings = append(warnings, themeWarnings...)
+		switch {
+		case errors.Is(err, ErrLocalThemeNotFound):
 			return nil, warnings, fmt.Errorf(
-				"unknown theme '%s', bundled themes: %s", flagTheme, builtinNamesDisplay())
+				"unknown theme '%s', bundled themes: %s. Local themes are loaded from %s",
+				flagTheme, builtinNamesDisplay(), themesDir)
+		case err != nil:
+			return nil, warnings, err
 		}
 		warnAppearanceIgnored()
 		return t, warnings, nil
 	}
 
 	if cfgTheme != "" {
-		if t, ok := Lookup(cfgTheme); ok {
+		t, themeWarnings, err := ResolveNamed(cfgTheme, themesDir)
+		warnings = append(warnings, themeWarnings...)
+		switch {
+		case err == nil:
 			warnAppearanceIgnored()
 			return t, warnings, nil
+		case errors.Is(err, ErrLocalThemeNotFound):
+			warnings = append(warnings, fmt.Sprintf(
+				"Warning: Unknown theme '%s' in config, using appearance mode. Bundled themes: %s",
+				cfgTheme, builtinNamesDisplay()))
+		default:
+			warnings = append(warnings, fmt.Sprintf(
+				"Warning: Failed to load theme '%s' from config: %v", cfgTheme, err))
 		}
-		warnings = append(warnings, fmt.Sprintf(
-			"Warning: Unknown theme '%s' in config, using appearance mode. Bundled themes: %s",
-			cfgTheme, builtinNamesDisplay()))
 	}
 
 	switch {

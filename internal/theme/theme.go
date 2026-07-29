@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	lipgloss "charm.land/lipgloss/v2"
+	"github.com/alecthomas/chroma/v2"
 
 	"github.com/infrashift/mrman/internal/syntax"
 )
@@ -85,6 +86,11 @@ type Theme struct {
 
 	// SyntaxStyle is the chroma style name used for code highlighting.
 	SyntaxStyle string
+
+	// customSyntax, when non-nil, overrides SyntaxStyle with a style loaded
+	// from a chroma XML file (a local theme's syntax_style_file). Set by
+	// LoadLocal; SyntaxStyle then carries the loaded style's display name.
+	customSyntax *chroma.Style
 
 	hlOnce sync.Once
 	hl     *syntax.Highlighter
@@ -174,6 +180,10 @@ func (t *Theme) SectionHighlightBg() color.Color {
 // use and cached for the lifetime of the theme.
 func (t *Theme) Highlighter() *syntax.Highlighter {
 	t.hlOnce.Do(func() {
+		if t.customSyntax != nil {
+			t.hl = syntax.NewHighlighterWithStyle(t.customSyntax, colorToHex(t.SyntaxAddBg), colorToHex(t.SyntaxDelBg))
+			return
+		}
 		t.hl = syntax.NewHighlighter(t.SyntaxStyle, colorToHex(t.SyntaxAddBg), colorToHex(t.SyntaxDelBg))
 	})
 	return t.hl

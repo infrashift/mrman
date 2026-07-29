@@ -1,0 +1,135 @@
+# mrman
+
+**mrman** is a terminal code-review tool: browse a GitHub-style continuous
+diff with vim keybindings, leave typed comments at line / range / file /
+review scope, track what you've reviewed across sessions, collaborate live
+with AI agents through a JSON CLI, and submit the finished review to
+**GitHub, GitLab, Azure DevOps, or Forgejo** — SaaS or on-premise.
+
+mrman is a Go reimplementation of [tuicr](https://github.com/agavra/tuicr)
+(Rust), built on [Bubble Tea](https://github.com/charmbracelet/bubbletea),
+with feature parity plus a four-forge integration layer, CUE-validated
+configuration, and user-templatable markdown output.
+
+## Install
+
+```sh
+go install github.com/infrashift/mrman@latest
+# or from a checkout:
+make install
+```
+
+Requires `git` on PATH (and `jj` for Jujutsu repos). Best experienced in a
+terminal with full kitty-keyboard support such as **Ghostty**.
+
+## Usage
+
+```sh
+mrman                      # open the review-target selector
+mrman -w                   # review working-tree changes
+mrman -r main..HEAD        # review a commit range / revset
+mrman -p src/              # limit the diff to a path prefix
+mrman --file notes.md      # review any file, no VCS needed
+mrman -A                   # pristine mode: annotate every tracked file
+mrman pr 125               # review a pull request (repo from your checkout)
+mrman pr owner/repo#125    # ... or addressed explicitly
+mrman pr <PR/MR URL>       # ... or by URL (any supported forge)
+```
+
+### Keys (excerpt — press `?` in the app for everything)
+
+| Key | Action |
+|---|---|
+| `j/k`, `Ctrl-d/u`, `g/G`, `zz/zt/zb` | vim navigation |
+| `}` `{` / `]` `[` | next/previous file / hunk |
+| `c` / `C` / `v` | comment on line / file / visual range |
+| `r` / `R` | toggle file / hunk reviewed |
+| `m` / `M`, `dd`, `i` | next/prev comment, delete, edit |
+| `Space`, `o`/`O` | expand context gap, expand/collapse dirs |
+| `Tab`, `;e`, `;f` | focus panes, toggle file list, single-file view |
+| `y` / `:clip` | export review markdown to the clipboard |
+| `:submit` | submit to the forge (picker: comment/approve/request-changes/draft) |
+| `:q` `:w` `:wq` `ZZ` | quit / save session |
+
+### Sessions and agent collaboration
+
+Reviews persist automatically (`~/.local/share/mrman/reviews`). On start
+mrman prints `mrman-session: <slug>` to stderr; agents can then read and
+write the same review while you have it open — changes merge live:
+
+```sh
+mrman review list --repo .
+mrman review add --session <slug> --target-file src/x.go --line 42 \
+    --type issue --username "Claude" "This branch leaks the file handle."
+mrman review comments --session <slug>
+```
+
+All `review` output is JSON.
+
+## Configuration
+
+`~/.config/mrman/config.toml` — friendly TOML validated by embedded CUE
+schemas (mistakes degrade to warnings with precise messages, never crashes):
+
+```toml
+theme = "tokyo-night-storm"        # or theme_dark / theme_light + appearance
+leader = ";"
+comment_vim = true                 # vim mode in the comment editor
+diff_view = "unified"              # or "side-by-side"
+username = "ryan"
+
+[[comment_types]]
+id = "issue"
+label = "ISSUE"
+definition = "must fix before merge"
+color = "red"
+
+[templates]
+notes = "~/.config/mrman/templates/notes.md.tmpl"        # optional overrides
+review_body = "~/.config/mrman/templates/review_body.md.tmpl"
+
+[forge]
+default = "github"
+
+[[forge.hosts]]                     # on-premise example
+host = "gitlab.mycorp.com"
+forge = "gitlab"
+token_cmd = "pass show gitlab-token"
+
+[[forge.hosts]]
+host = "ghe.mycorp.com"
+forge = "github"
+api_base = "https://ghe.mycorp.com/api/v3"
+token = "$GHE_TOKEN"
+```
+
+Auth resolution per host: environment (`GITHUB_TOKEN`, `GITLAB_TOKEN`,
+`AZURE_DEVOPS_EXT_PAT`, `FORGEJO_TOKEN`/`CODEBERG_TOKEN` — SaaS hosts only)
+→ config `token` → `token_cmd` → `gh auth token` (GitHub). Custom CAs via
+`ca_file` per host.
+
+### Themes
+
+Bundled: `tokyo-night-storm`, `tokyo-night-day`, `dark`, `light`,
+catppuccin ×4, gruvbox ×2, nord ×4, solarized ×2, everforest ×2, ayu ×2,
+`onedark`, `github-light`, `github-dark`. Custom themes live in
+`~/.config/mrman/themes/<name>.toml` (41 color slots, CUE-validated, plus
+`syntax_style` naming any chroma style or `syntax_style_file` for chroma
+XML).
+
+### Templates
+
+The exported notes markdown and the review body posted with `:submit` are
+rendered through Go `text/template`s with embedded defaults. Override them
+via `[templates]`; parse errors fall back to the defaults with a warning.
+
+## Development
+
+```sh
+make check     # fmt + vet + lint + tests + 85% coverage gate
+make build     # ./bin/mrman
+make package   # cross-platform release artifacts in ./dist
+```
+
+The codebase mirrors tuicr's layout under `internal/`; tuicr's own test
+suite is ported throughout as the behavioral parity spec.

@@ -303,8 +303,27 @@ var builtinConstructors = []struct {
 }{
 	{"dark", Dark},
 	{"light", Light},
+	{"ayu-light", AyuLight},
+	{"ayu-mirage", AyuMirage},
+	{"onedark", OneDark},
+	{"github-light", GitHubLight},
+	{"github-dark", GitHubDark},
+	{"catppuccin-latte", CatppuccinLatte},
+	{"catppuccin-frappe", CatppuccinFrappe},
+	{"catppuccin-macchiato", CatppuccinMacchiato},
+	{"catppuccin-mocha", CatppuccinMocha},
+	{"gruvbox-dark", GruvboxDark},
+	{"gruvbox-light", GruvboxLight},
+	{"nord-dark", NordDark},
+	{"nord-light", NordLight},
+	{"nord-dark-high-contrast", NordDarkHighContrast},
+	{"nord-light-high-contrast", NordLightHighContrast},
+	{"solarized-light", SolarizedLight},
+	{"solarized-dark", SolarizedDark},
 	{"tokyo-night-storm", TokyoNightStorm},
 	{"tokyo-night-day", TokyoNightDay},
+	{"everforest-dark", EverforestDark},
+	{"everforest-light", EverforestLight},
 }
 
 // BuiltinNames returns the canonical names of the bundled themes, in

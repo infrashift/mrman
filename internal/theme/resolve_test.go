@@ -196,7 +196,7 @@ func TestResolvePrecedence(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			th, warnings, err := Resolve(
 				tc.flagTheme, tc.cfgTheme, tc.cfgThemeDark, tc.cfgThemeLight,
-				tc.flagAppearance, tc.cfgAppearance, tc.systemIsDark)
+				tc.flagAppearance, tc.cfgAppearance, tc.systemIsDark, "")
 			if tc.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
 					t.Fatalf("error = %v, want containing %q", err, tc.wantErr)
@@ -222,11 +222,13 @@ func TestResolvePrecedence(t *testing.T) {
 }
 
 func TestResolveUnknownFlagThemeListsBuiltins(t *testing.T) {
-	_, _, err := Resolve("wat", "", "", "", AppearanceUnset, AppearanceUnset, nil)
+	_, _, err := Resolve("wat", "", "", "", AppearanceUnset, AppearanceUnset, nil, "")
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	if !strings.Contains(err.Error(), "dark, light, tokyo-night-storm, tokyo-night-day") {
-		t.Errorf("error should list bundled themes, got: %v", err)
+	for _, name := range BuiltinNames() {
+		if !strings.Contains(err.Error(), name) {
+			t.Errorf("error should list bundled theme %q, got: %v", name, err)
+		}
 	}
 }

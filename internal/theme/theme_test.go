@@ -275,7 +275,18 @@ func TestLightTheme(t *testing.T) {
 }
 
 func TestBuiltinNames(t *testing.T) {
-	want := []string{"dark", "light", "tokyo-night-storm", "tokyo-night-day"}
+	want := []string{
+		"dark", "light",
+		"ayu-light", "ayu-mirage",
+		"onedark",
+		"github-light", "github-dark",
+		"catppuccin-latte", "catppuccin-frappe", "catppuccin-macchiato", "catppuccin-mocha",
+		"gruvbox-dark", "gruvbox-light",
+		"nord-dark", "nord-light", "nord-dark-high-contrast", "nord-light-high-contrast",
+		"solarized-light", "solarized-dark",
+		"tokyo-night-storm", "tokyo-night-day",
+		"everforest-dark", "everforest-light",
+	}
 	if got := BuiltinNames(); !reflect.DeepEqual(got, want) {
 		t.Errorf("BuiltinNames() = %v, want %v", got, want)
 	}

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"os"
+	"path/filepath"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -184,12 +185,13 @@ func resolveTheme(opts cli.TuiOptions, cfg config.Config) (*theme.Theme, []strin
 		}
 	}
 	return theme.Resolve(opts.Theme, cfg.Theme, cfg.ThemeDark, cfg.ThemeLight,
-		flagAppearance, cfgAppearance, systemIsDark)
+		flagAppearance, cfgAppearance, systemIsDark,
+		filepath.Join(config.Dir(), "themes"))
 }
 
-// systemIsDark defaults to dark; the OSC-11/OS detection chain lands with
-// the config milestone.
-func systemIsDark() bool { return true }
+// systemIsDark queries the terminal/OS appearance chain; --stdout mode is
+// handled by the caller passing a pre-bound closure.
+func systemIsDark() bool { return detectSystemDark(false) }
 
 func sessionSource(src app.DiffSource) model.SessionDiffSource {
 	switch src.Kind {
