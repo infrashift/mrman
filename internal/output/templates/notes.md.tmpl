@@ -1,0 +1,14 @@
+{{define "entry"}}{{.Marker}} {{if .Type}}**[{{.Type}}]** {{end}}`{{.Location}}`{{if .CommitID}} (commit {{.CommitID}}){{end}} - {{.Body}}
+{{end}}{{if .Slug}}## Session: {{.Slug}}
+
+{{end}}I reviewed your code and have the following comments. Please address them.
+
+{{if .ScopeLine}}{{.ScopeLine}}
+
+{{end}}{{if and .ShowLegend .CommentTypes}}Comment types: {{range $i, $t := .CommentTypes}}{{if $i}}, {{end}}{{upper $t.Label}} ({{$t.Definition}}){{end}}
+
+{{end}}{{if .SessionNotes}}Summary: {{.SessionNotes}}
+
+{{end}}{{if or .ReviewComments .Files}}## Local mrman Comments
+
+{{range .ReviewComments}}{{template "entry" .}}{{end}}{{range .Files}}{{range .Comments}}{{template "entry" .}}{{end}}{{end}}{{end}}

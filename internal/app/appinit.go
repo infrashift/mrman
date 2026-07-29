@@ -45,11 +45,23 @@ func NewApp(backend vcs.Backend, info *vcs.Info, files []model.DiffFile, session
 		ExpandedTop:        map[GapID][]model.DiffLine{},
 		ExpandedBottom:     map[GapID][]model.DiffLine{},
 		FileLineCountCache: map[int]uint32{},
+
+		// The default cycle is just the typeless None entry; callers with a
+		// comment_types config overwrite via SetCommentTypes.
+		CommentTypes: ResolveCommentTypes(nil),
 	}
+	a.CommentType = a.DefaultCommentType()
 
 	a.SortFilesByDirectory(true)
 	a.ExpandAllDirs()
 	a.populateFileLineCountCache()
 	a.RebuildAnnotations()
 	return a
+}
+
+// SetCommentTypes installs the configured comment-type cycle (None is
+// always kept cyclable) and resets the current type to the new default.
+func (a *App) SetCommentTypes(configs []CommentTypeDef) {
+	a.CommentTypes = ResolveCommentTypes(configs)
+	a.CommentType = a.DefaultCommentType()
 }

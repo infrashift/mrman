@@ -1,11 +1,11 @@
 package app
 
 // expand_gap_test.go ports tuicr's src/app/tests/expand_gap_tests.rs —
-// every test in the read-only scope. Skipped (need comment navigation or
-// mutation flows from later milestones): the next/prev-comment cycle tests,
-// the toggle_hunk_reviewed entry-point tests (the annotation effects are
-// covered below via direct session state), the remote-thread and
-// commit-scoped-comment regression tests, and the comment-navigator tests.
+// every test in the read-only scope. The next/prev-comment cycle tests live
+// in comments_test.go and the toggle_hunk_reviewed entry-point tests in
+// reviewedmut_test.go (M4); the annotation effects are also covered below
+// via direct session state. Still skipped: the remote-thread regression
+// tests (M6).
 
 import (
 	"testing"

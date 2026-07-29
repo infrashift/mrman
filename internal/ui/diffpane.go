@@ -127,6 +127,18 @@ func (p *DiffPane) buildRow(a *app.App, ann *app.AnnotatedLine, idx, lw, width i
 		return render.LogicalLine{Kind: render.RowDiffLine, Ann: idx, Spans: []render.Span{
 			ind, {Text: label, Style: render.Style{Fg: t.FgDim}},
 		}}
+	case app.AnnReviewComment, app.AnnFileComment, app.AnnLineComment:
+		return p.commentBoxRow(a, ann, idx, ind, width)
+	case app.AnnReviewCommentsHeader:
+		text := "═══ Review Comments "
+		fillWidth := width - render.StringWidth(text) - render.StringWidth(ind.Text)
+		if fillWidth < 0 {
+			fillWidth = 0
+		}
+		return render.LogicalLine{Kind: render.RowFileHeader, Ann: idx, Spans: []render.Span{
+			ind,
+			{Text: text + strings.Repeat("═", fillWidth), Style: render.Style{Fg: t.FgPrimary, Bold: true}},
+		}}
 	case app.AnnSpacing:
 		return render.LogicalLine{Kind: render.RowBlank, Ann: idx, Spans: []render.Span{ind}}
 	}

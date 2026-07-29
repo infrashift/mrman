@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -9,6 +10,8 @@ import (
 
 	"github.com/infrashift/mrman/internal/app"
 	"github.com/infrashift/mrman/internal/input"
+	"github.com/infrashift/mrman/internal/model"
+	"github.com/infrashift/mrman/internal/output"
 	"github.com/infrashift/mrman/internal/theme"
 )
 
@@ -32,7 +35,56 @@ type Model struct {
 
 	completion *input.CompletionState
 
+	// session is the persisted-session lifecycle; nil in tests that run
+	// without a store.
+	session *sessionLifecycle
+
+	// export configures notes export; PendingStdout collects --stdout
+	// output printed by Run after the program exits.
+	export        exportOptions
+	PendingStdout string
+
+	// vim is the active comment-vim wrapper; nil when composing without
+	// vim mode or not composing at all.
+	vim            *vimState
+	CommentVimMode bool
+
 	width, height int
+}
+
+// enterComposeMode initializes the vim wrapper when enabled.
+func (m *Model) enterComposeMode() {
+	if m.CommentVimMode {
+		m.vim = newVimState(m.App)
+	}
+}
+
+// saveComment persists a finished comment and autosaves the session.
+func (m *Model) saveComment() {
+	m.vim = nil
+	if comment := m.App.SaveComment(); comment != nil {
+		if err := m.saveSession(); err != nil {
+			m.App.SetError("Save failed: " + err.Error())
+			return
+		}
+		m.App.SetMessage("Comment saved")
+	}
+}
+
+// autosave persists after review-state mutations, matching tuicr's
+// save-on-toggle behavior.
+func (m *Model) autosave() {
+	if err := m.saveSession(); err != nil {
+		m.App.SetError("Save failed: " + err.Error())
+	}
+}
+
+// saveSession persists the live session when a lifecycle is attached.
+func (m *Model) saveSession() error {
+	if m.session == nil {
+		return nil
+	}
+	return m.session.save(m.App)
 }
 
 // NewModel wires a Model around app state and a resolved theme.
@@ -80,11 +132,38 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if !m.pendingCtrlC.IsZero() && time.Since(m.pendingCtrlC) > ctrlCWindow {
 			m.pendingCtrlC = time.Time{}
 		}
+		if m.session != nil {
+			composing := m.App.InputMode == input.ModeComment
+			if merged := m.session.pollExternalChanges(m.App, composing); merged > 0 {
+				m.App.SetMessage(fmt.Sprintf("Merged %d external change(s)", merged))
+			}
+		}
 		return m, tick()
 	case tea.KeyPressMsg:
 		return m.handleKey(tea.Key(msg))
+	case tea.PasteMsg:
+		m.handlePaste(msg.Content)
 	}
 	return m, nil
+}
+
+// handlePaste routes bracketed-paste text to the active input surface.
+func (m *Model) handlePaste(text string) {
+	a := m.App
+	switch a.InputMode {
+	case input.ModeComment:
+		if m.vim != nil {
+			m.vim.editor.InsertText(text)
+			a.CommentBuffer = m.vim.editor.Text()
+			a.CommentCursor = m.vim.editor.Cursor()
+		} else {
+			a.InsertCommentText(text)
+		}
+	case input.ModeCommand:
+		a.CommandBuffer += text
+	case input.ModeSearch:
+		a.SearchBuffer += text
+	}
 }
 
 func (m *Model) syncViewport() {
@@ -146,15 +225,40 @@ func (m *Model) handleKey(k tea.Key) (tea.Model, tea.Cmd) {
 	if m.pendingShiftZ {
 		m.pendingShiftZ = false
 		if r, ok := printable(k); ok && (r == 'Z' || r == 'Q') {
+			if r == 'Z' {
+				// ZZ saves before quitting; ZQ quits without saving.
+				if err := m.saveSession(); err != nil {
+					a.SetError("Save failed: " + err.Error())
+					return m, nil
+				}
+			}
 			return m, tea.Quit
 		}
 	}
 	if m.pendingD {
 		m.pendingD = false
 		if r, ok := printable(k); ok && r == 'd' {
-			a.SetMessage("No comment at cursor")
+			if a.DeleteCommentAtCursor() {
+				m.autosave()
+			}
 			return m, nil
 		}
+	}
+
+	// Comment-vim routing intercepts everything while composing with vim on.
+	if a.InputMode == input.ModeComment && m.vim != nil {
+		switch m.vim.handleKey(a, k) {
+		case vimSave:
+			m.saveComment()
+		case vimCancel:
+			m.vim = nil
+			a.ExitCommentMode()
+		case vimCycleType:
+			a.CycleCommentType()
+		case vimCycleTypeReverse:
+			a.CycleCommentTypeReverse()
+		}
+		return m, nil
 	}
 	if m.pendingLeader {
 		m.pendingLeader = false
@@ -247,6 +351,9 @@ func (m *Model) handleLeader(r rune) {
 		a.FocusedPanel = app.PanelDiff
 	case 'j':
 		a.FocusedPanel = app.PanelDiff
+	case 'c':
+		a.EnterReviewCommentMode()
+		m.enterComposeMode()
 	case 'f':
 		a.ToggleSingleFileView()
 	}
@@ -262,6 +369,10 @@ func (m *Model) dispatch(action input.Action) bool {
 		return m.dispatchCommand(action)
 	case input.ModeSearch:
 		return m.dispatchSearch(action)
+	case input.ModeComment:
+		return m.dispatchComment(action)
+	case input.ModeVisualSelect:
+		return m.dispatchVisual(action)
 	case input.ModeNormal:
 		if a.FocusedPanel == app.PanelFileList {
 			if handled := m.dispatchFileList(action); handled {
@@ -344,7 +455,27 @@ func (m *Model) dispatchCommand(action input.Action) bool {
 func (m *Model) runCommand(cmd input.Command) bool {
 	a := m.App
 	switch cmd.Kind {
-	case input.CmdQuit, input.CmdForceQuit:
+	case input.CmdQuit:
+		// tuicr's dirty guard: unsaved comments block :q; reviewed-only
+		// dirt just quits (the session was saved by toggles or discards).
+		if a.Dirty && a.Session.HasComments() {
+			a.SetError("No write since last change (add ! to override)")
+			return false
+		}
+		return true
+	case input.CmdForceQuit:
+		return true
+	case input.CmdWrite:
+		if err := m.saveSession(); err != nil {
+			a.SetError("Save failed: " + err.Error())
+		} else {
+			a.SetMessage("Session saved")
+		}
+	case input.CmdWriteQuit:
+		if err := m.saveSession(); err != nil {
+			a.SetError("Save failed: " + err.Error())
+			return false
+		}
 		return true
 	case input.CmdToggleWrap:
 		a.ToggleDiffWrap()
@@ -360,9 +491,22 @@ func (m *Model) runCommand(cmd input.Command) bool {
 		a.GoToSourceLine(cmd.N, "new")
 	case input.CmdGotoLineOld:
 		a.GoToSourceLine(cmd.N, "old")
+	case input.CmdExport:
+		if out := m.exportToClipboard(); out != "" {
+			m.PendingStdout = out
+		}
+	case input.CmdClear:
+		cleared, unreviewed := a.Session.ClearComments(model.ClearCommentsAndReviewed)
+		a.Dirty = true
+		a.RebuildAnnotations()
+		a.SetMessage(fmt.Sprintf("Cleared %d comment(s), unreviewed %d file(s)", cleared, unreviewed))
+	case input.CmdClearCommentsOnly:
+		cleared, _ := a.Session.ClearComments(model.ClearCommentsOnly)
+		a.Dirty = true
+		a.RebuildAnnotations()
+		a.SetMessage(fmt.Sprintf("Cleared %d comment(s)", cleared))
 	case input.CmdSetCommitsVisible, input.CmdSetCommitsHidden, input.CmdToggleCommits,
-		input.CmdWrite, input.CmdWriteQuit, input.CmdExport, input.CmdClear,
-		input.CmdClearCommentsOnly, input.CmdReload, input.CmdEdit, input.CmdStage,
+		input.CmdReload, input.CmdEdit, input.CmdStage,
 		input.CmdTargetsLocal, input.CmdTargetsPrs, input.CmdSubmitPicker,
 		input.CmdSubmitComment, input.CmdSubmitApprove, input.CmdSubmitRequestChanges,
 		input.CmdSubmitDraft, input.CmdCommentsUnresolved, input.CmdCommentsAll,
@@ -371,6 +515,77 @@ func (m *Model) runCommand(cmd input.Command) bool {
 		a.SetMessage("Not available yet: :" + cmd.Raw)
 	default:
 		a.SetError("Unknown command: " + cmd.Raw)
+	}
+	return false
+}
+
+// dispatchComment handles non-vim comment composition.
+func (m *Model) dispatchComment(action input.Action) bool {
+	a := m.App
+	switch action.Kind {
+	case input.ExitMode:
+		a.ExitCommentMode()
+	case input.SubmitInput:
+		m.saveComment()
+	case input.InsertChar:
+		a.InsertCommentChar(action.Ch)
+	case input.Paste:
+		a.InsertCommentText(action.Text)
+	case input.DeleteChar:
+		a.DeleteCommentChar()
+	case input.DeleteWord:
+		a.DeleteCommentWord()
+	case input.ClearLine:
+		a.ClearCommentLine()
+	case input.CycleCommentType:
+		a.CycleCommentType()
+	case input.CycleCommentTypeReverse:
+		a.CycleCommentTypeReverse()
+	case input.TextCursorLeft:
+		a.CommentCursorLeft()
+	case input.TextCursorRight:
+		a.CommentCursorRight()
+	case input.TextCursorLineStart:
+		a.CommentCursorLineStart()
+	case input.TextCursorLineEnd:
+		a.CommentCursorLineEnd()
+	case input.TextCursorWordLeft:
+		a.CommentCursorWordLeft()
+	case input.TextCursorWordRight:
+		a.CommentCursorWordRight()
+	}
+	return false
+}
+
+// dispatchVisual handles visual selection mode.
+func (m *Model) dispatchVisual(action input.Action) bool {
+	a := m.App
+	switch action.Kind {
+	case input.Quit:
+		return true
+	case input.CursorDown:
+		a.CursorDown(action.N)
+		a.ExtendVisualToCursor()
+	case input.CursorUp:
+		a.CursorUp(action.N)
+		a.ExtendVisualToCursor()
+	case input.AddRangeComment:
+		a.EnterCommentFromVisual()
+		m.enterComposeMode()
+	case input.ExportToClipboard:
+		text, chars, err := a.CopyVisualSelection()
+		a.ExitVisualMode()
+		if err != nil {
+			a.SetError("Copy failed: " + err.Error())
+			break
+		}
+		if _, copyErr := output.CopyText(text); copyErr != nil {
+			a.SetError("Clipboard failed: " + copyErr.Error())
+		} else {
+			a.SetMessage(fmt.Sprintf("Yanked %d character(s)", chars))
+		}
+	case input.ExitMode:
+		a.ExitVisualMode()
 	}
 	return false
 }
@@ -498,11 +713,34 @@ func (m *Model) dispatchNormal(action input.Action) bool {
 		if !a.SearchPrevInDiff() {
 			a.SetWarning("Pattern not found")
 		}
-	case input.ToggleReviewed, input.ToggleHunkReviewed, input.AddLineComment,
-		input.AddFileComment, input.EditComment, input.EditCommentAtEnd,
-		input.EnterVisualMode, input.ExportToClipboard, input.NextComment,
-		input.PrevComment:
-		a.SetMessage("Comments and review actions arrive in the next milestone")
+	case input.ExportToClipboard:
+		if out := m.exportToClipboard(); out != "" {
+			m.PendingStdout = out
+		}
+	case input.ToggleReviewed:
+		a.ToggleReviewed()
+		m.autosave()
+	case input.ToggleHunkReviewed:
+		a.ToggleHunkReviewed()
+		m.autosave()
+	case input.AddLineComment:
+		a.EnterCommentMode(false)
+		m.enterComposeMode()
+	case input.AddFileComment:
+		a.EnterCommentMode(true)
+		m.enterComposeMode()
+	case input.EditComment:
+		a.EnterEditMode(false)
+		m.enterComposeMode()
+	case input.EditCommentAtEnd:
+		a.EnterEditMode(true)
+		m.enterComposeMode()
+	case input.EnterVisualMode:
+		a.EnterVisualModeAtCursor()
+	case input.NextComment:
+		a.NextComment()
+	case input.PrevComment:
+		a.PrevComment()
 	}
 	return false
 }
@@ -564,6 +802,13 @@ func (m *Model) View() tea.View {
 
 	diffW := m.diffInnerWidth()
 	diffInner := m.diffPane.BuildLines(a, diffW, innerH)
+	if a.InputMode == input.ModeComment {
+		overlay := m.diffPane.commentInputOverlay(a, m.vim, diffW)
+		if len(overlay) > innerH {
+			overlay = overlay[len(overlay)-innerH:]
+		}
+		copy(diffInner[innerH-len(overlay):], overlay)
+	}
 	mainCols = append(mainCols, m.titledPanel(
 		strings.Join(diffInner, "\n"), m.diffTitle(),
 		a.FocusedPanel == app.PanelDiff, diffW, innerH))

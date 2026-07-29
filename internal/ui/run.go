@@ -12,6 +12,7 @@ import (
 	"github.com/infrashift/mrman/internal/errs"
 	"github.com/infrashift/mrman/internal/ignore"
 	"github.com/infrashift/mrman/internal/model"
+	"github.com/infrashift/mrman/internal/persistence"
 	"github.com/infrashift/mrman/internal/theme"
 	"github.com/infrashift/mrman/internal/vcs"
 	"github.com/infrashift/mrman/internal/vcs/detect"
@@ -70,16 +71,33 @@ func Run(opts cli.TuiOptions) error {
 		return fmt.Errorf("no changes to review")
 	}
 
-	session := model.NewReviewSession(info.RootPath, info.HeadCommit, info.BranchName, sessionSource(source))
+	fresh := model.NewReviewSession(info.RootPath, info.HeadCommit, info.BranchName, sessionSource(source))
+	fresh.CommitRange = source.Commits
+
+	store, storeErr := persistence.NewDefaultStore()
+	if storeErr != nil {
+		store = nil // reviews dir unavailable: run without persistence
+	}
+	lifecycle, session := openSession(store, fresh)
+
 	a := app.NewApp(backend, info, files, session, source)
 
 	m := NewModel(a, resolved)
+	m.session = lifecycle
+	m.export = exportOptions{ShowLegend: true, ToStdout: opts.Stdout}
 	for _, w := range warnings {
 		a.SetWarning(w)
+	}
+	if storeErr != nil {
+		a.SetStickyWarning("Sessions are not persisted: " + storeErr.Error())
 	}
 
 	prog := tea.NewProgram(m)
 	_, err = prog.Run()
+	lifecycle.finish(a)
+	if m.PendingStdout != "" {
+		fmt.Print(m.PendingStdout)
+	}
 	return err
 }
 

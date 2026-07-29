@@ -6,6 +6,7 @@
 package app
 
 import (
+	"github.com/infrashift/mrman/internal/editor"
 	"github.com/infrashift/mrman/internal/input"
 	"github.com/infrashift/mrman/internal/model"
 	"github.com/infrashift/mrman/internal/vcs"
@@ -192,6 +193,46 @@ type App struct {
 	PendingCount *int
 	// PathFilter scopes the diff to a file or directory.
 	PathFilter *string
+
+	// --- Comment-mode state (M4, tuicr src/app/mod.rs) ---
+
+	// CommentBuffer is the comment text being edited; CommentCursor is a byte
+	// offset into it (always on a UTF-8 boundary).
+	CommentBuffer string
+	CommentCursor int
+	// CommentType is the type stamped on the comment being edited.
+	CommentType model.CommentType
+	// CommentTypes is the resolved, ordered comment-type cycle (config; the
+	// typeless None entry is always present).
+	CommentTypes []CommentTypeDef
+	// CommentIsReviewLevel / CommentIsFileLevel say what scope the comment
+	// under edit attaches to; neither set means line scope.
+	CommentIsReviewLevel bool
+	CommentIsFileLevel   bool
+	// CommentLine anchors a line comment; CommentLineRange anchors a visual
+	// range comment (its end doubles as CommentLine).
+	CommentLine      *CommentAnchor
+	CommentLineRange *CommentRangeAnchor
+	// EditingCommentID is set when editing an existing comment in place.
+	EditingCommentID *string
+	// Username is stamped as the author on new comments (config).
+	Username string
+
+	// VisualSelection is the active visual-mode selection, nil outside
+	// visual mode.
+	VisualSelection *VisualSelection
+
+	// --- Commit-selector stubs (M5 lands the selector itself) ---
+
+	// CommitSelectionRange is the inclusive (start, end) index range selected
+	// in the inline commit selector; nil means no selector.
+	CommitSelectionRange *model.IndexRange
+	// ReviewCommits is the commit list backing the selector, newest-first.
+	ReviewCommits []vcs.CommitInfo
+
+	// PendingEditorTarget is the queued external-editor target; the UI loop
+	// consumes it via TakePendingEditorTarget after leaving the TUI screen.
+	PendingEditorTarget *editor.Target
 }
 
 // satSub is usize-style saturating subtraction.

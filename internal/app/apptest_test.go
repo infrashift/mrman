@@ -131,6 +131,8 @@ func anyAnnotation(a *App, pred func(*AnnotatedLine) bool) bool {
 }
 
 // mustHunkHeaderLine is HunkHeaderLine that fails the test when missing.
+//
+//nolint:unparam // fileIdx mirrors HunkHeaderLine's signature; ported tests target file 0
 func mustHunkHeaderLine(t *testing.T, a *App, fileIdx, hunkIdx int) int {
 	t.Helper()
 	idx, ok := a.HunkHeaderLine(fileIdx, hunkIdx)

@@ -179,15 +179,27 @@ func (a *App) RebuildAnnotations() {
 
 	a.LineAnnotations = a.LineAnnotations[:0]
 
+	// Commit-selection filter: comments scoped to a commit outside the
+	// current inline selection are hidden. hasSet false => no selector,
+	// show all.
+	commitSet, hasCommitSet := a.selectedCommitSet()
+
 	// The review-comments header is omitted in single-file view, so the
 	// annotation list mirrors the render.
 	if !a.IsSingleFileView {
 		a.LineAnnotations = append(a.LineAnnotations, AnnotatedLine{Kind: AnnReviewCommentsHeader})
 	}
-	// M4 hook: remote review summaries (AnnRemoteReviewSummaryLine),
-	// review-level comments (AnnReviewComment) and review-level remote
-	// threads (AnnRemoteThreadLine) render here once comments land. The
-	// same rows must be mirrored in reviewCommentsRenderHeight.
+	// M6 hook: remote review summaries (AnnRemoteReviewSummaryLine) and
+	// review-level remote threads (AnnRemoteThreadLine) render here once
+	// forge threads land. The same rows must be mirrored in
+	// reviewCommentsRenderHeight.
+	for commentIdx, comment := range a.Session.ReviewComments {
+		commentLines := CommentDisplayLines(comment, a.DiffState.ViewportWidth)
+		for range commentLines {
+			a.LineAnnotations = append(a.LineAnnotations,
+				AnnotatedLine{Kind: AnnReviewComment, CommentIdx: commentIdx})
+		}
+	}
 
 	for fileIdx := range a.DiffFiles {
 		file := &a.DiffFiles[fileIdx]
@@ -212,11 +224,29 @@ func (a *App) RebuildAnnotations() {
 			continue
 		}
 
-		// M4 hook: file-level comments (AnnFileComment) render here.
+		// File-level comments.
+		if review := a.Session.File(path); review != nil {
+			for commentIdx, comment := range review.FileComments {
+				if !commentVisibleWith(comment, commitSet, hasCommitSet) {
+					continue
+				}
+				commentLines := CommentDisplayLines(comment, a.DiffState.ViewportWidth)
+				for range commentLines {
+					a.LineAnnotations = append(a.LineAnnotations,
+						AnnotatedLine{Kind: AnnFileComment, FileIdx: fileIdx, CommentIdx: commentIdx})
+				}
+			}
+		}
 
 		if file.IsBinary || len(file.Hunks) == 0 {
 			a.LineAnnotations = append(a.LineAnnotations, AnnotatedLine{Kind: AnnBinaryOrEmpty, FileIdx: fileIdx})
 		} else {
+			// Line comments for this file, keyed by line number.
+			var lineComments map[uint32][]*model.Comment
+			if review := a.Session.File(path); review != nil {
+				lineComments = review.LineComments
+			}
+
 			for hunkIdx := range file.Hunks {
 				hunk := &file.Hunks[hunkIdx]
 
@@ -239,9 +269,9 @@ func (a *App) RebuildAnnotations() {
 
 				switch a.DiffViewMode {
 				case ViewUnified:
-					a.buildUnifiedDiffAnnotations(fileIdx, hunkIdx, hunk.Lines)
+					a.buildUnifiedDiffAnnotations(fileIdx, hunkIdx, hunk.Lines, lineComments, commitSet, hasCommitSet)
 				case ViewSideBySide:
-					a.buildSideBySideAnnotations(fileIdx, hunkIdx, hunk.Lines)
+					a.buildSideBySideAnnotations(fileIdx, hunkIdx, hunk.Lines, lineComments, commitSet, hasCommitSet)
 				}
 			}
 
@@ -319,10 +349,46 @@ func (a *App) appendGapAnnotations(gapID GapID, gap int, isTopOfFile, isEndOfFil
 	}
 }
 
-// buildUnifiedDiffAnnotations emits one annotation per diff line.
-// M4 hook: line comments (old side then new side) and remote threads
-// interleave after each diff line once comments land.
-func (a *App) buildUnifiedDiffAnnotations(fileIdx, hunkIdx int, lines []model.DiffLine) {
+// pushLineComments emits AnnLineComment rows (one per display line) for
+// every comment anchored to lineNo on side, honoring the commit-selection
+// filter. The CommentIdx recorded is the absolute index into the stored
+// slice — including comments on the other side — so delete/edit can index
+// directly.
+func (a *App) pushLineComments(fileIdx int, lineNo *uint32, lineComments map[uint32][]*model.Comment,
+	side model.LineSide, commitSet map[string]bool, hasCommitSet bool) {
+	if lineNo == nil {
+		return
+	}
+	comments := lineComments[*lineNo]
+	for idx, comment := range comments {
+		matchesSide := (comment.Side != nil && *comment.Side == side) ||
+			(side == model.LineSideNew && comment.Side == nil)
+		if !matchesSide {
+			continue
+		}
+		// Hide comments scoped to a commit outside the current selection.
+		// Uses the shared predicate so height math and rendering agree.
+		if !commentVisibleWith(comment, commitSet, hasCommitSet) {
+			continue
+		}
+		commentLines := CommentDisplayLines(comment, a.DiffState.ViewportWidth)
+		for range commentLines {
+			a.LineAnnotations = append(a.LineAnnotations, AnnotatedLine{
+				Kind:       AnnLineComment,
+				FileIdx:    fileIdx,
+				Line:       *lineNo,
+				CommentIdx: idx,
+				Side:       side,
+			})
+		}
+	}
+}
+
+// buildUnifiedDiffAnnotations emits one annotation per diff line, with
+// line comments (old side then new side) interleaved after each. M6 hook:
+// remote threads interleave here too.
+func (a *App) buildUnifiedDiffAnnotations(fileIdx, hunkIdx int, lines []model.DiffLine,
+	lineComments map[uint32][]*model.Comment, commitSet map[string]bool, hasCommitSet bool) {
 	for lineIdx := range lines {
 		line := &lines[lineIdx]
 		a.LineAnnotations = append(a.LineAnnotations, AnnotatedLine{
@@ -333,13 +399,19 @@ func (a *App) buildUnifiedDiffAnnotations(fileIdx, hunkIdx int, lines []model.Di
 			OldLineno: line.OldLineno,
 			NewLineno: line.NewLineno,
 		})
+
+		// Line comments on the old side (deleted lines), then the new side
+		// (added/context lines).
+		a.pushLineComments(fileIdx, line.OldLineno, lineComments, model.LineSideOld, commitSet, hasCommitSet)
+		a.pushLineComments(fileIdx, line.NewLineno, lineComments, model.LineSideNew, commitSet, hasCommitSet)
 	}
 }
 
 // buildSideBySideAnnotations pairs deletions and additions into aligned
-// rows. M4 hook: line comments and remote threads interleave per row once
-// comments land.
-func (a *App) buildSideBySideAnnotations(fileIdx, hunkIdx int, lines []model.DiffLine) {
+// rows, with line comments interleaved per row. M6 hook: remote threads
+// interleave here too.
+func (a *App) buildSideBySideAnnotations(fileIdx, hunkIdx int, lines []model.DiffLine,
+	lineComments map[uint32][]*model.Comment, commitSet map[string]bool, hasCommitSet bool) {
 	i := 0
 	for i < len(lines) {
 		line := &lines[i]
@@ -355,6 +427,7 @@ func (a *App) buildSideBySideAnnotations(fileIdx, hunkIdx int, lines []model.Dif
 				OldLineno:  line.OldLineno,
 				NewLineno:  line.NewLineno,
 			})
+			a.pushLineComments(fileIdx, line.NewLineno, lineComments, model.LineSideNew, commitSet, hasCommitSet)
 			i++
 
 		case model.OriginDeletion:
@@ -403,6 +476,9 @@ func (a *App) buildSideBySideAnnotations(fileIdx, hunkIdx int, lines []model.Dif
 					OldLineno:  oldLineno,
 					NewLineno:  newLineno,
 				})
+
+				a.pushLineComments(fileIdx, oldLineno, lineComments, model.LineSideOld, commitSet, hasCommitSet)
+				a.pushLineComments(fileIdx, newLineno, lineComments, model.LineSideNew, commitSet, hasCommitSet)
 			}
 
 			i = addEnd
@@ -416,6 +492,7 @@ func (a *App) buildSideBySideAnnotations(fileIdx, hunkIdx int, lines []model.Dif
 				AddLineIdx: &idx,
 				NewLineno:  line.NewLineno,
 			})
+			a.pushLineComments(fileIdx, line.NewLineno, lineComments, model.LineSideNew, commitSet, hasCommitSet)
 			i++
 		}
 	}
