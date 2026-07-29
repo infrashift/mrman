@@ -11,6 +11,7 @@ import (
 	"github.com/infrashift/mrman/internal/app"
 	"github.com/infrashift/mrman/internal/forge"
 	"github.com/infrashift/mrman/internal/input"
+	"github.com/infrashift/mrman/internal/theme"
 )
 
 // prSubmitResultMsg carries the async CreateReview outcome.
@@ -164,10 +165,13 @@ func (m *Model) submitModalView(width int) []string {
 	t := m.Theme
 	emitter := &render.Emitter{}
 	var rows []string
-	line := func(spans ...render.Span) { rows = append(rows, emitter.Line(spans)) }
-	title := func(text string) {
-		line(render.Span{Text: text, Style: render.Style{Fg: t.BorderFocused, Bold: true}})
+	var heading string
+	line := func(spans ...render.Span) {
+		rows = append(rows, emitter.Line(append(
+			[]render.Span{{Text: borderPrefix, Style: render.Style{Fg: t.BorderFocused, Bold: true}}},
+			spans...)))
 	}
+	title := func(text string) { heading = strings.TrimSpace(text) }
 
 	switch a.InputMode {
 	case input.ModeSubmitActionPicker:
@@ -217,9 +221,40 @@ func (m *Model) submitModalView(width int) []string {
 		line(render.Span{Text: "[y] submit    [n] cancel", Style: render.Style{Fg: t.FgSecondary, Bold: true}})
 	}
 
-	for i, row := range rows {
-		rows[i] = " " + row
+	if len(rows) == 0 {
+		return nil
 	}
-	_ = width
-	return rows
+	return append([]string{modalHead(heading, t, emitter, width)},
+		append(rows, modalFoot(t, emitter, width))...)
+}
+
+// modalHead and modalFoot frame a submit modal in the same box the comment
+// overlay uses. The rows used to be printed bare over the diff, which read
+// as diff content that had gone strange rather than as a dialog asking to
+// push a review to a forge.
+func modalHead(heading string, t *theme.Theme, emitter *render.Emitter, width int) string {
+	borderStyle := render.Style{Fg: t.BorderFocused, Bold: true}
+	lead := "    ╭── "
+	spans := []render.Span{
+		{Text: lead, Style: borderStyle},
+		{Text: heading, Style: render.Style{Fg: t.FgPrimary, Bold: true}},
+	}
+	used := render.StringWidth(lead) + render.StringWidth(heading)
+	if width-used >= 2 {
+		spans = append(spans, render.Span{
+			Text:  " " + strings.Repeat("─", width-used-1),
+			Style: borderStyle,
+		})
+	}
+	return emitter.Line(spans)
+}
+
+func modalFoot(t *theme.Theme, emitter *render.Emitter, width int) string {
+	fill := width - 5
+	if fill < 0 {
+		fill = 0
+	}
+	return emitter.Line([]render.Span{
+		{Text: "    ╰" + strings.Repeat("─", fill), Style: render.Style{Fg: t.BorderFocused, Bold: true}},
+	})
 }

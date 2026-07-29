@@ -352,8 +352,10 @@ func (m *Model) handleKey(k tea.Key) (tea.Model, tea.Cmd) {
 	// 4. Keymap lookup.
 	action := input.MapKey(k, a.InputMode, m.leader)
 
-	// 6. Count prefix (Normal mode only).
-	if a.InputMode == input.ModeNormal {
+	// 6. Count prefix. Normal mode and the help popup both take one — the
+	// popup is a scrollable document, and it was the one mode where a
+	// typed count was silently dropped.
+	if a.InputMode == input.ModeNormal || a.InputMode == input.ModeHelp {
 		if action.Kind == input.Digit {
 			n := 0
 			if a.PendingCount != nil {
@@ -371,8 +373,12 @@ func (m *Model) handleKey(k tea.Key) (tea.Model, tea.Cmd) {
 			a.PendingCount = nil
 			switch action.Kind {
 			case input.GoToBottom:
-				a.GoToSourceLine(uint32(count), "new")
-				return m, nil
+				// {N}G jumps to a source line, which the help popup does
+				// not have; there a count leaves G meaning "to the end".
+				if a.InputMode == input.ModeNormal {
+					a.GoToSourceLine(uint32(count), "new")
+					return m, nil
+				}
 			case input.CursorDown, input.CursorUp, input.ScrollLeft, input.ScrollRight,
 				input.ScrollViewDown, input.ScrollViewUp:
 				action.N *= count

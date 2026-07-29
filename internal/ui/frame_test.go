@@ -6,6 +6,7 @@ import (
 
 	render "github.com/infrashift/mrman/charmkit/cellrender"
 	"github.com/infrashift/mrman/internal/app"
+	"github.com/infrashift/mrman/internal/forge"
 	"github.com/infrashift/mrman/internal/input"
 	"github.com/infrashift/mrman/internal/vcs"
 )
@@ -183,6 +184,96 @@ func TestCommentBoxIsAClosedBox(t *testing.T) {
 		}
 		if top != bottom {
 			t.Errorf("width %d: top rule %d, bottom rule %d — the box does not close", width, top, bottom)
+		}
+	}
+}
+
+// TestHelpTakesACountPrefix covers the one mode where a typed count was
+// dropped. The popup is a scrollable document, so "20j" must move 20 rows,
+// not one.
+func TestHelpTakesACountPrefix(t *testing.T) {
+	m := testModel(t)
+	m.App.ToggleHelp()
+	m.helpView() // primes TotalLines/ViewportHeight
+	if m.App.InputMode != input.ModeHelp {
+		t.Fatal("help must be open")
+	}
+
+	for _, r := range "20j" {
+		pressRune(m, r)
+	}
+	if got := m.App.HelpState.ScrollOffset; got != 20 {
+		t.Errorf("20j scrolled %d rows, want 20", got)
+	}
+	if m.App.PendingCount != nil {
+		t.Error("the count must be consumed, not left pending")
+	}
+
+	for _, r := range "5k" {
+		pressRune(m, r)
+	}
+	if got := m.App.HelpState.ScrollOffset; got != 15 {
+		t.Errorf("5k left offset %d, want 15", got)
+	}
+}
+
+// TestCountInHelpDoesNotJumpToASourceLine: {N}G means "to the end" in the
+// popup. Routing it to GoToSourceLine would move the diff cursor behind an
+// open help window and leave a "line not in diff" message under it.
+func TestCountInHelpDoesNotJumpToASourceLine(t *testing.T) {
+	m := testModel(t)
+	m.App.ToggleHelp()
+	m.helpView() // primes TotalLines/ViewportHeight
+	before := m.App.DiffState.CursorLine
+
+	for _, r := range "42G" {
+		pressRune(m, r)
+	}
+	if m.App.DiffState.CursorLine != before {
+		t.Error("a count in help must not move the diff cursor")
+	}
+	if m.App.HelpState.ScrollOffset == 0 {
+		t.Error("42G in help must still scroll to the end")
+	}
+}
+
+// TestSubmitModalsAreBoxed pins every submit modal to a closed frame at the
+// pane width. Printed bare, their rows read as diff content that had gone
+// strange rather than as a dialog about to push a review to a forge.
+func TestSubmitModalsAreBoxed(t *testing.T) {
+	modes := []input.Mode{
+		input.ModeSubmitActionPicker,
+		input.ModeSubmitResolver,
+		input.ModeSubmitConfirm,
+	}
+	for _, mode := range modes {
+		for _, width := range []int{60, 100, 160} {
+			m, _ := prModel(t)
+			m.width = width
+			m.App.InputMode = mode
+			m.App.Submit = &app.SubmitState{Event: forge.SubmitComment}
+
+			rows := m.submitModalView(width)
+			if len(rows) < 3 {
+				t.Fatalf("%v at %d: got %d rows, want a head, a body and a foot",
+					mode, width, len(rows))
+			}
+			head := ansiSequence.ReplaceAllString(rows[0], "")
+			foot := ansiSequence.ReplaceAllString(rows[len(rows)-1], "")
+			if !strings.HasPrefix(head, "    ╭──") {
+				t.Errorf("%v at %d: head is %q", mode, width, head)
+			}
+			if !strings.HasPrefix(foot, "    ╰──") {
+				t.Errorf("%v at %d: foot is %q", mode, width, foot)
+			}
+			if hw, fw := render.StringWidth(head), render.StringWidth(foot); hw != fw {
+				t.Errorf("%v at %d: head %d, foot %d — the box does not close", mode, width, hw, fw)
+			}
+			for i, row := range rows {
+				if w := render.StringWidth(ansiSequence.ReplaceAllString(row, "")); w > width {
+					t.Errorf("%v at %d: row %d is %d wide and will wrap", mode, width, i, w)
+				}
+			}
 		}
 	}
 }

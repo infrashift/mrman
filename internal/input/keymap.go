@@ -362,6 +362,12 @@ func mapHelp(k tea.Key) Action {
 			return act(SearchPrev)
 		}
 	}
+	// Digits accumulate a count, as in Normal mode: the popup is a
+	// scrollable document, and "20j" doing nothing was the one place a
+	// count was silently dropped.
+	if r, ok := ch(k); ok && r >= '0' && r <= '9' && k.Mod == 0 {
+		return actN(Digit, int(r-'0'))
+	}
 	return act(None)
 }
 

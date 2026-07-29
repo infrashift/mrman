@@ -3,7 +3,9 @@
 Press `?` in the app for the same list. `<leader>` is `;` by default and is
 configurable to any single character (`leader` in the config).
 
-Most navigation keys take a count prefix: `5j`, `3}`, `{N}G`.
+Most navigation keys take a count prefix: `5j`, `3}`, `{N}G`. The help popup
+takes one too (`20j`), where `{N}G` just means "to the end" — a popup has no
+source lines to jump to.
 
 ## Navigation
 
