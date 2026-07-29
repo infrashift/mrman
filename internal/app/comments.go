@@ -11,9 +11,9 @@ import (
 	"slices"
 	"strings"
 
+	render "github.com/infrashift/mrman/charmkit/cellrender"
 	"github.com/infrashift/mrman/internal/input"
 	"github.com/infrashift/mrman/internal/model"
-	"github.com/infrashift/mrman/internal/render"
 	"github.com/infrashift/mrman/internal/reviewcli"
 	"github.com/infrashift/mrman/internal/vcs"
 )

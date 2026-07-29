@@ -8,6 +8,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
+	"github.com/infrashift/mrman/charmkit/keychord"
 	"github.com/infrashift/mrman/internal/app"
 	"github.com/infrashift/mrman/internal/forge"
 	"github.com/infrashift/mrman/internal/forge/forgetypes"
@@ -35,9 +36,13 @@ type Model struct {
 	commentNav  CommentNavPane
 	commitStrip CommitStripPane
 
-	pendingZ, pendingShiftZ, pendingD, pendingLeader bool
-	pendingCtrlC                                     time.Time
-	leader                                           rune
+	// chords resolves the two-key prefixes (z, Z, d and the leader).
+	// Counts stay out of it: mrman's count applies per-action semantics —
+	// scaling j/k, repeating }/{ — that keychord deliberately does not
+	// model, so the keymap keeps emitting Digit and PendingCount.
+	chords       *keychord.Resolver
+	pendingCtrlC time.Time
+	leader       rune
 
 	completion *input.CompletionState
 
@@ -129,7 +134,22 @@ func NewModel(a *app.App, t *theme.Theme) *Model {
 		commentNav:  CommentNavPane{Theme: t},
 		commitStrip: CommitStripPane{Theme: t},
 		leader:      ';',
+		chords:      newChordResolver(';'),
 	}
+}
+
+// newChordResolver builds the chord state machine for a leader key.
+func newChordResolver(leader rune) *keychord.Resolver {
+	return keychord.New(keychord.Config{
+		Prefixes: []string{"z", "Z", "d"},
+		Leader:   string(leader),
+	})
+}
+
+// SetLeader rebinds the leader and rebuilds the chord resolver around it.
+func (m *Model) SetLeader(leader rune) {
+	m.leader = leader
+	m.chords = newChordResolver(leader)
 }
 
 // Init requests the first tick.
@@ -258,48 +278,9 @@ func (m *Model) handleKey(k tea.Key) (tea.Model, tea.Cmd) {
 	}
 	m.pendingCtrlC = time.Time{}
 
-	// 2. Pending chords.
-	if m.pendingZ {
-		m.pendingZ = false
-		if r, ok := printable(k); ok {
-			switch r {
-			case 'z':
-				a.CenterCursor()
-				return m, nil
-			case 't':
-				a.CursorToTop()
-				return m, nil
-			case 'b':
-				a.CursorToBottom()
-				return m, nil
-			}
-		}
-	}
-	if m.pendingShiftZ {
-		m.pendingShiftZ = false
-		if r, ok := printable(k); ok && (r == 'Z' || r == 'Q') {
-			if r == 'Z' {
-				// ZZ saves before quitting; ZQ quits without saving.
-				if err := m.saveSession(); err != nil {
-					a.SetError("Save failed: " + err.Error())
-					return m, nil
-				}
-			}
-			return m, tea.Quit
-		}
-	}
-	if m.pendingD {
-		m.pendingD = false
-		if r, ok := printable(k); ok && r == 'd' {
-			if a.DeleteCommentAtCursor() {
-				m.autosave()
-			}
-			return m, nil
-		}
-	}
-
-	// Comment-vim routing intercepts everything while composing with vim on.
+	// 2. Comment-vim routing intercepts everything while composing.
 	if a.InputMode == input.ModeComment && m.vim != nil {
+		m.chords.Reset()
 		switch m.vim.handleKey(a, k) {
 		case vimSave:
 			m.saveComment()
@@ -313,35 +294,43 @@ func (m *Model) handleKey(k tea.Key) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	}
-	if m.pendingLeader {
-		m.pendingLeader = false
-		if r, ok := printable(k); ok {
-			m.handleLeader(r)
+
+	// 3. Chords. Every prefix comes from the normal-mode keymap, so a
+	// half-typed chord must be abandoned the moment input goes anywhere
+	// else — otherwise it would complete against a text field.
+	if a.InputMode != input.ModeNormal {
+		m.chords.Reset()
+	} else if r, ok := printable(k); ok {
+		ev := m.chords.Feed(string(r))
+		if ev.Consumed {
+			// Starting a chord abandons any count typed before it: "5zz"
+			// centers the view, it does not center it five times and then
+			// apply the 5 to whatever comes next.
+			a.PendingCount = nil
 			return m, nil
 		}
+		if ev.IsChord() {
+			quit, handled := m.dispatchChord(ev)
+			if quit {
+				return m, tea.Quit
+			}
+			if handled {
+				return m, m.takeQueued()
+			}
+			// An unrecognized chord is a mistyped prefix, not a mistyped
+			// key: let the second key act on its own, as it did before the
+			// prefix was pressed.
+		}
+	} else {
+		// A non-printable key cannot complete a chord; drop the prefix and
+		// let the keymap have the key.
+		m.chords.Reset()
 	}
 
-	// 3. Keymap lookup.
+	// 4. Keymap lookup.
 	action := input.MapKey(k, a.InputMode, m.leader)
 
-	// 4. Pending-setter actions.
-	switch action.Kind {
-	case input.PendingZCommand:
-		m.pendingZ = true
-		a.PendingCount = nil
-		return m, nil
-	case input.PendingShiftZCommand:
-		m.pendingShiftZ = true
-		return m, nil
-	case input.PendingDCommand:
-		m.pendingD = true
-		return m, nil
-	case input.PendingLeaderCommand:
-		m.pendingLeader = true
-		return m, nil
-	}
-
-	// 5. Count prefix (Normal mode only).
+	// 6. Count prefix (Normal mode only).
 	if a.InputMode == input.ModeNormal {
 		if action.Kind == input.Digit {
 			n := 0
@@ -373,7 +362,7 @@ func (m *Model) handleKey(k tea.Key) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	// 6. Submit modals may spawn async work.
+	// 7. Submit modals may spawn async work.
 	switch a.InputMode {
 	case input.ModeSubmitActionPicker:
 		quit, cmd := m.dispatchSubmitPicker(action)
@@ -395,7 +384,7 @@ func (m *Model) handleKey(k tea.Key) (tea.Model, tea.Cmd) {
 		return m, cmd
 	}
 
-	// 7. Dispatch.
+	// 8. Dispatch.
 	if quit := m.dispatch(action); quit {
 		return m, tea.Quit
 	}
@@ -1259,4 +1248,54 @@ func (m *Model) helpView() tea.View {
 	view := tea.NewView(frame)
 	view.AltScreen = true
 	return view
+}
+
+// dispatchChord runs a completed two-key chord, reporting whether to quit
+// and whether the chord was recognized at all.
+//
+// keychord hands over the whole chord rather than deciding what an unknown
+// one means, because only the caller knows its own bindings. mrman lets an
+// unrecognized chord fall through to its second key, matching tuicr: after
+// a stray "z", ":" should still open the command line.
+func (m *Model) dispatchChord(ev keychord.Event) (quit, handled bool) {
+	a := m.App
+	switch ev.Prefix {
+	case "z":
+		switch ev.Key {
+		case "z":
+			a.CenterCursor()
+		case "t":
+			a.CursorToTop()
+		case "b":
+			a.CursorToBottom()
+		default:
+			return false, false
+		}
+	case "Z":
+		switch ev.Key {
+		case "Z":
+			// ZZ saves before quitting; ZQ quits without saving.
+			if err := m.saveSession(); err != nil {
+				a.SetError("Save failed: " + err.Error())
+				return false, true
+			}
+			return true, true
+		case "Q":
+			return true, true
+		default:
+			return false, false
+		}
+	case "d":
+		if ev.Key != "d" {
+			return false, false
+		}
+		if a.DeleteCommentAtCursor() {
+			m.autosave()
+		}
+	case string(m.leader):
+		m.handleLeader([]rune(ev.Key)[0])
+	default:
+		return false, false
+	}
+	return false, true
 }

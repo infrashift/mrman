@@ -7,11 +7,11 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	render "github.com/infrashift/mrman/charmkit/cellrender"
 	"github.com/infrashift/mrman/internal/app"
 	"github.com/infrashift/mrman/internal/forge"
 	"github.com/infrashift/mrman/internal/input"
 	"github.com/infrashift/mrman/internal/output"
-	"github.com/infrashift/mrman/internal/render"
 )
 
 // prSubmitResultMsg carries the async CreateReview outcome.

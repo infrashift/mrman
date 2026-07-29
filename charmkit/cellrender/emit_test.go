@@ -1,4 +1,4 @@
-package render
+package cellrender
 
 import (
 	"image/color"

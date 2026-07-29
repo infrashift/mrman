@@ -1,19 +1,24 @@
-// Package render holds the terminal-cell representation of the TUI's text
-// content: styled spans, logical diff-stream rows tagged with semantic row
-// kinds, width/wrap/truncate helpers ported from tuicr's text_utils.rs, and
-// an ANSI emitter that serializes spans to escape sequences.
+// Package cellrender is a terminal-cell text layer for full-screen TUIs:
+// styled spans, logical rows tagged with a caller-defined kind,
+// display-width-accurate wrapping and truncation, horizontal scrolling that
+// never splits a wide rune, background overlays that survive wrapping, and
+// an ANSI emitter.
 //
-// The package deliberately does not port tuicr's zero-width marker trick;
-// RowKind tags on LogicalLine carry row semantics instead.
-package render
+// It exists because lipgloss styles blocks, not cell streams: it offers no
+// horizontal scroll, and no way to repaint a row's background so the paint
+// stays aligned under word wrap. Anything that scrolls a wide document
+// sideways — a diff, a log, a table — needs this layer underneath.
+//
+// Row semantics travel in RowKind on LogicalLine rather than in zero-width
+// marker runes embedded in the text, so a row's meaning survives wrapping,
+// truncation and re-styling.
+package cellrender
 
 import (
 	"image/color"
 	"strconv"
 
 	"github.com/mattn/go-runewidth"
-
-	"github.com/infrashift/mrman/internal/syntax"
 )
 
 // widthCond is the pinned display-width oracle. EastAsianWidth is forced off
@@ -39,29 +44,9 @@ type Span struct {
 	Style Style
 }
 
-// FromSyntaxSpans converts highlighter spans (hex-string styles) into render
-// spans (color.Color styles). Empty or malformed hex strings become nil
-// (terminal default) colors.
-func FromSyntaxSpans(spans []syntax.Span) []Span {
-	out := make([]Span, len(spans))
-	for i, sp := range spans {
-		out[i] = Span{
-			Text: sp.Text,
-			Style: Style{
-				Fg:        parseHexColor(sp.Style.FG),
-				Bg:        parseHexColor(sp.Style.BG),
-				Bold:      sp.Style.Bold,
-				Italic:    sp.Style.Italic,
-				Underline: sp.Style.Underline,
-			},
-		}
-	}
-	return out
-}
-
-// parseHexColor parses "#rrggbb" into an opaque color.RGBA. Anything else
-// (including "") yields nil.
-func parseHexColor(s string) color.Color {
+// ParseHexColor parses "#rrggbb" into an opaque color.RGBA. Anything else
+// (including "") yields nil, meaning "inherit the terminal default".
+func ParseHexColor(s string) color.Color {
 	if len(s) != 7 || s[0] != '#' {
 		return nil
 	}

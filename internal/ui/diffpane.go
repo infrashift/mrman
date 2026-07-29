@@ -8,9 +8,9 @@ import (
 	"image/color"
 	"strings"
 
+	render "github.com/infrashift/mrman/charmkit/cellrender"
 	"github.com/infrashift/mrman/internal/app"
 	"github.com/infrashift/mrman/internal/model"
-	"github.com/infrashift/mrman/internal/render"
 	"github.com/infrashift/mrman/internal/theme"
 )
 
@@ -239,7 +239,7 @@ func (p *DiffPane) diffLineRow(a *app.App, ann *app.AnnotatedLine, ind render.Sp
 		{Text: prefix, Style: contentStyle},
 	}
 	if line.HighlightedSpans != nil {
-		spans = append(spans, render.FromSyntaxSpans(line.HighlightedSpans)...)
+		spans = append(spans, fromSyntaxSpans(line.HighlightedSpans)...)
 	} else {
 		spans = append(spans, render.Span{Text: line.Content, Style: contentStyle})
 	}
@@ -281,7 +281,7 @@ func (p *DiffPane) sbsLineRow(a *app.App, ann *app.AnnotatedLine, ind render.Spa
 		}
 		var content []render.Span
 		if line.HighlightedSpans != nil {
-			content = render.FromSyntaxSpans(line.HighlightedSpans)
+			content = fromSyntaxSpans(line.HighlightedSpans)
 			switch line.Origin {
 			case model.OriginDeletion:
 				bg = t.SyntaxDelBg

@@ -45,7 +45,7 @@ func applyConfig(cfg config.Config, a *app.App, m *Model) {
 	a.IsSingleFileView = a.IsSingleFileView || cfg.SingleFileView
 
 	if leader := []rune(cfg.Leader); len(leader) == 1 {
-		m.leader = leader[0]
+		m.SetLeader(leader[0])
 	}
 	m.CommentVimMode = cfg.CommentVim
 	m.commentTabWidth = cfg.CommentTabWidth

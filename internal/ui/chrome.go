@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
+	render "github.com/infrashift/mrman/charmkit/cellrender"
 	"github.com/infrashift/mrman/internal/app"
 	"github.com/infrashift/mrman/internal/input"
-	"github.com/infrashift/mrman/internal/render"
 	"github.com/infrashift/mrman/internal/theme"
 )
 

@@ -1,4 +1,4 @@
-package render
+package cellrender
 
 import (
 	"image/color"
@@ -6,8 +6,6 @@ import (
 	"strings"
 	"testing"
 	"unicode/utf8"
-
-	"github.com/infrashift/mrman/internal/syntax"
 )
 
 var (
@@ -81,29 +79,6 @@ func TestTruncateOrPadTruncatesLongStringByRuneCount(t *testing.T) {
 func TestTruncateOrPadReturnsExactFitUnchanged(t *testing.T) {
 	if got := TruncateOrPad("hello", 5); got != "hello" {
 		t.Fatalf("got %q", got)
-	}
-}
-
-func TestTruncateOrPadSpansPadsHighlightedSpansToExactWidth(t *testing.T) {
-	// Highlighted spans from the syntax highlighter. Short content gets
-	// padded; the result must have exactly `width` characters so the
-	// side-by-side separator stays aligned.
-	h := syntax.NewHighlighter("github", "", "")
-	highlighted, ok := h.HighlightFileLines("test.rs", []string{"let x = 1;"})
-	if !ok || len(highlighted) != 1 {
-		t.Fatalf("highlighting failed: ok=%v len=%d", ok, len(highlighted))
-	}
-	spans := FromSyntaxSpans(highlighted[0])
-
-	const width = 80
-	result := TruncateOrPadSpans(spans, width, Style{})
-
-	totalChars := 0
-	for _, sp := range result {
-		totalChars += utf8.RuneCountInString(sp.Text)
-	}
-	if totalChars != width {
-		t.Fatalf("padded spans should have exactly %d chars, got %d", width, totalChars)
 	}
 }
 

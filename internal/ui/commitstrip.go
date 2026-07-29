@@ -3,8 +3,8 @@ package ui
 import (
 	"fmt"
 
+	render "github.com/infrashift/mrman/charmkit/cellrender"
 	"github.com/infrashift/mrman/internal/app"
-	"github.com/infrashift/mrman/internal/render"
 	"github.com/infrashift/mrman/internal/theme"
 )
 

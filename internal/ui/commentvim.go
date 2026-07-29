@@ -3,8 +3,8 @@ package ui
 import (
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/infrashift/mrman/charmkit/vimtext"
 	"github.com/infrashift/mrman/internal/app"
-	"github.com/infrashift/mrman/internal/vimtext"
 )
 
 // vimState wraps the vimtext editor with the app-level chrome tuicr layers

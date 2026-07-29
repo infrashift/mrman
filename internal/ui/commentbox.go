@@ -5,9 +5,9 @@ import (
 	"image/color"
 	"strings"
 
+	render "github.com/infrashift/mrman/charmkit/cellrender"
 	"github.com/infrashift/mrman/internal/app"
 	"github.com/infrashift/mrman/internal/model"
-	"github.com/infrashift/mrman/internal/render"
 )
 
 // borderPrefix is the comment box body lead-in: 4-space pad + │ + 2 spaces.

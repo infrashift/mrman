@@ -24,7 +24,7 @@ GOLANGCI_LINT := $(GOBIN_DIR)/golangci-lint
 .DEFAULT_GOAL := build
 
 .PHONY: all build install run test test-race cover cover-html cover-check bench lint fmt vet tidy \
-        generate check package clean tools help
+        generate check check-charmkit package clean tools help
 
 all: check build
 
@@ -39,6 +39,9 @@ run: build ## Build and run the TUI
 
 test: ## Run unit tests
 	go test ./...
+
+check-charmkit: ## Build, vet and test the nested charmkit module
+	cd charmkit && go vet ./... && go test ./...
 
 test-race: ## Run tests with the race detector
 	go test -race ./...
@@ -77,7 +80,7 @@ tidy: ## go mod tidy, fail if it changes anything (CI-friendly)
 generate: ## go generate (CUE schema embedding, etc.)
 	go generate ./...
 
-check: fmt vet lint test cover-check ## Everything CI runs (lint + tests + 85% coverage gate)
+check: fmt vet lint test cover-check check-charmkit ## Everything CI runs (lint + tests + 85% coverage gate)
 
 package: ## Cross-compile release tarballs/zips into ./dist
 	@mkdir -p $(DIST_DIR)
@@ -109,3 +112,19 @@ tools: ## Install dev tools (golangci-lint, goimports)
 help: ## Show this help
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | \
 		awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
+
+# charmkit is a nested module (github.com/infrashift/mrman/charmkit) so its
+# consumers do not inherit mrman's dependency tree.
+#
+# go.work is committed, so every clone and every make target here builds.
+# What does NOT build is mrman with the workspace disabled — `GOWORK=off go
+# build ./...`, and therefore `go install github.com/infrashift/mrman@vX.Y.Z`
+# — because go.mod cannot require a charmkit version that has never been
+# tagged. Releasing means, in order:
+#
+#     git tag charmkit/vX.Y.Z && git push origin charmkit/vX.Y.Z
+#     go mod edit -require=github.com/infrashift/mrman/charmkit@vX.Y.Z
+#     git commit go.mod && git tag vX.Y.Z && git push --tags
+#
+# After that first release, `GOWORK=off go build ./...` should pass; treat a
+# failure there as a release blocker, not a local-setup problem.

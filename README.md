@@ -160,6 +160,18 @@ make package   # cross-platform release artifacts in ./dist
 The codebase mirrors tuicr's layout under `internal/`; tuicr's own test
 suite is ported throughout as the behavioral parity spec.
 
+### charmkit
+
+Three layers that other Bubble Tea projects can reuse live in the nested
+[`charmkit`](charmkit/) module — modal text editing (`vimtext`), vim chord
+and count resolution (`keychord`), and a terminal-cell text layer with
+horizontal scrolling and wrap-safe background overlays (`cellrender`). It is
+a separate module so consumers do not inherit mrman's dependency tree.
+`go.work` is committed, so every clone builds. Until the first release tags
+`charmkit/vX.Y.Z` and pins it in `go.mod`, `go install
+github.com/infrashift/mrman@latest` will not resolve — build from a checkout
+in the meantime. See the note at the bottom of the `Makefile`.
+
 ### Deliberate differences from tuicr
 
 - **No self-updater.** Use your package manager or `go install`; there is no
