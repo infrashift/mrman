@@ -353,8 +353,13 @@ func TestApplyPullRequestResetsReviewStateAndKeepsTabRows(t *testing.T) {
 	if len(a.ExpandedTop) != 0 {
 		t.Error("expanded gaps must be cleared for the new diff")
 	}
-	if a.ReviewCommits != nil || a.CommitSelectionRange != nil || a.ShowCommitSelector {
-		t.Error("the outgoing local commit selection must not leak into the PR review")
+	// The outgoing local commits must not leak: the selector is rebuilt
+	// from the PR's own commits instead.
+	if len(a.ReviewCommits) != 1 || a.ReviewCommits[0].ID != "abc" {
+		t.Errorf("the selector must hold the PR's commits, got %+v", a.ReviewCommits)
+	}
+	if a.ShowCommitSelector {
+		t.Error("a single-commit pull request must not show the commit strip")
 	}
 	if len(a.Pr.TabRows) != 1 {
 		t.Error("the selector's PR listing must survive so reopening it does not refetch")

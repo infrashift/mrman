@@ -29,8 +29,10 @@ type Model struct {
 	Theme  *theme.Theme
 	Styles theme.Styles
 
-	diffPane DiffPane
-	fileList FileListPane
+	diffPane    DiffPane
+	fileList    FileListPane
+	commentNav  CommentNavPane
+	commitStrip CommitStripPane
 
 	pendingZ, pendingShiftZ, pendingD, pendingLeader bool
 	pendingCtrlC                                     time.Time
@@ -107,12 +109,14 @@ func (m *Model) saveSession() error {
 // NewModel wires a Model around app state and a resolved theme.
 func NewModel(a *app.App, t *theme.Theme) *Model {
 	return &Model{
-		App:      a,
-		Theme:    t,
-		Styles:   theme.NewStyles(t),
-		diffPane: DiffPane{Theme: t},
-		fileList: FileListPane{Theme: t},
-		leader:   ';',
+		App:         a,
+		Theme:       t,
+		Styles:      theme.NewStyles(t),
+		diffPane:    DiffPane{Theme: t},
+		fileList:    FileListPane{Theme: t},
+		commentNav:  CommentNavPane{Theme: t},
+		commitStrip: CommitStripPane{Theme: t},
+		leader:      ';',
 	}
 }
 
@@ -174,6 +178,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.handlePrContextResult(msg)
 	case prReloadResultMsg:
 		return m, m.handlePrReloadResult(msg)
+	case prRangeDiffResultMsg:
+		m.handlePrRangeDiffResult(msg)
 	}
 	return m, nil
 }
@@ -419,13 +425,15 @@ func (m *Model) handleLeader(r rune) {
 	case 'e':
 		a.ToggleFileList()
 	case 'h':
-		if a.ShowFileList {
-			a.FocusedPanel = app.PanelFileList
-		}
+		a.FocusPanel(app.PanelFileList)
 	case 'l':
-		a.FocusedPanel = app.PanelDiff
+		a.FocusPanel(app.PanelDiff)
 	case 'j':
-		a.FocusedPanel = app.PanelDiff
+		a.MovePanelFocus(1)
+	case 'k':
+		a.MovePanelFocus(-1)
+	case 's':
+		a.ToggleCommitSelector()
 	case 'c':
 		a.EnterReviewCommentMode()
 		m.enterComposeMode()
@@ -449,10 +457,22 @@ func (m *Model) dispatch(action input.Action) bool {
 	case input.ModeVisualSelect:
 		return m.dispatchVisual(action)
 	case input.ModeNormal:
-		if a.FocusedPanel == app.PanelFileList {
+		// Focused-pane overlays get first refusal; anything they do not
+		// claim falls through to the normal-mode bindings.
+		switch a.FocusedPanel {
+		case app.PanelFileList:
 			if handled := m.dispatchFileList(action); handled {
 				return false
 			}
+		case app.PanelComments:
+			if handled := m.dispatchCommentNav(action); handled {
+				return false
+			}
+		case app.PanelCommitSelector:
+			if handled := m.dispatchCommitStrip(action); handled {
+				return false
+			}
+		case app.PanelDiff:
 		}
 		return m.dispatchNormal(action)
 	}
@@ -618,8 +638,13 @@ func (m *Model) runCommand(cmd input.Command) bool {
 		m.setRemoteCommentsVisibility(forgetypes.VisibilityHide)
 	case input.CmdReload:
 		m.queue(m.reloadDiff())
-	case input.CmdSetCommitsVisible, input.CmdSetCommitsHidden, input.CmdToggleCommits,
-		input.CmdEdit, input.CmdVersion:
+	case input.CmdSetCommitsVisible:
+		m.setCommitSelectorVisible(true)
+	case input.CmdSetCommitsHidden:
+		m.setCommitSelectorVisible(false)
+	case input.CmdToggleCommits:
+		a.ToggleCommitSelector()
+	case input.CmdEdit, input.CmdVersion:
 		a.SetMessage("Not available yet: :" + cmd.Raw)
 	default:
 		a.SetError("Unknown command: " + cmd.Raw)
@@ -858,6 +883,42 @@ func (m *Model) dispatchFileList(action input.Action) bool {
 	return true
 }
 
+// dispatchCommentNav handles keys while the comment navigator has focus.
+func (m *Model) dispatchCommentNav(action input.Action) bool {
+	a := m.App
+	switch action.Kind {
+	case input.CursorDown:
+		a.CommentNavDown()
+	case input.CursorUp:
+		a.CommentNavUp()
+	case input.SelectFile, input.SelectFileFull, input.ToggleExpand:
+		a.CommentNavSelect()
+	default:
+		return false
+	}
+	return true
+}
+
+// dispatchCommitStrip handles keys while the inline commit selector has
+// focus. Toggling a commit renarrows the review, so the diff reloads.
+func (m *Model) dispatchCommitStrip(action input.Action) bool {
+	a := m.App
+	switch action.Kind {
+	case input.CursorDown:
+		a.CommitSelectDown()
+	case input.CursorUp:
+		a.CommitSelectUp()
+	case input.ToggleExpand, input.SelectFile, input.SelectFileFull:
+		a.ToggleCommitSelectionAndAdvance()
+		m.queue(m.reloadInlineSelection())
+	case input.ExitMode:
+		a.FocusPanel(app.PanelDiff)
+	default:
+		return false
+	}
+	return true
+}
+
 func (m *Model) dispatchNormal(action input.Action) bool {
 	a := m.App
 	switch action.Kind {
@@ -902,6 +963,10 @@ func (m *Model) dispatchNormal(action input.Action) bool {
 		m.cycleFocus(-1)
 	case input.ToggleExpand:
 		m.queue(m.expandGapAtCursor())
+	case input.CycleCommitNext:
+		m.queue(m.cycleCommit(true))
+	case input.CycleCommitPrev:
+		m.queue(m.cycleCommit(false))
 	case input.EnterCommandMode:
 		a.EnterCommandMode()
 	case input.EnterSearchMode:
@@ -949,17 +1014,7 @@ func (m *Model) dispatchNormal(action input.Action) bool {
 }
 
 func (m *Model) cycleFocus(dir int) {
-	a := m.App
-	if !a.ShowFileList {
-		a.FocusedPanel = app.PanelDiff
-		return
-	}
-	if a.FocusedPanel == app.PanelDiff {
-		a.FocusedPanel = app.PanelFileList
-	} else {
-		a.FocusedPanel = app.PanelDiff
-	}
-	_ = dir
+	m.App.CyclePanelFocus(dir)
 }
 
 // View composes the frame.
@@ -983,37 +1038,53 @@ func (m *Model) View() tea.View {
 		return view
 	}
 
+	// The inline commit selector is a full-width strip above the columns,
+	// so it eats into the height everything below gets.
+	stripH := commitStripHeight(a)
+	if stripH > innerH-4 {
+		stripH = 0 // too short to be worth the space
+	}
+	colH := innerH - stripH
+
 	var mainCols []string
 	if a.ShowFileList {
 		flWidth := m.fileListWidth()
-		flInner := m.fileList.BuildLines(a, flWidth-2, innerH)
-		mainCols = append(mainCols, m.titledPanel(
-			strings.Join(flInner, "\n"), m.fileList.Title(a),
-			a.FocusedPanel == app.PanelFileList, flWidth-2, innerH))
+		mainCols = append(mainCols, m.leftColumn(flWidth-2, colH))
 	}
 
 	diffW := m.diffInnerWidth()
-	diffInner := m.diffPane.BuildLines(a, diffW, innerH)
+	diffInner := m.diffPane.BuildLines(a, diffW, colH)
 	if a.InputMode == input.ModeComment {
 		overlay := m.diffPane.commentInputOverlay(a, m.vim, diffW)
-		if len(overlay) > innerH {
-			overlay = overlay[len(overlay)-innerH:]
+		if len(overlay) > colH {
+			overlay = overlay[len(overlay)-colH:]
 		}
-		copy(diffInner[innerH-len(overlay):], overlay)
+		copy(diffInner[colH-len(overlay):], overlay)
 	}
 	if modal := m.submitModalView(diffW); len(modal) > 0 {
-		if len(modal) > innerH {
-			modal = modal[:innerH]
+		if len(modal) > colH {
+			modal = modal[:colH]
 		}
-		copy(diffInner[innerH-len(modal):], modal)
+		copy(diffInner[colH-len(modal):], modal)
 	}
 	mainCols = append(mainCols, m.titledPanel(
 		strings.Join(diffInner, "\n"), m.diffTitle(),
-		a.FocusedPanel == app.PanelDiff, diffW, innerH))
+		a.FocusedPanel == app.PanelDiff, diffW, colH))
+
+	body := lipgloss.JoinHorizontal(lipgloss.Top, mainCols...)
+	if stripH > 0 {
+		stripW := m.width - 2
+		a.CommitListViewportHeight = stripH - 2
+		strip := m.commitStrip.BuildLines(a, stripW, stripH-2)
+		body = lipgloss.JoinVertical(lipgloss.Left,
+			m.titledPanel(strings.Join(strip, "\n"), m.commitStrip.Title(a),
+				a.FocusedPanel == app.PanelCommitSelector, stripW, stripH-2),
+			body)
+	}
 
 	frame := lipgloss.JoinVertical(lipgloss.Left,
 		Header(a, m.Theme, m.width),
-		lipgloss.JoinHorizontal(lipgloss.Top, mainCols...),
+		body,
 		StatusBar(a, m.Theme, m.width),
 	)
 	view := tea.NewView(frame)
@@ -1035,6 +1106,54 @@ func (m *Model) diffTitle() string {
 
 // titledPanel renders content in a border whose top edge embeds the title,
 // built manually because splicing into an ANSI-styled border row is lossy.
+// leftColumn renders the file tree, optionally splitting the bottom of the
+// column off for the comment navigator. The navigator is dropped entirely
+// when the column is too short to give both panes a usable body, since a
+// two-row tree is worse than no navigator.
+func (m *Model) leftColumn(innerW, innerH int) string {
+	a := m.App
+	navH := commentNavHeight(a, innerH)
+	if navH == 0 {
+		a.FileListState.ViewportHeight = innerH
+		tree := m.fileList.BuildLines(a, innerW, innerH)
+		return m.titledPanel(strings.Join(tree, "\n"), m.fileList.Title(a),
+			a.FocusedPanel == app.PanelFileList, innerW, innerH)
+	}
+
+	treeH := innerH - navH
+	a.FileListState.ViewportHeight = treeH - 2
+	a.CommentNav.ViewportHeight = navH - 2
+
+	tree := m.fileList.BuildLines(a, innerW, treeH-2)
+	nav := m.commentNav.BuildLines(a, innerW, navH-2)
+	return lipgloss.JoinVertical(lipgloss.Left,
+		m.titledPanel(strings.Join(tree, "\n"), m.fileList.Title(a),
+			a.FocusedPanel == app.PanelFileList, innerW, treeH-2),
+		m.titledPanel(strings.Join(nav, "\n"), m.commentNav.Title(a),
+			a.FocusedPanel == app.PanelComments, innerW, navH-2),
+	)
+}
+
+// commentNavHeight is the navigator's height inside the left column,
+// borders included, or 0 when it is not shown.
+func commentNavHeight(a *app.App, columnH int) int {
+	items := len(a.BuildCommentNavigatorItems())
+	if items == 0 || columnH < app.CommentNavMinTotalHeight {
+		return 0
+	}
+	navH := min(items+2, app.CommentNavMaxHeight)
+	navH = max(navH, app.CommentNavMinHeight)
+	// The tree keeps its floor; if honoring it leaves the navigator below
+	// its own minimum, the split is not worth making.
+	if columnH-navH < app.FileTreeMinHeight {
+		navH = columnH - app.FileTreeMinHeight
+	}
+	if navH < app.CommentNavMinHeight {
+		return 0
+	}
+	return navH
+}
+
 func (m *Model) titledPanel(content, title string, focused bool, innerW, innerH int) string {
 	borderStyle := m.Styles.Border(focused)
 	body := borderStyle.BorderTop(false).

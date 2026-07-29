@@ -95,6 +95,7 @@ func RunPr(target string, opts cli.TuiOptions) error {
 		Commits:    load.Commits,
 	}
 	a.CommentTypePrefix = cfg.Forge.CommentTypePrefix
+	a.SetupPrCommitSelector(load.Commits)
 
 	m := NewModel(a, resolved)
 	m.session = lifecycle

@@ -17,7 +17,10 @@ type remoteCommentsResultMsg struct {
 	Key       app.PrKey
 	Threads   []forge.RemoteReviewThread
 	Summaries []forge.RemoteReviewSummary
-	Err       error
+	// Meta drives commit-scope inference ("what landed since I last
+	// reviewed"); nil on forges that do not scope reviews to commits.
+	Meta *forge.ReviewMetadata
+	Err  error
 }
 
 // drainRemoteCommentsLoad issues any remote-comments fetch the app armed.
@@ -36,14 +39,19 @@ func (m *Model) drainRemoteCommentsLoad() tea.Cmd {
 		if err != nil {
 			return remoteCommentsResultMsg{Gen: req.Gen, Key: req.Key, Err: err}
 		}
-		// Review summaries are a separate call and a separate capability;
-		// a forge without them still gets its inline threads.
+		// Review summaries and review metadata are separate calls behind
+		// separate capabilities; a forge without either still gets its
+		// inline threads. Both are best-effort for the same reason.
 		var summaries []forge.RemoteReviewSummary
 		if caps.ReviewSummaries {
 			summaries, _ = backend.ListReviewSummaries(ctx, details)
 		}
+		var meta *forge.ReviewMetadata
+		if caps.CommitScopedReviews {
+			meta, _ = backend.ReviewMetadata(ctx, details)
+		}
 		return remoteCommentsResultMsg{
-			Gen: req.Gen, Key: req.Key, Threads: threads, Summaries: summaries,
+			Gen: req.Gen, Key: req.Key, Threads: threads, Summaries: summaries, Meta: meta,
 		}
 	}
 }
@@ -55,6 +63,12 @@ func (m *Model) handleRemoteCommentsResult(msg remoteCommentsResultMsg) {
 		return
 	}
 	m.App.ApplyRemoteComments(msg.Gen, msg.Key, msg.Threads, msg.Summaries)
+	// Preselecting "commits since my last review" changes what the diff
+	// covers, so it has to happen before the viewport is sized.
+	if msg.Meta != nil {
+		m.App.ApplyPrReviewMetadata(msg.Meta)
+		m.queue(m.reloadInlineSelection())
+	}
 	m.syncViewport()
 }
 

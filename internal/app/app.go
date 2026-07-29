@@ -257,6 +257,8 @@ type App struct {
 	CommitSelectionStart CommitSelectionStart
 	// ShowCommitSelector is the inline selector pane's visibility.
 	ShowCommitSelector bool
+	// CommentNav is the comment navigator pane's cursor and scroll window.
+	CommentNav CommentNavState
 	// SavedInlineSelection preserves the inline selection while the target
 	// selector is open, restored by ExitCommitSelectMode.
 	SavedInlineSelection *model.IndexRange

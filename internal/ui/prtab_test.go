@@ -93,9 +93,19 @@ func runCmd(t *testing.T, m *Model, cmd tea.Cmd) {
 	if cmd == nil {
 		return
 	}
-	if msg := cmd(); msg != nil {
-		m.Update(msg)
+	msg := cmd()
+	if msg == nil {
+		return
 	}
+	// tea.Batch yields a BatchMsg the runtime expands into its members;
+	// the model never sees it, so the helper has to do the same.
+	if batch, ok := msg.(tea.BatchMsg); ok {
+		for _, sub := range batch {
+			runCmd(t, m, sub)
+		}
+		return
+	}
+	m.Update(msg)
 }
 
 // pressPr sends a key and round-trips whatever command it returns, so async

@@ -32,7 +32,10 @@ type PrState struct {
 	Commits    []forge.Commit
 	Threads    []forge.RemoteReviewThread
 	Summaries  []forge.RemoteReviewSummary
-	Gens       Gens
+	// ReviewedCommits are the PR commits a previous review of the viewer's
+	// already covered, inferred from the forge's review metadata.
+	ReviewedCommits map[string]bool
+	Gens            Gens
 
 	// Pending flags drive spinners.
 	Opening, Reloading, ThreadsLoading, Submitting bool
@@ -138,15 +141,12 @@ func (a *App) ApplyPullRequest(load PullRequestLoad, session *model.ReviewSessio
 	a.FileListState = FileListState{}
 	a.ClearExpandedGaps()
 
-	// A PR review has no local commit-range selection behind it; the PR's
-	// own commits drive the inline selector separately.
-	a.ReviewCommits = nil
-	a.CommitList = nil
-	a.CommitSelectionRange = nil
+	// The PR's own commits drive the inline selector; any local
+	// commit-range selection behind it is irrelevant here.
 	a.SavedInlineSelection = nil
-	a.ShowCommitSelector = false
 	a.pendingSelectedCommits = nil
 	a.CommitDiffCache = map[model.IndexRange][]model.DiffFile{}
+	a.SetupPrCommitSelector(load.Commits)
 
 	a.SortFilesByDirectory(true)
 	a.ExpandAllDirs()
