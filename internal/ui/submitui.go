@@ -82,6 +82,12 @@ func (m *Model) dispatchSubmitConfirm(action input.Action) tea.Cmd {
 	switch action.Kind {
 	case input.ConfirmYes:
 		return m.spawnSubmit()
+	case input.SubmitReloadPr:
+		// The confirmation warns when the head moved since the diff was
+		// loaded; r refetches so the review anchors to the current head
+		// instead of being rejected or landing on stale lines.
+		a.CancelSubmit()
+		return m.reloadPullRequest()
 	case input.ConfirmNo, input.ExitMode:
 		a.CancelSubmit()
 	}

@@ -423,10 +423,12 @@ func (a *App) refCommit() *string {
 }
 
 // contextProvider resolves the ContextProvider for the current diff source.
-//
-// M5 hook: PR mode routes through a forge-backed provider; until then all
-// expansion goes through the local VCS backend.
+// PR mode reads from the forge snapshot cache (prcontext.go); everything
+// else reads the local VCS backend.
 func (a *App) contextProvider() ContextProvider {
+	if a.InPrMode() {
+		return a.ensurePrContext()
+	}
 	return VcsContextProvider{Backend: a.VCS, RefCommit: a.refCommit()}
 }
 

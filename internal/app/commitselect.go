@@ -22,9 +22,8 @@ type TargetTab int
 // Target selector tabs.
 const (
 	TargetTabLocal TargetTab = iota
-	// TargetTabPullRequests is an M6 stub: the tab exists and can be
-	// cycled to, but its PR list state machine lands with the forge
-	// milestone (see onTargetTabEntered).
+	// TargetTabPullRequests lists the forge's open pull requests; its
+	// state machine lives in prtab.go.
 	TargetTabPullRequests
 )
 
@@ -70,22 +69,23 @@ type ConfirmedSelection struct {
 // EnterTargetSelector opens the review target selector on a specific tab.
 //
 // TargetTabLocal loads the recent-commits list plus synthetic
-// staged/unstaged rows. TargetTabPullRequests switches the tab; the PR list
-// fetch is an M6 stub (onTargetTabEntered).
+// staged/unstaged rows. TargetTabPullRequests additionally arms the lazy
+// PR-list fetch (onTargetTabEntered).
 func (a *App) EnterTargetSelector(initialTab TargetTab) error {
 	// Save the inline selection so ExitCommitSelectMode can restore it.
 	if len(a.ReviewCommits) > 0 {
 		a.SavedInlineSelection = copyIndexRange(a.CommitSelectionRange)
 	}
 
-	status, err := a.resolveChangeStatus()
+	status, commits, err := a.loadLocalTargets()
 	if err != nil {
-		return err
-	}
-
-	commits, err := a.VCS.RecentCommits(0, DefaultCommitPageSize)
-	if err != nil {
-		return err
+		// Opening on the Pull Requests tab must not require a usable local
+		// VCS: PR mode runs on the no-op backend, and `:prs` from inside a
+		// PR review is exactly how a reviewer switches pull requests.
+		if initialTab != TargetTabPullRequests {
+			return err
+		}
+		status, commits = vcs.ChangeStatus{}, nil
 	}
 	noLocalTargets := len(commits) == 0 && !status.Staged && !status.Unstaged
 	// Allow opening the selector on the Pull Requests tab even when there
@@ -116,6 +116,20 @@ func (a *App) EnterTargetSelector(initialTab TargetTab) error {
 		a.onTargetTabEntered()
 	}
 	return nil
+}
+
+// loadLocalTargets probes the working tree and recent history backing the
+// selector's Local tab.
+func (a *App) loadLocalTargets() (vcs.ChangeStatus, []vcs.CommitInfo, error) {
+	status, err := a.resolveChangeStatus()
+	if err != nil {
+		return vcs.ChangeStatus{}, nil, err
+	}
+	commits, err := a.VCS.RecentCommits(0, DefaultCommitPageSize)
+	if err != nil {
+		return vcs.ChangeStatus{}, nil, err
+	}
+	return status, commits, nil
 }
 
 // ExitCommitSelectMode leaves the target selector. When an inline selector
@@ -166,12 +180,16 @@ func (a *App) CycleTargetTab(_ bool) {
 }
 
 // onTargetTabEntered is the entry-point hook called when the PR tab becomes
-// visible.
-//
-// M6 hook: this is where the lazy PR-list fetch starts (tuicr resets the PR
-// tab to Idle on selector open and spawns the initial load here). Until the
-// forge milestone lands the tab renders as a disabled placeholder.
-func (a *App) onTargetTabEntered() {}
+// visible. It arms the lazy first-page fetch, which the UI layer drains via
+// TakePrTabLoad. Revisiting a tab that already loaded (or is mid-flight)
+// does nothing — refetching is the explicit job of ReloadPrTab.
+func (a *App) onTargetTabEntered() {
+	p := a.ensurePr()
+	if p.TabLoaded || p.TabLoading {
+		return
+	}
+	a.requestPrTabLoad(false)
+}
 
 // ConfirmCommitSelection resolves the current selector selection (falling
 // back to the cursor row when nothing is toggled) to a review target. It

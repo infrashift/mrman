@@ -150,6 +150,11 @@ func Run(opts cli.TuiOptions) error {
 	m.session = lifecycle
 	m.store = store
 	m.export = exportOptions{ShowLegend: true, ToStdout: opts.Stdout}
+	// The Pull Requests tab resolves its forge lazily on first use, so a
+	// local review never pays for token resolution it will not need.
+	m.forge = checkoutForgeResolver(cwd, cfg.Forge)
+	m.localCheckout = info.RootPath
+	a.CommentTypePrefix = cfg.Forge.CommentTypePrefix
 	applyConfig(cfg, a, m)
 	for _, w := range warnings {
 		a.SetWarning(w)

@@ -204,8 +204,7 @@ func (a *App) CommentVisible(c *model.Comment) bool {
 
 // --- Comment navigator ---
 
-// CommentNavigatorScope discriminates CommentNavigatorKey. Remote threads
-// and remote review summaries join the navigator in M6.
+// CommentNavigatorScope discriminates CommentNavigatorKey.
 type CommentNavigatorScope int
 
 // Comment navigator scopes.
@@ -213,6 +212,11 @@ const (
 	NavScopeReview CommentNavigatorScope = iota
 	NavScopeFile
 	NavScopeLine
+	// NavScopeRemoteThread and NavScopeRemoteSummary are the forge's own
+	// discussions. They are navigable so m/M walk the whole conversation,
+	// but never editable — see CommentNavigatorItem.IsRemote.
+	NavScopeRemoteThread
+	NavScopeRemoteSummary
 )
 
 // CommentNavigatorKey identifies one navigable comment; comparable so
@@ -223,14 +227,20 @@ type CommentNavigatorKey struct {
 	Line       uint32
 	Side       model.LineSide
 	CommentIdx int
+	// RemoteIdx indexes VisibleRemoteThreads or VisibleRemoteSummaries for
+	// the two remote scopes.
+	RemoteIdx int
 }
 
 // CommentNavigatorItem is one row of the comment navigator panel.
 type CommentNavigatorItem struct {
 	Key CommentNavigatorKey
-	// CommentType is the local comment's type (M6: remote items carry a
-	// muted flag instead).
+	// CommentType is the local comment's type; zero for remote items,
+	// which carry IsRemote instead.
 	CommentType model.CommentType
+	// IsRemote marks a forge-owned discussion: navigable and rendered, but
+	// never editable or deletable.
+	IsRemote bool
 	// TargetAnnotation is the first annotation row of the comment.
 	TargetAnnotation int
 	Path             *string
@@ -239,8 +249,7 @@ type CommentNavigatorItem struct {
 	Author           string
 }
 
-// commentNavigatorKeyFor maps an annotation to its navigator key. M6 hook:
-// AnnRemoteThreadLine and AnnRemoteReviewSummaryLine map here too.
+// commentNavigatorKeyFor maps an annotation to its navigator key.
 func commentNavigatorKeyFor(ann *AnnotatedLine) (CommentNavigatorKey, bool) {
 	switch ann.Kind {
 	case AnnReviewComment:
@@ -252,6 +261,12 @@ func commentNavigatorKeyFor(ann *AnnotatedLine) (CommentNavigatorKey, bool) {
 			Scope: NavScopeLine, FileIdx: ann.FileIdx,
 			Line: ann.Line, Side: ann.Side, CommentIdx: ann.CommentIdx,
 		}, true
+	case AnnRemoteThreadLine:
+		return CommentNavigatorKey{
+			Scope: NavScopeRemoteThread, FileIdx: ann.FileIdx, RemoteIdx: ann.ThreadIdx,
+		}, true
+	case AnnRemoteReviewSummaryLine:
+		return CommentNavigatorKey{Scope: NavScopeRemoteSummary, RemoteIdx: ann.SummaryIdx}, true
 	default:
 		return CommentNavigatorKey{}, false
 	}
@@ -303,14 +318,44 @@ func (a *App) commentNavigatorItemForKey(key CommentNavigatorKey, targetAnnotati
 			TargetAnnotation: targetAnnotation, Path: &path,
 			Line: &line, Side: &side, Author: comment.Author,
 		}, true
+	case NavScopeRemoteThread:
+		threads := a.VisibleRemoteThreads()
+		if key.RemoteIdx >= len(threads) {
+			return CommentNavigatorItem{}, false
+		}
+		thread := &threads[key.RemoteIdx]
+		item := CommentNavigatorItem{
+			Key: key, IsRemote: true, TargetAnnotation: targetAnnotation,
+		}
+		if root := thread.Root(); root != nil {
+			item.Author = root.Author
+		}
+		if thread.Path != "" {
+			path := thread.Path
+			item.Path = &path
+		}
+		if thread.Line != nil {
+			line, side := *thread.Line, remoteSideToModel(thread.Side)
+			item.Line, item.Side = &line, &side
+		}
+		return item, true
+	case NavScopeRemoteSummary:
+		summaries := a.VisibleRemoteSummaries()
+		if key.RemoteIdx >= len(summaries) {
+			return CommentNavigatorItem{}, false
+		}
+		return CommentNavigatorItem{
+			Key: key, IsRemote: true, TargetAnnotation: targetAnnotation,
+			Author: summaries[key.RemoteIdx].Author,
+		}, true
 	default:
 		return CommentNavigatorItem{}, false
 	}
 }
 
 // BuildCommentNavigatorItems walks the annotation stream and returns one
-// item per rendered comment, in display order. Local comments only; remote
-// threads and review summaries join in M6.
+// item per rendered comment, in display order — local drafts and the
+// forge's own read-only discussions alike.
 func (a *App) BuildCommentNavigatorItems() []CommentNavigatorItem {
 	var items []CommentNavigatorItem
 	var lastKey *CommentNavigatorKey
@@ -527,6 +572,10 @@ func (a *App) CursorOnLockedComment() bool {
 func (a *App) DeleteCommentAtCursor() bool {
 	loc, ok := a.FindCommentAtCursor()
 	if !ok {
+		if a.CursorOnRemoteComment() {
+			a.SetMessage("Existing forge comments are read-only")
+			return false
+		}
 		a.SetMessage("No comment at cursor")
 		return false
 	}
@@ -720,6 +769,9 @@ func (a *App) EnterReviewCommentMode() {
 func (a *App) EnterEditMode(cursorAtEnd bool) bool {
 	loc, ok := a.FindCommentAtCursor()
 	if !ok {
+		if a.CursorOnRemoteComment() {
+			a.SetMessage("Existing forge comments are read-only")
+		}
 		return false
 	}
 	comment := a.commentAtLocation(loc)

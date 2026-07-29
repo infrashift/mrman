@@ -90,9 +90,14 @@ func TestSelectorTabCycle(t *testing.T) {
 	if m.App.TargetTab != app.TargetTabPullRequests {
 		t.Fatal("tab must cycle to PR tab")
 	}
+	// Entering the tab arms the lazy fetch; with no rows back yet the body
+	// reports the in-flight load rather than "no pull requests".
 	out := strings.Join(m.selectorView(), "\n")
-	if !strings.Contains(out, "forge milestone") {
-		t.Error("PR tab must show the M6 placeholder")
+	if !strings.Contains(out, "Loading pull requests") {
+		t.Errorf("PR tab must show the loading state, got:\n%s", out)
+	}
+	if m.App.Pr == nil || !m.App.Pr.TabLoading {
+		t.Error("entering the PR tab must arm a listing fetch")
 	}
 	press(m, "", tea.KeyTab, tea.ModShift)
 	if m.App.TargetTab != app.TargetTabLocal {

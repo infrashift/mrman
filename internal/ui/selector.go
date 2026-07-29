@@ -32,7 +32,10 @@ func (m *Model) selectorView() []string {
 		prStyle = render.Style{Fg: t.FgPrimary, Bg: t.BgHighlight, Bold: true}
 	}
 	branchInfo := ""
-	if a.VcsInfo != nil {
+	switch {
+	case a.TargetTab == app.TargetTabPullRequests:
+		branchInfo = prSelectorTitle(a)
+	case a.VcsInfo != nil:
 		branch := "detached"
 		if a.VcsInfo.BranchName != nil {
 			branch = *a.VcsInfo.BranchName
@@ -58,9 +61,11 @@ func (m *Model) selectorView() []string {
 	bodyH := m.height - 2
 	var body []string
 	if a.TargetTab == app.TargetTabLocal {
+		a.CommitListViewportHeight = bodyH
 		body = m.selectorLocalRows(bodyH)
 	} else {
-		body = []string{"", "  Pull request review arrives with the forge milestone (M6)."}
+		a.EnsurePrState().TabViewportHeight = bodyH
+		body = m.selectorPrRows(bodyH)
 	}
 	for len(body) < bodyH {
 		body = append(body, "")
@@ -68,10 +73,14 @@ func (m *Model) selectorView() []string {
 	rows = append(rows, body[:bodyH]...)
 
 	// Footer.
-	hint := "   j/k navigate · space range · ↵ confirm · q quit"
+	hint := m.selectorFooterHint()
 	selected := ""
-	if r := a.CommitSelectionRange; r != nil {
-		selected = fmt.Sprintf(" %d selected ", r[1]-r[0]+1)
+	if a.TargetTab == app.TargetTabLocal {
+		if r := a.CommitSelectionRange; r != nil {
+			selected = fmt.Sprintf(" %d selected ", r[1]-r[0]+1)
+		}
+	} else if n := len(a.PrTabFilteredRows()); n > 0 {
+		selected = fmt.Sprintf(" %d shown ", n)
 	}
 	footer := []render.Span{
 		{Text: " SELECT ", Style: render.Style{Fg: t.ModeFg, Bg: t.ModeBg, Bold: true}},

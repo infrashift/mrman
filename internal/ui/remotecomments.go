@@ -1,0 +1,77 @@
+package ui
+
+import (
+	"context"
+
+	tea "charm.land/bubbletea/v2"
+
+	"github.com/infrashift/mrman/internal/app"
+	"github.com/infrashift/mrman/internal/forge"
+	"github.com/infrashift/mrman/internal/forge/forgetypes"
+)
+
+// remoteCommentsResultMsg carries fetched remote discussions back to the
+// model.
+type remoteCommentsResultMsg struct {
+	Gen       uint64
+	Key       app.PrKey
+	Threads   []forge.RemoteReviewThread
+	Summaries []forge.RemoteReviewSummary
+	Err       error
+}
+
+// drainRemoteCommentsLoad issues any remote-comments fetch the app armed.
+func (m *Model) drainRemoteCommentsLoad() tea.Cmd {
+	req, ok := m.App.TakeRemoteCommentsLoad()
+	if !ok {
+		return nil
+	}
+	backend := m.App.Pr.Backend
+	details := m.App.Pr.Details
+	caps := backend.Capabilities()
+
+	return func() tea.Msg {
+		ctx := context.Background()
+		threads, err := backend.ListReviewThreads(ctx, details)
+		if err != nil {
+			return remoteCommentsResultMsg{Gen: req.Gen, Key: req.Key, Err: err}
+		}
+		// Review summaries are a separate call and a separate capability;
+		// a forge without them still gets its inline threads.
+		var summaries []forge.RemoteReviewSummary
+		if caps.ReviewSummaries {
+			summaries, _ = backend.ListReviewSummaries(ctx, details)
+		}
+		return remoteCommentsResultMsg{
+			Gen: req.Gen, Key: req.Key, Threads: threads, Summaries: summaries,
+		}
+	}
+}
+
+// handleRemoteCommentsResult applies fetched discussions.
+func (m *Model) handleRemoteCommentsResult(msg remoteCommentsResultMsg) {
+	if msg.Err != nil {
+		m.App.FailRemoteComments(msg.Gen, msg.Key, msg.Err.Error())
+		return
+	}
+	m.App.ApplyRemoteComments(msg.Gen, msg.Key, msg.Threads, msg.Summaries)
+	m.syncViewport()
+}
+
+// setRemoteCommentsVisibility applies `:comments unresolved|all|hide`,
+// fetching on demand the first time discussions are asked for.
+func (m *Model) setRemoteCommentsVisibility(v forgetypes.PrCommentsVisibility) {
+	if m.App.SetRemoteCommentsVisibility(v) && m.App.RequestRemoteComments() {
+		m.queue(m.drainRemoteCommentsLoad())
+	}
+	m.syncViewport()
+}
+
+// loadRemoteCommentsOnOpen fetches discussions right after a PR opens, so
+// the existing conversation is on screen before the reviewer starts reading.
+func (m *Model) loadRemoteCommentsOnOpen() tea.Cmd {
+	if !m.App.RequestRemoteComments() {
+		return nil
+	}
+	return m.drainRemoteCommentsLoad()
+}

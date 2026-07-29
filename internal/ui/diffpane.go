@@ -129,6 +129,8 @@ func (p *DiffPane) buildRow(a *app.App, ann *app.AnnotatedLine, idx, lw, width i
 		}}
 	case app.AnnReviewComment, app.AnnFileComment, app.AnnLineComment:
 		return p.commentBoxRow(a, ann, idx, ind, width)
+	case app.AnnRemoteThreadLine, app.AnnRemoteReviewSummaryLine:
+		return p.remoteBoxRow(a, ann, idx, ind, width)
 	case app.AnnReviewCommentsHeader:
 		text := "═══ Review Comments "
 		fillWidth := width - render.StringWidth(text) - render.StringWidth(ind.Text)

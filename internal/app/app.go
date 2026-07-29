@@ -271,8 +271,21 @@ type App struct {
 	// until ApplyLoadedSelection consumes them to build ReviewCommits.
 	pendingSelectedCommits []vcs.CommitInfo
 
+	// remoteThreadsByLine and remoteThreadsByFile index the visible remote
+	// discussions for the current annotation stream. Refreshed by
+	// RebuildAnnotations and read by the height math, so row emission and
+	// TotalLines always agree (see refreshRemoteThreadIndex).
+	remoteThreadsByLine map[remoteThreadAnchor][]int
+	remoteThreadsByFile map[string][]int
+
 	// Pr is the PR-mode state; nil outside PR reviews.
 	Pr *PrState
+	// PrContext caches whole-file snapshots fetched from the forge so gap
+	// expansion stays synchronous in PR mode (see prcontext.go).
+	PrContext *PrContextProvider
+	// PendingContextRequest is a snapshot fetch armed from inside the
+	// state machine (the {N}G jump planner), drained by the UI layer.
+	PendingContextRequest *PrContextRequest
 	// Submit is the in-progress submit flow; nil when idle.
 	Submit *SubmitState
 	// CommentTypePrefix controls the [TYPE] prefix on submitted bodies.

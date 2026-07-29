@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 
@@ -66,6 +67,16 @@ func testModel(t *testing.T) *Model {
 
 func viewString(m *Model) string {
 	return m.View().Content
+}
+
+// ansiSequence matches SGR escapes so tests can assert on what a user
+// actually reads. Syntax highlighting splits a line like "var Y = 2" into
+// several styled spans, so the raw view never contains it contiguously.
+var ansiSequence = regexp.MustCompile("\x1b\\[[0-9;]*m")
+
+// plainView is the rendered frame with styling stripped.
+func plainView(m *Model) string {
+	return ansiSequence.ReplaceAllString(viewString(m), "")
 }
 
 func TestDiffPaneBuildsRows(t *testing.T) {

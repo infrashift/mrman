@@ -5,6 +5,7 @@
 package app
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/infrashift/mrman/internal/input"
@@ -387,6 +388,13 @@ func (a *App) GoToSourceLine(targetLineno uint32, side model.LineSide) {
 		if gapID, ok := a.findGapContainingLineno(currentFile, targetLineno, side); ok {
 			direction, limit := a.expandPlanToReach(gapID, targetLineno, side)
 			if err := a.ExpandGap(gapID, direction, limit); err != nil {
+				// In PR mode the file's context may not be fetched yet.
+				// Arm the fetch and replay this whole jump once it lands,
+				// so {N}G reaches the line instead of merely revealing it.
+				if errors.Is(err, ErrContextNotLoaded) {
+					a.requestContextForJump(currentFile, gapID, direction, limit, targetLineno, side)
+					return
+				}
 				a.SetError(fmt.Sprintf("Expand failed: %v", err))
 				return
 			}
@@ -698,9 +706,11 @@ func (a *App) reviewCommentsRenderHeight() int {
 	if a.IsSingleFileView {
 		height = 0
 	}
-	// M6 hook: remote review summaries and review-level remote threads add
-	// rows here — mirroring the emission order in RebuildAnnotations
-	// exactly, or scroll offsets fall out of sync.
+	// Mirrors RebuildAnnotations' emission order exactly — summaries first,
+	// then local review comments — or scroll offsets fall out of sync.
+	for _, summary := range a.VisibleRemoteSummaries() {
+		height += RemoteSummaryDisplayLines(&summary, a.DiffState.ViewportWidth)
+	}
 	for _, comment := range a.Session.ReviewComments {
 		height += CommentDisplayLines(comment, a.DiffState.ViewportWidth)
 	}
@@ -736,13 +746,23 @@ func (a *App) commentSideHeight(comments []*model.Comment, side model.LineSide,
 	return height
 }
 
-// lineCommentsHeightAt is commentSideHeight keyed by an optional lineno.
-func (a *App) lineCommentsHeightAt(lineComments map[uint32][]*model.Comment, lineNo *uint32,
+// lineCommentsHeightAt is the rendered height of everything anchored to one
+// line on one side: the forge's existing threads plus the local comments.
+// It must mirror pushLineComments call-for-call — the two are the height
+// math and the row emission for the same content, and any disagreement
+// silently truncates the diff pane at the point they diverge.
+func (a *App) lineCommentsHeightAt(path string, lineComments map[uint32][]*model.Comment, lineNo *uint32,
 	side model.LineSide, commitSet map[string]bool, hasCommitSet bool) int {
-	if lineNo == nil || lineComments == nil {
+	if lineNo == nil {
 		return 0
 	}
-	return a.commentSideHeight(lineComments[*lineNo], side, commitSet, hasCommitSet)
+	height := a.remoteThreadsHeight(a.remoteThreadsByLine[remoteThreadAnchor{
+		Path: path, Side: side, Line: *lineNo,
+	}])
+	if lineComments == nil {
+		return height
+	}
+	return height + a.commentSideHeight(lineComments[*lineNo], side, commitSet, hasCommitSet)
 }
 
 // fileRenderBodyHeight is the file body height in lines (comments + content
@@ -750,9 +770,6 @@ func (a *App) lineCommentsHeightAt(lineComments map[uint32][]*model.Comment, lin
 // reviewed-collapse short-circuit. Used by effectiveFileHeight to size the
 // body of the focused file in single-file view, where the header is hidden
 // and reviewed files render the body under a banner.
-//
-// M6 hook: remote-thread rows are counted here once forge threads land —
-// mirroring RebuildAnnotations exactly.
 func (a *App) fileRenderBodyHeight(fileIdx int, file *model.DiffFile) int {
 	const spacingLines = 1 // trailing blank or "next file" hint
 	contentLines := 0
@@ -762,6 +779,10 @@ func (a *App) fileRenderBodyHeight(fileIdx int, file *model.DiffFile) int {
 	// Commit-selection filter — must mirror RebuildAnnotations exactly, or
 	// TotalLines disagrees with len(LineAnnotations) and cursor math drifts.
 	commitSet, hasCommitSet := a.selectedCommitSet()
+
+	// Remote threads whose anchor is gone render at file scope, ahead of
+	// the local file comments — same order as RebuildAnnotations.
+	commentLines += a.remoteThreadsHeight(a.remoteThreadsByFile[path])
 
 	var lineComments map[uint32][]*model.Comment
 	if review := a.Session.File(path); review != nil {
@@ -804,8 +825,8 @@ func (a *App) fileRenderBodyHeight(fileIdx int, file *model.DiffFile) int {
 				for lineIdx := range hunk.Lines {
 					line := &hunk.Lines[lineIdx]
 					contentLines++
-					commentLines += a.lineCommentsHeightAt(lineComments, line.OldLineno, model.LineSideOld, commitSet, hasCommitSet)
-					commentLines += a.lineCommentsHeightAt(lineComments, line.NewLineno, model.LineSideNew, commitSet, hasCommitSet)
+					commentLines += a.lineCommentsHeightAt(path, lineComments, line.OldLineno, model.LineSideOld, commitSet, hasCommitSet)
+					commentLines += a.lineCommentsHeightAt(path, lineComments, line.NewLineno, model.LineSideNew, commitSet, hasCommitSet)
 				}
 			case ViewSideBySide:
 				contentLines += sideBySideRowCount(hunk.Lines)
@@ -816,9 +837,9 @@ func (a *App) fileRenderBodyHeight(fileIdx int, file *model.DiffFile) int {
 					line := &hunk.Lines[lineIdx]
 					switch line.Origin {
 					case model.OriginContext, model.OriginAddition:
-						commentLines += a.lineCommentsHeightAt(lineComments, line.NewLineno, model.LineSideNew, commitSet, hasCommitSet)
+						commentLines += a.lineCommentsHeightAt(path, lineComments, line.NewLineno, model.LineSideNew, commitSet, hasCommitSet)
 					case model.OriginDeletion:
-						commentLines += a.lineCommentsHeightAt(lineComments, line.OldLineno, model.LineSideOld, commitSet, hasCommitSet)
+						commentLines += a.lineCommentsHeightAt(path, lineComments, line.OldLineno, model.LineSideOld, commitSet, hasCommitSet)
 					}
 				}
 			}

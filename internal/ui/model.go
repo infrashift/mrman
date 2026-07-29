@@ -10,6 +10,7 @@ import (
 
 	"github.com/infrashift/mrman/internal/app"
 	"github.com/infrashift/mrman/internal/forge"
+	"github.com/infrashift/mrman/internal/forge/forgetypes"
 	"github.com/infrashift/mrman/internal/input"
 	"github.com/infrashift/mrman/internal/model"
 	"github.com/infrashift/mrman/internal/output"
@@ -53,6 +54,17 @@ type Model struct {
 	// vim mode or not composing at all.
 	vim            *vimState
 	CommentVimMode bool
+
+	// forge lazily resolves the driver backing the selector's Pull
+	// Requests tab; nil in tests and when no forge remote exists.
+	forge *forgeResolver
+	// queuedCmd holds async work started deep in the dispatch tree — a ":"
+	// command that reaches the forge, say. handleKey drains it after
+	// dispatching, so every dispatch handler need not return a tea.Cmd.
+	queuedCmd tea.Cmd
+	// localCheckout is the working copy a PR review may read blobs from as
+	// an optimization, "" when reviewing outside a checkout.
+	localCheckout string
 
 	width, height int
 }
@@ -106,7 +118,9 @@ func NewModel(a *app.App, t *theme.Theme) *Model {
 
 // Init requests the first tick.
 func (m *Model) Init() tea.Cmd {
-	return tick()
+	// `mrman pr <target>` arrives already in PR mode, so its existing
+	// discussions are fetched on the first frame rather than on open.
+	return tea.Batch(tick(), m.loadRemoteCommentsOnOpen())
 }
 
 func tick() tea.Cmd {
@@ -150,6 +164,16 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.handlePaste(msg.Content)
 	case prSubmitResultMsg:
 		m.handleSubmitResult(msg)
+	case prListResultMsg:
+		m.handlePrListResult(msg)
+	case prOpenResultMsg:
+		return m, m.handlePrOpenResult(msg)
+	case remoteCommentsResultMsg:
+		m.handleRemoteCommentsResult(msg)
+	case prContextResultMsg:
+		m.handlePrContextResult(msg)
+	case prReloadResultMsg:
+		return m, m.handlePrReloadResult(msg)
 	}
 	return m, nil
 }
@@ -339,13 +363,43 @@ func (m *Model) handleKey(k tea.Key) (tea.Model, tea.Cmd) {
 		return m, m.dispatchSubmitResolver(action)
 	case input.ModeSubmitConfirm:
 		return m, m.dispatchSubmitConfirm(action)
+	case input.ModeCommitSelect:
+		// The target selector reaches the forge: listing, paging and
+		// opening a PR all spawn async work.
+		quit, cmd := m.dispatchSelector(k, action)
+		if quit {
+			return m, tea.Quit
+		}
+		return m, cmd
 	}
 
 	// 7. Dispatch.
 	if quit := m.dispatch(action); quit {
 		return m, tea.Quit
 	}
-	return m, nil
+	// The jump planner can arm a forge fetch from deep inside the state
+	// machine; collect it alongside anything the dispatch queued.
+	m.queue(m.drainPrContextRequest())
+	return m, m.takeQueued()
+}
+
+// queue records async work for handleKey to return once dispatch unwinds.
+func (m *Model) queue(cmd tea.Cmd) {
+	if cmd == nil {
+		return
+	}
+	if m.queuedCmd == nil {
+		m.queuedCmd = cmd
+		return
+	}
+	m.queuedCmd = tea.Batch(m.queuedCmd, cmd)
+}
+
+// takeQueued drains the queued async work.
+func (m *Model) takeQueued() tea.Cmd {
+	cmd := m.queuedCmd
+	m.queuedCmd = nil
+	return cmd
 }
 
 func printable(k tea.Key) (rune, bool) {
@@ -394,8 +448,6 @@ func (m *Model) dispatch(action input.Action) bool {
 		return m.dispatchComment(action)
 	case input.ModeVisualSelect:
 		return m.dispatchVisual(action)
-	case input.ModeCommitSelect:
-		return m.dispatchCommitSelect(action)
 	case input.ModeNormal:
 		if a.FocusedPanel == app.PanelFileList {
 			if handled := m.dispatchFileList(action); handled {
@@ -554,12 +606,20 @@ func (m *Model) runCommand(cmd input.Command) bool {
 	case input.CmdSetNoVim:
 		m.CommentVimMode = false
 		a.SetMessage("Comment vim mode: off")
+	case input.CmdTargetsLocal:
+		m.openTargetSelector(app.TargetTabLocal)
+	case input.CmdTargetsPrs:
+		m.openTargetSelector(app.TargetTabPullRequests)
+	case input.CmdCommentsUnresolved:
+		m.setRemoteCommentsVisibility(forgetypes.VisibilityUnresolved)
+	case input.CmdCommentsAll:
+		m.setRemoteCommentsVisibility(forgetypes.VisibilityAll)
+	case input.CmdCommentsHide:
+		m.setRemoteCommentsVisibility(forgetypes.VisibilityHide)
+	case input.CmdReload:
+		m.queue(m.reloadDiff())
 	case input.CmdSetCommitsVisible, input.CmdSetCommitsHidden, input.CmdToggleCommits,
-		input.CmdReload, input.CmdEdit,
-		input.CmdTargetsLocal, input.CmdTargetsPrs,
-		input.CmdCommentsUnresolved, input.CmdCommentsAll,
-		input.CmdCommentsHide,
-		input.CmdVersion:
+		input.CmdEdit, input.CmdVersion:
 		a.SetMessage("Not available yet: :" + cmd.Raw)
 	default:
 		a.SetError("Unknown command: " + cmd.Raw)
@@ -568,7 +628,27 @@ func (m *Model) runCommand(cmd input.Command) bool {
 }
 
 // dispatchCommitSelect handles the full-screen target selector.
-func (m *Model) dispatchCommitSelect(action input.Action) bool {
+// dispatchSelector routes a key in the review target selector. It returns
+// true to quit, plus any async forge work the action started (listing,
+// paging, or opening a pull request).
+func (m *Model) dispatchSelector(k tea.Key, action input.Action) (bool, tea.Cmd) {
+	a := m.App
+
+	// The "/" filter prompt is a sub-state of the PR tab, not a top-level
+	// input mode, so it needs its own key mapping.
+	if a.PrTabFilterEditing() {
+		m.dispatchPrTabFilter(input.MapTargetFilter(k))
+		return false, nil
+	}
+
+	if a.TargetTab == app.TargetTabPullRequests {
+		return m.dispatchPrTab(action)
+	}
+	return m.dispatchLocalTab(action), m.drainPrTabLoad()
+}
+
+// dispatchLocalTab handles the selector's Local (commits) tab.
+func (m *Model) dispatchLocalTab(action input.Action) bool {
 	a := m.App
 	switch action.Kind {
 	case input.Quit:
@@ -605,6 +685,41 @@ func (m *Model) dispatchCommitSelect(action input.Action) bool {
 		a.CycleTargetTab(false)
 	}
 	return false
+}
+
+// dispatchPrTab handles the selector's Pull Requests tab.
+func (m *Model) dispatchPrTab(action input.Action) (bool, tea.Cmd) {
+	a := m.App
+	switch action.Kind {
+	case input.Quit:
+		return true, nil
+	case input.CommitSelectDown:
+		a.PrTabDown()
+	case input.CommitSelectUp:
+		a.PrTabUp()
+	case input.ConfirmCommitSelect, input.ToggleCommitSelect:
+		if a.IsOnPrLoadMoreRow() {
+			a.LoadMorePrs()
+			break
+		}
+		if cmd := m.openSelectedPr(); cmd != nil {
+			return false, cmd
+		}
+	case input.BeginTargetFilter:
+		a.BeginPrTabFilter()
+	case input.TogglePrReviewRequestedFilter:
+		a.TogglePrTabScope()
+	case input.ExitMode:
+		// Esc on the PR tab steps back to Local rather than closing the
+		// selector outright: the tabs are peers, and leaving the selector
+		// from here would strand a user who only wanted to switch back.
+		a.CycleTargetTab(false)
+	case input.TargetSelectorTabNext:
+		a.CycleTargetTab(true)
+	case input.TargetSelectorTabPrev:
+		a.CycleTargetTab(false)
+	}
+	return false, m.drainPrTabLoad()
 }
 
 // dispatchComment handles non-vim comment composition.
@@ -786,7 +901,7 @@ func (m *Model) dispatchNormal(action input.Action) bool {
 	case input.ToggleFocusReverse:
 		m.cycleFocus(-1)
 	case input.ToggleExpand:
-		m.expandGapAtCursor()
+		m.queue(m.expandGapAtCursor())
 	case input.EnterCommandMode:
 		a.EnterCommandMode()
 	case input.EnterSearchMode:
@@ -845,23 +960,6 @@ func (m *Model) cycleFocus(dir int) {
 		a.FocusedPanel = app.PanelDiff
 	}
 	_ = dir
-}
-
-func (m *Model) expandGapAtCursor() {
-	a := m.App
-	hit, ok := a.GapAtCursor()
-	if !ok {
-		return
-	}
-	switch hit.Kind {
-	case app.GapHitExpander:
-		limit := app.GapExpandBatch
-		if err := a.ExpandGap(hit.GapID, hit.Direction, &limit); err != nil {
-			a.SetError(err.Error())
-		}
-	case app.GapHitExpandedContent:
-		a.CollapseGap(hit.GapID)
-	}
 }
 
 // View composes the frame.

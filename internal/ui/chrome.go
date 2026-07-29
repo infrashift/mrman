@@ -16,7 +16,9 @@ func Header(a *app.App, t *theme.Theme, width int) string {
 	brand := render.Span{Text: " mrman ", Style: render.Style{Fg: t.FgPrimary, Bg: t.StatusBarBg, Bold: true}}
 
 	var chunks []string
-	if a.VcsInfo != nil {
+	if a.InPrMode() {
+		chunks = append(chunks, prHeaderChunks(a)...)
+	} else if a.VcsInfo != nil {
 		branch := "detached"
 		if a.VcsInfo.BranchName != nil {
 			branch = *a.VcsInfo.BranchName
@@ -43,6 +45,56 @@ func Header(a *app.App, t *theme.Theme, width int) string {
 		{Text: strings.Repeat(" ", pad), Style: render.Style{Bg: t.StatusBarBg}},
 		{Text: right, Style: render.Style{Fg: t.FgSecondary, Bg: t.StatusBarBg}},
 	})
+}
+
+// prTitleBudget caps how much of a pull-request title the header shows
+// before the rest of the context chunks lose their room.
+const prTitleBudget = 40
+
+// prHeaderChunks are the header chunks describing the open pull request:
+// which one, whether it still accepts reviews, and what is in flight.
+func prHeaderChunks(a *app.App) []string {
+	d := a.Pr.Details
+	chunks := []string{
+		fmt.Sprintf("%s#%d", d.Repository.Slug(), d.Number),
+	}
+	if title := strings.TrimSpace(d.Title); title != "" {
+		chunks = append(chunks, render.TruncateStr(title, prTitleBudget))
+	}
+
+	if reason := d.ReadOnlyReason(); reason != "" {
+		// A merged or closed PR still reads fine, but nothing can be
+		// submitted to it — say so before the reviewer writes comments.
+		chunks = append(chunks, strings.ToUpper(reason), "read only")
+	} else {
+		chunks = append(chunks, "OPEN")
+	}
+	if d.IsDraft {
+		chunks = append(chunks, "draft")
+	}
+	if summary := remoteCommentsSummaryLine(a); summary != "" {
+		chunks = append(chunks, summary)
+	}
+	if spinner := prSpinnerChunk(a); spinner != "" {
+		chunks = append(chunks, spinner)
+	}
+	return chunks
+}
+
+// prSpinnerChunk reports the in-flight forge operation, "" when idle. Only
+// one is shown: these are sequential steps, not concurrent work.
+func prSpinnerChunk(a *app.App) string {
+	switch {
+	case a.Pr.Submitting:
+		return "pushing review…"
+	case a.Pr.Reloading:
+		return "reloading…"
+	case a.Pr.Opening:
+		return "opening…"
+	case a.Pr.TabLoading:
+		return "listing…"
+	}
+	return ""
 }
 
 func headerSourceChunk(a *app.App) string {
