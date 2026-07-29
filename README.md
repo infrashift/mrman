@@ -85,7 +85,11 @@ mrman review add --session <slug> --target-file src/x.go --line 42 \
 mrman review comments --session <slug>
 ```
 
-All `review` output is JSON.
+All `review` output is JSON. [`skills/mrman/`](skills/mrman/) packages this
+as an agent skill, with tmux and zellij wrappers that open a review pane and
+hand the session slug back — it draws the line between *the user reviews
+your patch* (never write comments yourself) and *you review a patch* (write
+findings under an explicit `--username`).
 
 ## Configuration
 
