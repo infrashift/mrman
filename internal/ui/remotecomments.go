@@ -65,8 +65,10 @@ func (m *Model) handleRemoteCommentsResult(msg remoteCommentsResultMsg) {
 	m.App.ApplyRemoteComments(msg.Gen, msg.Key, msg.Threads, msg.Summaries)
 	// Preselecting "commits since my last review" changes what the diff
 	// covers, so it has to happen before the viewport is sized.
-	if msg.Meta != nil {
-		m.App.ApplyPrReviewMetadata(msg.Meta)
+	//
+	// Reload only when the selection actually moved: a reload refetches
+	// this very metadata, so reloading unconditionally never terminates.
+	if msg.Meta != nil && m.App.ApplyPrReviewMetadata(msg.Meta) {
 		m.queue(m.reloadInlineSelection())
 	}
 	m.syncViewport()

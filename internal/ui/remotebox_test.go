@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	tea "charm.land/bubbletea/v2"
+
 	"github.com/infrashift/mrman/internal/app"
 	"github.com/infrashift/mrman/internal/forge"
 	"github.com/infrashift/mrman/internal/forge/forgetypes"
@@ -279,4 +281,64 @@ func TestPrHeaderShowsInFlightWork(t *testing.T) {
 			t.Errorf("header must report %q while it is in flight", tc.want)
 		}
 	}
+}
+
+// TestQueuedWorkFromAMessageIsIssued pins the bug that only showed on
+// screen: handlers reached by a message — not a keypress — queue async work
+// too, and draining only in handleKey stranded it. The visible symptom was a
+// "reloading…" spinner that never cleared, because the reload it belonged to
+// was never issued.
+func TestQueuedWorkFromAMessageIsIssued(t *testing.T) {
+	f := &remoteForge{uiFakeForge: &uiFakeForge{}}
+	m := remotePrModel(t, f)
+
+	// Stand in for any handler that queues from a message path.
+	m.queue(func() tea.Msg { return nil })
+
+	_, cmd := m.Update(remoteCommentsResultMsg{
+		Gen: m.App.Pr.Gens.PrThreads + 1, // stale on purpose: the drain must
+		Key: app.PrKey{},                 // happen regardless of the outcome
+	})
+	if cmd == nil {
+		t.Fatal("Update must issue work queued by a message handler")
+	}
+	if m.queuedCmd != nil {
+		t.Error("the queue must be empty after Update drains it")
+	}
+}
+
+// TestReviewMetadataReloadClearsTheSpinner covers the same bug end to end:
+// applying review metadata queues a reload, and if that reload is never
+// issued the Reloading flag it set stays raised forever.
+func TestReviewMetadataReloadClearsTheSpinner(t *testing.T) {
+	f := &remoteForge{uiFakeForge: &uiFakeForge{}}
+	m := remotePrModel(t, f)
+	m.App.ShowCommitSelector = true
+	m.App.SetupPrCommitSelector([]forge.Commit{
+		{OID: "c1", ShortOID: "c1", Summary: "one"},
+		{OID: "c2", ShortOID: "c2", Summary: "two"},
+	})
+
+	_, cmd := m.Update(remoteCommentsResultMsg{
+		Gen: m.App.Pr.Gens.PrThreads,
+		Key: mustPrKey(t, m),
+		Meta: &forge.ReviewMetadata{
+			ViewerLogin: "ryancraig",
+			Reviews:     []forge.ReviewRecord{{Author: "ryancraig", CommitOID: "c1"}},
+		},
+	})
+	runCmd(t, m, cmd)
+
+	if m.App.Pr.Reloading {
+		t.Error("a queued reload must actually run, or its spinner never clears")
+	}
+}
+
+func mustPrKey(t *testing.T, m *Model) app.PrKey {
+	t.Helper()
+	key, ok := m.App.Pr.CurrentPrKey()
+	if !ok {
+		t.Fatal("expected a PR key")
+	}
+	return key
 }

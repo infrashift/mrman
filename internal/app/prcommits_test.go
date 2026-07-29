@@ -195,3 +195,37 @@ func TestSelectedCommitIDs(t *testing.T) {
 		t.Errorf("selected ids = %v, want newest-first c3,c2", got)
 	}
 }
+
+// TestReviewMetadataIsIdempotent pins the loop this caused in the real TUI:
+// applying metadata triggers a diff reload, and a reload refetches the
+// metadata, so reporting "changed" every time never terminates.
+func TestReviewMetadataIsIdempotent(t *testing.T) {
+	a := prModeApp(t)
+	a.SetupPrCommitSelector([]forge.Commit{
+		prCommit("c1", "one"), prCommit("c2", "two"), prCommit("c3", "three"),
+	})
+	meta := &forge.ReviewMetadata{
+		ViewerLogin: "me",
+		Reviews:     []forge.ReviewRecord{{Author: "me", CommitOID: "c1"}},
+	}
+
+	if !a.ApplyPrReviewMetadata(meta) {
+		t.Fatal("the first application must narrow the selection")
+	}
+	if a.ApplyPrReviewMetadata(meta) {
+		t.Error("re-applying the same metadata must report no change, " +
+			"or the reload it triggers refetches it and loops forever")
+	}
+}
+
+func TestReviewMetadataReportsNoChangeWhenNothingIsNew(t *testing.T) {
+	a := prModeApp(t)
+	a.SetupPrCommitSelector([]forge.Commit{prCommit("c1", "one"), prCommit("c2", "two")})
+	// The last review covered the head commit: nothing to narrow to.
+	if a.ApplyPrReviewMetadata(&forge.ReviewMetadata{
+		ViewerLogin: "me",
+		Reviews:     []forge.ReviewRecord{{Author: "me", CommitOID: "c2"}},
+	}) {
+		t.Error("an up-to-date review must not request a reload")
+	}
+}

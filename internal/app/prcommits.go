@@ -60,16 +60,20 @@ func (a *App) IsCommitReviewed(oid string) bool {
 // which commits your last review already covered, and — when some commits
 // landed after it — preselecting only those.
 //
+// It reports whether the selection actually moved, which the caller needs:
+// reloading the diff refetches review metadata, so a caller that reloads
+// unconditionally reloads forever.
+//
 // This is the "what changed since I last looked" shortcut. It only fires
 // when the forge reports a commit-scoped review of yours (the
 // CommitScopedReviews capability); otherwise the selection is left alone.
-func (a *App) ApplyPrReviewMetadata(meta *forge.ReviewMetadata) {
+func (a *App) ApplyPrReviewMetadata(meta *forge.ReviewMetadata) (changed bool) {
 	if meta == nil || !a.InPrMode() || len(a.ReviewCommits) == 0 {
-		return
+		return false
 	}
 	lastOID := lastViewerReviewCommit(meta)
 	if lastOID == "" {
-		return
+		return false
 	}
 
 	// ReviewCommits is newest first, so everything at or after the index of
@@ -84,7 +88,7 @@ func (a *App) ApplyPrReviewMetadata(meta *forge.ReviewMetadata) {
 	if reviewedIdx < 0 {
 		// The reviewed commit is no longer in the PR (force-push, rebase);
 		// nothing reliable to infer.
-		return
+		return false
 	}
 
 	covered := make(map[string]bool, len(a.ReviewCommits)-reviewedIdx)
@@ -95,13 +99,18 @@ func (a *App) ApplyPrReviewMetadata(meta *forge.ReviewMetadata) {
 
 	if reviewedIdx == 0 {
 		a.SetMessage("No new commits since your last review")
-		return
+		return false
 	}
 	// Preselect exactly the commits newer than the review: indices 0..
 	// reviewedIdx-1 in newest-first order.
-	a.CommitSelectionRange = &model.IndexRange{0, reviewedIdx - 1}
+	want := model.IndexRange{0, reviewedIdx - 1}
+	if a.CommitSelectionRange != nil && *a.CommitSelectionRange == want {
+		return false // already scoped there; reloading would just loop
+	}
+	a.CommitSelectionRange = &want
 	a.CommitListCursor = 0
 	a.SetMessage(pluralCommits(reviewedIdx) + " since your last review")
+	return true
 }
 
 func pluralCommits(n int) string {

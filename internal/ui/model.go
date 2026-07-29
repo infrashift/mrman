@@ -170,7 +170,23 @@ func tick() tea.Cmd {
 }
 
 // Update is the event pipeline, transliterating tuicr's main loop ordering.
+//
+// Every path funnels through takeQueued: a handler that queues async work —
+// the review-metadata reload, a ":" command reaching the forge — must have
+// it issued no matter which message triggered it. Draining only on
+// keypresses stranded that work and left the spinner it set running.
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	model, cmd := m.update(msg)
+	if queued := m.takeQueued(); queued != nil {
+		if cmd == nil {
+			return model, queued
+		}
+		return model, tea.Batch(cmd, queued)
+	}
+	return model, cmd
+}
+
+func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
@@ -321,7 +337,7 @@ func (m *Model) handleKey(k tea.Key) (tea.Model, tea.Cmd) {
 				return m, tea.Quit
 			}
 			if handled {
-				return m, m.takeQueued()
+				return m, nil
 			}
 			// An unrecognized chord is a mistyped prefix, not a mistyped
 			// key: let the second key act on its own, as it did before the
@@ -395,9 +411,9 @@ func (m *Model) handleKey(k tea.Key) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	}
 	// The jump planner can arm a forge fetch from deep inside the state
-	// machine; collect it alongside anything the dispatch queued.
+	// machine; Update drains it with everything else.
 	m.queue(m.drainPrContextRequest())
-	return m, m.takeQueued()
+	return m, nil
 }
 
 // queue records async work for handleKey to return once dispatch unwinds.
