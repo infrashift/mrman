@@ -160,6 +160,18 @@ make package   # cross-platform release artifacts in ./dist
 The codebase mirrors tuicr's layout under `internal/`; tuicr's own test
 suite is ported throughout as the behavioral parity spec.
 
+Three opt-in tests exercise a real forge instead of fakes; they skip unless
+their environment variables are set, so `make check` is unaffected. See
+[`docs/MRMAN-GITHUB-WORKFLOW-TUTORIAL.md`](docs/MRMAN-GITHUB-WORKFLOW-TUTORIAL.md)
+for setting up a scratch pull request to point them at.
+
+```sh
+MRMAN_LIVE_PR=owner/repo#1 go test ./internal/forge/githubf/ -run Live -v   # every driver method
+MRMAN_LIVE_PR=owner/repo#1 go test ./internal/ui/ -run LivePullRequestReview -v  # the whole stack
+MRMAN_LIVE_PR=owner/repo#1 MRMAN_LIVE_SUBMIT=1 \
+    go test ./internal/ui/ -run LivePullRequestSubmit -v                    # posts a real review
+```
+
 ### charmkit
 
 Three layers that other Bubble Tea projects can reuse live in the nested
