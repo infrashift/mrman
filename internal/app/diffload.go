@@ -208,21 +208,7 @@ func (a *App) ApplyLoadedSelection(files []model.DiffFile, session *model.Review
 	case DiffSourceCommitRange, DiffSourceStagedUnstagedAndCommits:
 		selected := a.pendingSelectedCommits
 		a.pendingSelectedCommits = nil
-		a.ReviewCommits = selected
-		a.CommitList = append([]vcs.CommitInfo(nil), selected...)
-		rng := InitialCommitRange(a.CommitSelectionStart, len(selected))
-		a.CommitSelectionRange = rng
-		a.CommitListCursor = 0
-		if rng != nil {
-			a.CommitListCursor = rng[0]
-		}
-		a.CommitListScrollOffset = 0
-		a.VisibleCommitCount = len(selected)
-		a.HasMoreCommits = false
-		a.ShowCommitSelector = len(selected) > 1
-		a.CommitDiffCache = map[model.IndexRange][]model.DiffFile{}
-		a.SavedInlineSelection = nil
-		a.insertCommitMessageIfSingle()
+		a.InstallReviewCommits(selected)
 	default:
 		a.pendingSelectedCommits = nil
 	}

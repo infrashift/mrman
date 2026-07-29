@@ -182,10 +182,27 @@ func modeChipText(a *app.App) string {
 	return " ? "
 }
 
+// reopenCommand names the command that reopens the selector on the tab this
+// review came from — the answer to "how do I get back to the list".
+func reopenCommand(a *app.App) string {
+	if a.InPrMode() {
+		return ":prs pull requests"
+	}
+	return ":commits targets"
+}
+
 func modeHint(a *app.App) string {
 	switch a.InputMode {
 	case input.ModeNormal:
-		return "   j/k scroll · {/} file · m/M comment · r file · R hunk · c comment · ? help"
+		// With no diff loaded every review key is a no-op, so the only
+		// hint worth showing is the way back to picking something to
+		// review. Naming the command rather than the leader chord keeps
+		// this correct under a reconfigured leader.
+		if len(a.DiffFiles) == 0 {
+			return "   esc pick a target · " + reopenCommand(a) + " · ? help"
+		}
+		return "   j/k scroll · {/} file · m/M comment · r file · R hunk · c comment · " +
+			reopenCommand(a) + " · ? help"
 	case input.ModeCommand:
 		return "   tab complete · ↵ execute · esc cancel"
 	case input.ModeSearch:

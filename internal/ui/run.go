@@ -78,6 +78,9 @@ func Run(opts cli.TuiOptions) error {
 
 	highlighter := resolved.Highlighter()
 	var files []model.DiffFile
+	// rangeCommits are the rows behind the inline commit strip for a -r
+	// review; empty for every other start.
+	var rangeCommits []vcs.CommitInfo
 	source := app.DiffSource{Kind: app.DiffSourceWorkingTree}
 	switch {
 	case selectorStart && opts.File == "" && !opts.AllFiles:
@@ -89,6 +92,10 @@ func Run(opts cli.TuiOptions) error {
 		}
 		files, err = backend.CommitRangeDiff(rng, highlighter)
 		source = app.DiffSource{Kind: app.DiffSourceCommitRange, Commits: reversed(rng.CommitIDs)}
+		// The strip's rows are a display concern: a backend that cannot
+		// describe the commits still reviews the range fine, so failing
+		// here would trade a working review for a missing panel.
+		rangeCommits, _ = backend.CommitsInfo(reversed(rng.CommitIDs))
 	default:
 		files, err = backend.WorkingTreeDiff(highlighter)
 	}
@@ -156,6 +163,12 @@ func Run(opts cli.TuiOptions) error {
 	m.localCheckout = info.RootPath
 	a.CommentTypePrefix = cfg.Forge.CommentTypePrefix
 	applyConfig(cfg, a, m)
+	// After applyConfig, which would otherwise reset the strip's visibility
+	// to the configured default and hide a range the user explicitly asked
+	// for — the selector path installs commits well after config too.
+	if len(rangeCommits) > 0 {
+		a.InstallReviewCommits(rangeCommits)
+	}
 	for _, w := range warnings {
 		a.SetWarning(w)
 	}

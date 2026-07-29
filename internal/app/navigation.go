@@ -29,23 +29,28 @@ func LinenoWidth(maxLineno uint32) int {
 	return max(digits, MinLinenoWidth)
 }
 
+// The cursor indicator is two columns ("▶ " or "  "), not one. All three
+// widths below counted it as one, which left side-by-side rows a column
+// wider than the pane they were computed for — lipgloss then wrapped them,
+// and the wrapped tail landed outside its column, breaking the alignment
+// the view exists to provide.
+
 // UnifiedGutter is the unified diff gutter width:
-// indicator(1) + lineno(w) + space(1) + prefix(1) + space(1).
+// indicator(2) + lineno(w) + space(1) + prefix(2).
 func UnifiedGutter(w int) int {
-	return w + 4
+	return w + 5
 }
 
 // SbsLeftGutter is the side-by-side leading width before Old content:
-// indicator(1) + lineno(w) + space(1) + prefix(1).
+// indicator(2) + lineno(w) + space(1) + marker(1).
 func SbsLeftGutter(w int) int {
-	return w + 3
+	return w + 4
 }
 
-// SbsOverhead is the side-by-side fixed overhead (both gutters plus the
-// " | " divider): left indicator(1)+lineno(w)+space(1)+prefix(1), right
-// lineno(w)+space(1)+prefix(1), divider(3).
+// SbsOverhead is the side-by-side fixed overhead: indicator(2), each side's
+// lineno(w)+space(1)+marker(1), and the " │ " divider(3).
 func SbsOverhead(w int) int {
-	return 2*w + 8
+	return 2*w + 9
 }
 
 // LinenoWidth is the gutter width for the current diff: the widest line

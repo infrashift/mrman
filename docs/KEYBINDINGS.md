@@ -37,6 +37,15 @@ collide, because the focused pane handles its own keys first.
 | `<leader>j` / `<leader>k` | Focus down / up the layout |
 | `<leader>s` | Toggle the inline commit selector |
 | `<leader>f` | Toggle single-file view |
+| `<leader>t` | Back to the target selector |
+| `<leader>p` | Back to the pull-request list |
+| `Esc` | Back to the selector when no diff is loaded |
+
+`<leader>t` and `<leader>p` are the way out of a review — the same places
+`:commits` and `:prs` reach. Esc leaves a loaded review alone (it only
+discards a half-typed count); it reopens the selector solely from the empty
+state you land in by escaping the selector at startup, which would otherwise
+have no key that led anywhere.
 
 Tab skips panes that are not on screen. The comment navigator appears only
 when there is a comment to navigate; the commit selector only on a

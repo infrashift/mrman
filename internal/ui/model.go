@@ -466,6 +466,10 @@ func (m *Model) handleLeader(r rune) {
 		m.enterComposeMode()
 	case 'f':
 		a.ToggleSingleFileView()
+	case 't':
+		m.openTargetSelector(app.TargetTabLocal)
+	case 'p':
+		m.openTargetSelector(app.TargetTabPullRequests)
 	}
 }
 
@@ -957,6 +961,18 @@ func (m *Model) dispatchNormal(action input.Action) bool {
 	switch action.Kind {
 	case input.Quit:
 		return true
+	case input.ExitMode:
+		// Esc discards a half-typed count, as in vim. With nothing typed
+		// and nothing loaded it would otherwise do nothing at all — which
+		// is exactly the state Esc out of the startup selector lands in,
+		// an empty pane with no key that leads anywhere. Reopen the
+		// selector the review came from instead of stranding the user.
+		switch {
+		case a.PendingCount != nil:
+			a.PendingCount = nil
+		case len(a.DiffFiles) == 0:
+			m.openTargetSelector(a.SelectorTabForReview())
+		}
 	case input.CursorDown:
 		a.CursorDown(action.N)
 	case input.CursorUp:
@@ -1233,10 +1249,18 @@ func commentNavHeight(a *app.App, columnH int) int {
 	return navH
 }
 
+// titledPanel draws a bordered pane with a title in its top rule, occupying
+// innerH+2 screen rows: the title, innerH rows of content, and the bottom
+// border.
+//
+// lipgloss Height() counts the border, so the body is rendered at innerH+1
+// to leave innerH rows for content. Without the +1 every panel came out a
+// row short, the frame never filled the terminal, and whatever the previous
+// view had drawn on the last rows stayed on screen.
 func (m *Model) titledPanel(content, title string, focused bool, innerW, innerH int) string {
 	borderStyle := m.Styles.Border(focused)
 	body := borderStyle.BorderTop(false).
-		Width(innerW).Height(innerH).
+		Width(innerW).Height(innerH + 1).
 		Render(content)
 
 	titleW := 0

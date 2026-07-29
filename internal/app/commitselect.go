@@ -10,6 +10,7 @@ import (
 	"slices"
 
 	"github.com/infrashift/mrman/internal/input"
+	"github.com/infrashift/mrman/internal/model"
 	"github.com/infrashift/mrman/internal/vcs"
 )
 
@@ -64,6 +65,43 @@ type ConfirmedSelection struct {
 	// selector's storage order). Note DiffSource.Commits keeps the
 	// opposite, oldest-first order — reverse when building the source.
 	CommitIDs []string
+}
+
+// InstallReviewCommits makes selected the commits this review spans: the
+// inline strip's rows, the range ( and ) walk, and the per-commit diff
+// cache's keys.
+//
+// Both entry points need it. LoadDiff calls it when the user confirms a
+// selection; startup calls it for `mrman -r <range>`, which builds its App
+// directly and so never reaches LoadDiff — that path used to report "this
+// review has only one commit" and show no strip for a range the header
+// itself described as twelve commits.
+func (a *App) InstallReviewCommits(selected []vcs.CommitInfo) {
+	a.ReviewCommits = selected
+	a.CommitList = append([]vcs.CommitInfo(nil), selected...)
+	rng := InitialCommitRange(a.CommitSelectionStart, len(selected))
+	a.CommitSelectionRange = rng
+	a.CommitListCursor = 0
+	if rng != nil {
+		a.CommitListCursor = rng[0]
+	}
+	a.CommitListScrollOffset = 0
+	a.VisibleCommitCount = len(selected)
+	a.HasMoreCommits = false
+	a.ShowCommitSelector = len(selected) > 1
+	a.CommitDiffCache = map[model.IndexRange][]model.DiffFile{}
+	a.SavedInlineSelection = nil
+	a.insertCommitMessageIfSingle()
+}
+
+// SelectorTabForReview is the tab the current review came from, so that
+// reopening the selector lands where the user chose this review rather than
+// on whichever tab happens to be first.
+func (a *App) SelectorTabForReview() TargetTab {
+	if a.InPrMode() {
+		return TargetTabPullRequests
+	}
+	return TargetTabLocal
 }
 
 // EnterTargetSelector opens the review target selector on a specific tab.

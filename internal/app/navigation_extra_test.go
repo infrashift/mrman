@@ -18,9 +18,14 @@ func TestLinenoWidthAndGutters(t *testing.T) {
 	assertEq(t, LinenoWidth(10000), 5, "five digits")
 	assertEq(t, LinenoWidth(123456), 6, "six digits")
 
-	assertEq(t, UnifiedGutter(4), 8, "unified gutter")
-	assertEq(t, SbsLeftGutter(4), 7, "sbs left gutter")
-	assertEq(t, SbsOverhead(4), 16, "sbs overhead")
+	// These counted the cursor indicator as one column when it renders two
+	// ("▶ " / "  "), which made every side-by-side row a column wider than
+	// the pane it was sized for. Asserting the constants against the same
+	// wrong arithmetic is what let that survive; the authority now is
+	// ui.TestDiffRowsFitTheirPane, which measures rendered rows.
+	assertEq(t, UnifiedGutter(4), 9, "unified gutter")
+	assertEq(t, SbsLeftGutter(4), 8, "sbs left gutter")
+	assertEq(t, SbsOverhead(4), 17, "sbs overhead")
 }
 
 func TestAppLinenoWidthUsesHunkAndCacheMax(t *testing.T) {

@@ -354,6 +354,28 @@ func (a *App) CommitIDForNewComment() *string {
 	return &id
 }
 
+// scrollCommitStripToCursor keeps the cursor commit inside the strip's
+// visible window.
+//
+// ( and ) move the selection a whole commit at a time, and on a review with
+// more commits than the strip can show they used to walk it clean off the
+// panel: the title read "commit 12/12" while every visible row was
+// unselected and nothing appeared to have happened.
+func (a *App) scrollCommitStripToCursor() {
+	viewport := a.CommitListViewportHeight
+	if viewport <= 0 {
+		return
+	}
+	if a.CommitListCursor < a.CommitListScrollOffset {
+		a.CommitListScrollOffset = a.CommitListCursor
+	}
+	if a.CommitListCursor >= a.CommitListScrollOffset+viewport {
+		a.CommitListScrollOffset = a.CommitListCursor - viewport + 1
+	}
+	maxOffset := satSub(a.VisibleCommitCount, viewport)
+	a.CommitListScrollOffset = max(min(a.CommitListScrollOffset, maxOffset), 0)
+}
+
 // CycleCommitNext cycles the inline commit selector to the next individual
 // commit (the `)` key): all → last, i → i+1, last → all.
 func (a *App) CycleCommitNext() {
@@ -387,6 +409,7 @@ func (a *App) CycleCommitNext() {
 			a.CommitListCursor = i + 1
 		}
 	}
+	a.scrollCommitStripToCursor()
 }
 
 // CycleCommitPrev cycles the inline commit selector to the previous
@@ -422,6 +445,7 @@ func (a *App) CycleCommitPrev() {
 			a.CommitListCursor = i - 1
 		}
 	}
+	a.scrollCommitStripToCursor()
 }
 
 // specialCommitCount counts the synthetic staged/unstaged rows prepended to

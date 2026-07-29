@@ -188,12 +188,30 @@ func (p *DiffPane) commentInputOverlay(a *app.App, vim *vimState, width int) []s
 	}
 
 	head := fmt.Sprintf("    ╭── %s %s comment ", verb, scope)
-	lines := []string{emitter.Line([]render.Span{
+	headSpans := []render.Span{
 		{Text: head, Style: borderStyle},
 		{Text: badge, Style: typeStyle},
 		{Text: modeTag, Style: typeStyle},
 		{Text: hint, Style: render.Style{Fg: t.FgDim}},
-	})}
+	}
+	// Close the top rule to the same width the bottom one fills, so the box
+	// reads as a box. Left open, the header trailed off mid-air while the
+	// bottom spanned the pane, and a narrow terminal wrapped the hint into
+	// the diff instead of clipping it.
+	used := 0
+	for _, span := range headSpans {
+		used += render.StringWidth(span.Text)
+	}
+	switch {
+	case used > width:
+		headSpans = render.TruncateOrPadSpans(headSpans, width, render.Style{Fg: t.FgDim})
+	case width-used >= 2:
+		headSpans = append(headSpans, render.Span{
+			Text:  " " + strings.Repeat("─", width-used-1),
+			Style: borderStyle,
+		})
+	}
+	lines := []string{emitter.Line(headSpans)}
 
 	contentArea := width - 10
 	if contentArea < 1 {

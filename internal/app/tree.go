@@ -75,12 +75,38 @@ func (a *App) FileListDown(n int) {
 	visibleItems := a.BuildVisibleItems()
 	maxIdx := satSub(len(visibleItems), 1)
 	a.FileListState.Select(min(a.FileListState.Selected()+n, maxIdx))
+	a.scrollFileListToSelection(len(visibleItems))
 	a.followFileListInSingleFileView()
+}
+
+// scrollFileListToSelection scrolls the tree viewport the minimum amount
+// that keeps the selection on screen.
+//
+// Without this the selection walked off the bottom of the pane and the tree
+// simply stopped responding: the only thing that ever moved the offset was
+// the mouse wheel, so a keyboard user could not reach past the first
+// screenful of a large review. The other list panes each already do this —
+// see clampCommentNavCursor.
+func (a *App) scrollFileListToSelection(total int) {
+	viewport := a.FileListState.ViewportHeight
+	if viewport <= 0 {
+		return
+	}
+	selected := a.FileListState.Selected()
+	offset := a.FileListState.Offset()
+	if selected < offset {
+		offset = selected
+	}
+	if selected >= offset+viewport {
+		offset = selected - viewport + 1
+	}
+	a.FileListState.SetOffset(max(min(offset, satSub(total, viewport)), 0))
 }
 
 // FileListUp moves the file-list selection up by n rows.
 func (a *App) FileListUp(n int) {
 	a.FileListState.Select(satSub(a.FileListState.Selected(), n))
+	a.scrollFileListToSelection(len(a.BuildVisibleItems()))
 	a.followFileListInSingleFileView()
 }
 
