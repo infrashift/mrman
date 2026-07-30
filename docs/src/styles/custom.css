@@ -1,0 +1,28 @@
+/* mrman Starlight theme — teal accent, picked to read as "terminal" and to
+   stay distinct from the sibling garmr site's violet. */
+
+:root {
+	--sl-color-accent-low: hsl(172, 40%, 14%);
+	--sl-color-accent: hsl(172, 62%, 42%);
+	--sl-color-accent-high: hsl(172, 70%, 80%);
+	--sl-color-black: hsl(200, 14%, 8%);
+	--sl-content-width: 52rem;
+}
+
+:root[data-theme='light'] {
+	--sl-color-accent-low: hsl(172, 55%, 90%);
+	--sl-color-accent: hsl(172, 58%, 32%);
+	--sl-color-accent-high: hsl(174, 45%, 18%);
+}
+
+/* Inline code contrast */
+:root[data-theme='light'] .sl-markdown-content :not(pre) > code {
+	background-color: hsl(174, 22%, 92%);
+	color: hsl(174, 45%, 22%);
+}
+
+/* Keybinding tables carry a lot of `code` in narrow columns; keep them from
+   wrapping mid-chord. */
+.sl-markdown-content table :not(pre) > code {
+	white-space: nowrap;
+}

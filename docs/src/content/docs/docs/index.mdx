@@ -1,0 +1,111 @@
+---
+title: mrman
+description: A terminal code-review tool — browse a continuous diff with vim keybindings, leave typed comments, collaborate with AI agents, and submit to GitHub, GitLab, Azure DevOps or Forgejo.
+sidebar:
+  order: 0
+  label: Overview
+---
+
+import { CardGrid, Card, LinkCard } from '@astrojs/starlight/components';
+
+**mrman** is a terminal code-review tool. Browse a GitHub-style continuous
+diff with vim keybindings, leave typed comments at line / range / file /
+review scope, track what you have reviewed across sessions, collaborate live
+with AI agents through a JSON CLI, and submit the finished review to
+**GitHub, GitLab, Azure DevOps, or Forgejo** — SaaS or on-premise.
+
+```sh
+mrman -w                   # review working-tree changes
+mrman -r main..HEAD        # review a commit range / revset
+mrman pr 125               # review a pull request from your checkout
+mrman pr <PR/MR URL>       # ... or by URL, on any supported forge
+```
+
+<LinkCard
+  title="Getting Started"
+  description="Install mrman and finish your first review in about five minutes."
+  href="../docs/getting-started/"
+/>
+
+## Why mrman
+
+<CardGrid>
+	<Card title="Review in the terminal you already live in">
+		A continuous diff, vim navigation with count prefixes, visual-range
+		selection, search, and a file tree — no browser, no context switch.
+	</Card>
+	<Card title="Four forges, SaaS and on-premise">
+		GitHub, GitLab, Azure DevOps and Forgejo through their APIs, not by
+		shelling out to `gh` or `glab`. Enterprise hosts, custom API bases and
+		private CAs are first-class.
+	</Card>
+	<Card title="Typed comments at four scopes">
+		Comment on a line, a visual range, a whole file, or the review itself.
+		Comment types are yours to define and travel through to the forge.
+	</Card>
+	<Card title="Sessions that survive restarts">
+		Reviews persist automatically. Close the terminal, come back tomorrow,
+		pick up the same reviewed marks and draft comments.
+	</Card>
+	<Card title="Live agent collaboration, human-gated">
+		An agent can read your review as you write it and add findings of its
+		own. Submitting to a forge needs a grant only a person at a terminal can
+		issue.
+	</Card>
+	<Card title="Config that never crashes on you">
+		TOML validated by embedded CUE schemas. A mistake drops one key and warns
+		precisely; it never stops mrman starting.
+	</Card>
+</CardGrid>
+
+## Keys, in one screen
+
+Press `?` in the app for the full list — this is the shape of it.
+
+| Key | Action |
+|---|---|
+| `j/k`, `Ctrl-d/u`, `g/G`, `zz/zt/zb` | vim navigation |
+| `}` `{` / `]` `[` | next/previous file / hunk |
+| `c` / `C` / `v` | comment on line / file / visual range |
+| `r` / `R` | toggle file / hunk reviewed |
+| `m` / `M`, `dd`, `i` | next/prev comment, delete, edit |
+| `Enter`/`Space`, `o`/`O` | expand context gap, expand/collapse dirs |
+| `(` / `)` | walk commit by commit through a multi-commit review |
+| `y` / `:clip` | export review markdown to the clipboard |
+| `:submit` | submit to the forge (comment/approve/request-changes/draft) |
+
+Full reference: [Keybindings](../docs/reference/keybindings/).
+
+## Where to go next
+
+<CardGrid>
+	<LinkCard
+		title="Reviewing Locally"
+		description="Working tree, commit ranges, jj revsets, single files, pristine mode."
+		href="../docs/guides/local-review/"
+	/>
+	<LinkCard
+		title="How PR Review Works"
+		description="Target syntax, inline forge threads, per-commit narrowing, submitting."
+		href="../docs/guides/pull-requests/"
+	/>
+	<LinkCard
+		title="Agent Collaboration"
+		description="The JSON CLI, the two workflows, and the submit interlock."
+		href="../docs/guides/agents/"
+	/>
+	<LinkCard
+		title="Configuration"
+		description="Every option, comment types, forge hosts and authentication."
+		href="../docs/reference/configuration/"
+	/>
+</CardGrid>
+
+## Lineage
+
+mrman is a Go reimplementation of [tuicr](https://github.com/agavra/tuicr)
+(Rust), built on [Bubble Tea](https://github.com/charmbracelet/bubbletea),
+with feature parity plus a four-forge integration layer, CUE-validated
+configuration, and user-templatable markdown output. The
+[comparison page](../docs/project/comparison/) lists the deliberate
+differences.

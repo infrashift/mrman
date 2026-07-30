@@ -6,6 +6,11 @@
 /dist/
 coverage.out
 
+# Documentation site (Astro)
+docs/node_modules/
+docs/dist/
+docs/.astro/
+
 # Editor / OS noise
 .idea/
 .vscode/

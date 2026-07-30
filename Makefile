@@ -24,7 +24,7 @@ GOLANGCI_LINT := $(GOBIN_DIR)/golangci-lint
 .DEFAULT_GOAL := build
 
 .PHONY: all build install run test test-race cover cover-html cover-check bench lint fmt vet tidy \
-        generate check check-charmkit package clean tools help
+        generate check check-charmkit package clean tools help docs-dev docs-build
 
 all: check build
 
@@ -81,6 +81,14 @@ generate: ## go generate (CUE schema embedding, etc.)
 	go generate ./...
 
 check: fmt vet lint test cover-check check-charmkit ## Everything CI runs (lint + tests + 85% coverage gate)
+
+## Docs
+
+docs-dev: ## Run the Astro documentation site locally (bun)
+	cd docs && bun install && bun --bun run dev
+
+docs-build: ## Build the documentation site into docs/dist
+	cd docs && bun install --frozen-lockfile && bun --bun run build
 
 package: ## Cross-compile release tarballs/zips into ./dist
 	@mkdir -p $(DIST_DIR)

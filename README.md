@@ -11,6 +11,8 @@ mrman is a Go reimplementation of [tuicr](https://github.com/agavra/tuicr)
 with feature parity plus a four-forge integration layer, CUE-validated
 configuration, and user-templatable markdown output.
 
+**Documentation: <https://infrashift.github.io/mrman/>**
+
 ## Install
 
 ```sh
@@ -60,7 +62,8 @@ between everything open and what is waiting on your review.
 | `:comments unresolved\|all\|hide` | show the forge's existing comments |
 | `:q` `:w` `:wq` `ZZ` | quit / save session |
 
-Full list: [`docs/KEYBINDINGS.md`](docs/KEYBINDINGS.md), or press `?`.
+Full list: [Keybindings](https://infrashift.github.io/mrman/docs/reference/keybindings/),
+or press `?`.
 
 ### Reviewing a pull request
 
@@ -97,7 +100,7 @@ it works only while a human has the review open with `mrman pr <target>
 so a command an agent runs can never authorize one. The grant is held
 against the TUI's process and dies with it. This is a deliberate-action
 interlock, not a security boundary; see
-[`docs/MRMAN-GITHUB-WORKFLOW-TUTORIAL.md`](docs/MRMAN-GITHUB-WORKFLOW-TUTORIAL.md).
+[Agent Collaboration](https://infrashift.github.io/mrman/docs/guides/agents/).
 
 All `review` output is JSON. [`skills/mrman/`](skills/mrman/) packages this
 as an agent skill, with tmux and zellij wrappers that open a review pane and
@@ -109,7 +112,8 @@ findings under an explicit `--username`).
 
 `~/.config/mrman/config.toml` — friendly TOML validated by embedded CUE
 schemas (mistakes degrade to warnings with precise messages, never crashes).
-Every option is documented in [`docs/CONFIG.md`](docs/CONFIG.md):
+Every option is documented in
+[Configuration](https://infrashift.github.io/mrman/docs/reference/configuration/):
 
 ```toml
 theme = "tokyo-night-storm"        # or theme_dark / theme_light + appearance
@@ -166,9 +170,10 @@ via `[templates]`; parse errors fall back to the defaults with a warning.
 ## Development
 
 ```sh
-make check     # fmt + vet + lint + tests + 85% coverage gate
-make build     # ./bin/mrman
-make package   # cross-platform release artifacts in ./dist
+make check      # fmt + vet + lint + tests + 85% coverage gate
+make build      # ./bin/mrman
+make package    # cross-platform release artifacts in ./dist
+make docs-dev   # the documentation site at localhost:4321/mrman/
 ```
 
 The codebase mirrors tuicr's layout under `internal/`; tuicr's own test
@@ -176,7 +181,7 @@ suite is ported throughout as the behavioral parity spec.
 
 Three opt-in tests exercise a real forge instead of fakes; they skip unless
 their environment variables are set, so `make check` is unaffected. See
-[`docs/MRMAN-GITHUB-WORKFLOW-TUTORIAL.md`](docs/MRMAN-GITHUB-WORKFLOW-TUTORIAL.md)
+[Testing Against a Real Forge](https://infrashift.github.io/mrman/docs/contributing/live-testing/)
 for setting up a scratch pull request to point them at.
 
 ```sh
@@ -207,6 +212,13 @@ in the meantime. See the note at the bottom of the `Makefile`.
 - **Four forges instead of two**, through their APIs rather than by shelling
   out to `gh` and `glab`.
 - **CUE-validated configuration** and **user-templatable markdown output**.
+
+## Documentation
+
+The full site lives at <https://infrashift.github.io/mrman/> and its source is
+in [`docs/`](docs/) — an Astro + Starlight project built with bun. `make
+docs-dev` serves it locally with live reload; `make docs-build` produces a
+production build.
 
 ## License
 

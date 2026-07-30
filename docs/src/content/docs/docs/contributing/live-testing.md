@@ -1,4 +1,7 @@
-# Testing mrman against a real GitHub pull request
+---
+title: Testing Against a Real Forge
+description: Setting up a throwaway GitHub pull request and exercising mrman's whole stack against it — a transcript of an actual run.
+---
 
 Every unit test in mrman runs against fakes. Fakes cannot catch a driver
 that builds a request GitHub then rejects, or a pane that renders correctly

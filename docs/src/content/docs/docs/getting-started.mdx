@@ -1,0 +1,144 @@
+---
+title: Getting Started
+description: Install mrman, review your working tree, leave your first comment, and export it — in about five minutes.
+sidebar:
+  order: 1
+---
+
+import { Steps, Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+
+## Requirements
+
+- **Go 1.25 or newer** to build (`go.mod` declares `go 1.25.4`).
+- **`git` on `PATH`**. Jujutsu repositories additionally need `jj`.
+- A terminal with full [kitty keyboard
+  protocol](https://sw.kovidgoyal.net/kitty/keyboard-protocol/) support gives
+  the best experience — [Ghostty](https://ghostty.org/) is the reference.
+  mrman works without it; a few chords fall back to aliases. See
+  [Terminal Setup](../guides/terminals/).
+
+## Install
+
+<Tabs>
+	<TabItem label="From a checkout">
+		```sh
+		git clone https://github.com/infrashift/mrman
+		cd mrman
+		make install       # into GOBIN
+		# or: make build   # into ./bin/mrman
+		```
+	</TabItem>
+	<TabItem label="go install">
+		```sh
+		go install github.com/infrashift/mrman@latest
+		```
+	</TabItem>
+</Tabs>
+
+<Aside type="caution" title="go install does not resolve yet">
+mrman keeps three reusable Bubble Tea layers in a nested module,
+[`charmkit`](https://github.com/infrashift/mrman/tree/main/charmkit), so that
+consumers of those layers do not inherit mrman's dependency tree. `go.work` is
+committed, so **every clone builds** — but `go install
+github.com/infrashift/mrman@latest` cannot work until `charmkit/vX.Y.Z` is
+tagged and pinned in `go.mod`, because `go install` ignores workspaces.
+
+Build from a checkout until the first release. This is tracked as a release
+blocker, not a local-setup problem.
+</Aside>
+
+## Your first review
+
+<Steps>
+
+1. **Make some changes** in any git repository, then open them:
+
+   ```sh
+   mrman -w
+   ```
+
+   `-w` goes straight to your working-tree diff. With no arguments at all,
+   mrman opens the target selector instead so you can pick a commit range.
+
+2. **Move around.** `j` / `k` by line, `}` / `{` by file, `]` / `[` by hunk.
+   Counts work everywhere: `5j`, `3}`, `42G`. `Enter` or `Space` on a
+   `⋯` expander pulls in the hidden context around a hunk.
+
+3. **Comment.** Put the cursor on a line and press `c`. Type. `Enter` saves.
+
+   `C` comments on the whole file, `v` selects a range first, and
+   `<leader>c` (`;c`) comments on the review as a whole.
+
+   Out of the box comments are **untyped**. Define
+   [comment types](../reference/configuration/#comment-types) and `Tab` starts
+   cycling them, with the current one shown in the box title
+   (`Add L60 comment [ISSUE]`).
+
+4. **Track what you have read.** `r` marks the current file reviewed, `R` the
+   current hunk. `m` / `M` jump between comments.
+
+5. **Export it.** With nothing selected, `y` copies the whole review as
+   markdown to your clipboard. `:clip` does the same thing by name, and
+   `--stdout` prints it instead.
+
+6. **Quit.** `:q` (which refuses if you have unsaved comments), `:wq` or `ZZ`
+   to save and quit, `:q!` to discard.
+
+</Steps>
+
+Your review was saved to `~/.local/share/mrman/reviews` on the way out.
+Reopen the same diff later and your comments and reviewed marks are still
+there.
+
+## Set your name
+
+Comments are stamped with an author, which is also how mrman tells your
+comments apart from an agent's. Set it once:
+
+```toml
+# ~/.config/mrman/config.toml
+username = "your-name"
+```
+
+While you are in there, the options people change first:
+
+```toml
+theme = "tokyo-night-storm"   # see the Themes reference for the full list
+comment_vim = true            # modal editing in the comment box
+
+[[comment_types]]             # without these, every comment is untyped
+id = "issue"
+label = "ISSUE"
+definition = "must fix before merge"
+color = "red"
+```
+
+Every option is documented in [Configuration](../reference/configuration/).
+
+## Review a pull request
+
+If your checkout has a remote on a supported forge, mrman can open pull
+requests directly:
+
+```sh
+mrman pr 125                    # by number, repo inferred from the checkout
+mrman pr owner/repo#125         # addressed explicitly
+mrman pr <PR/MR URL>            # any supported forge
+mrman                           # then Tab to the Pull Requests tab
+```
+
+The forge's existing review threads render inline in the diff, read-only, and
+`:submit` posts your review back. Start with [How PR Review
+Works](../guides/pull-requests/), then your forge:
+[GitHub](../forges/github/) · [GitHub
+Enterprise](../forges/github-enterprise/) · [GitLab](../forges/gitlab/) ·
+[Azure DevOps](../forges/azure-devops/) · [Forgejo &
+Gitea](../forges/forgejo/) · [Codeberg](../forges/codeberg/).
+
+## Next steps
+
+- [Reviewing Locally](../guides/local-review/) — commit ranges, revsets,
+  `--file` mode, pristine mode, staging what you reviewed.
+- [Keybindings](../reference/keybindings/) — the full list, or press `?`.
+- [Agent Collaboration](../guides/agents/) — let an AI agent read or
+  contribute to a review.

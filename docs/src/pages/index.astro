@@ -1,0 +1,175 @@
+---
+// Landing page — not managed by Starlight.
+import '../styles/landing.css';
+
+// A real mrman frame, captured from a running TUI and converted to spans.
+// Regenerate with docs/src/demo/ansi2html.py — see that file's header.
+import demoFrame from '../demo/mrman-frame.html?raw';
+
+const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
+const repo = 'https://github.com/infrashift/mrman';
+---
+
+<html lang="en" data-theme="dark">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>mrman — Terminal Code Review for Four Forges</title>
+	<meta name="description" content="mrman is a terminal code-review tool: a continuous diff with vim keybindings, typed comments, persistent sessions, live AI-agent collaboration, and review submission to GitHub, GitLab, Azure DevOps and Forgejo — SaaS or on-premise." />
+	<link rel="icon" type="image/svg+xml" href={`${base}favicon.svg`} />
+</head>
+<body>
+
+<!-- Nav -->
+<nav class="nav">
+	<a href={base} class="nav-logo"><span class="prompt">&gt;</span> mrman</a>
+	<ul class="nav-links">
+		<li><a href={`${base}docs/`}>Docs</a></li>
+		<li><a href={`${base}docs/getting-started/`}>Quick Start</a></li>
+		<li class="hide-sm"><a href={`${base}docs/guides/pull-requests/`}>Forges</a></li>
+		<li class="hide-sm"><a href={`${base}docs/reference/keybindings/`}>Keys</a></li>
+		<li><a href={repo}>GitHub</a></li>
+		<li><button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">&#9790;</button></li>
+	</ul>
+</nav>
+
+<!-- Hero -->
+<section class="hero">
+	<div class="wordmark"><span class="prompt">&gt;</span> mrman<span class="caret">_</span></div>
+	<h1>Code review that stays in your terminal</h1>
+	<p class="tagline">
+		A continuous diff with vim keybindings. Typed comments at line, range, file
+		and review scope. Sessions that survive restarts. Submit the finished review
+		to <strong>GitHub, GitLab, Azure DevOps or Forgejo</strong> — SaaS or
+		on-premise.
+	</p>
+	<div class="hero-cta">
+		<a href={`${base}docs/getting-started/`} class="btn btn-primary">Get Started</a>
+		<a href={`${base}docs/`} class="btn btn-secondary">Read the Docs</a>
+		<a href={repo} class="btn btn-ghost">GitHub &rarr;</a>
+	</div>
+</section>
+
+<section class="install">
+	<code>git clone https://github.com/infrashift/mrman &amp;&amp; cd mrman &amp;&amp; make install</code>
+	<span class="note">
+		Needs Go 1.25+ and <code>git</code>.
+		<a href={`${base}docs/getting-started/`}>Why not <code>go install</code> yet?</a>
+	</span>
+</section>
+
+<!-- Real TUI capture -->
+<section class="demo">
+	<div class="terminal">
+		<div class="terminal-bar">
+			<span class="dot"></span><span class="dot"></span><span class="dot"></span>
+			<span class="title">mrman -w &nbsp;·&nbsp; tokyo-night-storm</span>
+		</div>
+		<pre set:html={demoFrame}></pre>
+	</div>
+	<p class="demo-caption">
+		An actual frame from a running mrman, not a mockup — hidden context collapsed
+		above, a comment anchored inline at L55, the file tree and comment navigator
+		on the left.
+	</p>
+</section>
+
+<!-- Features -->
+<section class="features">
+	<h2>Why mrman?</h2>
+	<div class="feature-grid">
+		<div class="feature-card">
+			<div class="icon">&#9000;</div>
+			<h3>Vim-Native Navigation</h3>
+			<p>One continuous diff across every file. Count prefixes, hunk and file jumps, visual-range selection, search, `zz`/`zt`/`zb`. Context gaps expand on demand.</p>
+		</div>
+		<div class="feature-card">
+			<div class="icon">&#127760;</div>
+			<h3>Four Forges, SaaS and On-Prem</h3>
+			<p>GitHub, GitLab, Azure DevOps and Forgejo through their APIs — not by shelling out to <code>gh</code> or <code>glab</code>. Enterprise hosts, custom API bases and private CAs are first-class.</p>
+		</div>
+		<div class="feature-card">
+			<div class="icon">&#128172;</div>
+			<h3>Typed Comments, Four Scopes</h3>
+			<p>Comment on a line, a range, a file, or the review itself. Define your own comment types — they drive the badge, the exported markdown, and the tag on submitted comments.</p>
+		</div>
+		<div class="feature-card">
+			<div class="icon">&#128190;</div>
+			<h3>Sessions That Survive</h3>
+			<p>Reviewed marks and draft comments persist automatically. Close the terminal, come back tomorrow, pick up exactly where you stopped.</p>
+		</div>
+		<div class="feature-card">
+			<div class="icon">&#129302;</div>
+			<h3>Live Agent Collaboration</h3>
+			<p>An AI agent can follow your review as you write it, or add findings of its own, over a JSON CLI. Submitting to a forge needs a grant only a human at a terminal can issue.</p>
+		</div>
+		<div class="feature-card">
+			<div class="icon">&#128295;</div>
+			<h3>Config That Never Crashes</h3>
+			<p>TOML validated by embedded CUE schemas: a mistake drops one key and warns precisely. 24 bundled themes, and both markdown outputs are templates you can replace.</p>
+		</div>
+	</div>
+</section>
+
+<!-- Forge strip -->
+<section class="forges">
+	<h2>Review on the forge you actually use</h2>
+	<p class="subtitle">Same keys, same review model. Capabilities are checked before mrman offers an action, so a submit never fails halfway through.</p>
+	<div class="forge-grid">
+		<a class="forge-card" href={`${base}docs/forges/github/`}>
+			<strong>GitHub</strong><span>Every capability, atomic submit</span>
+		</a>
+		<a class="forge-card" href={`${base}docs/forges/github-enterprise/`}>
+			<strong>GitHub Enterprise</strong><span>On-prem, custom CA</span>
+		</a>
+		<a class="forge-card" href={`${base}docs/forges/gitlab/`}>
+			<strong>GitLab</strong><span>SaaS and self-managed</span>
+		</a>
+		<a class="forge-card" href={`${base}docs/forges/azure-devops/`}>
+			<strong>Azure DevOps</strong><span>Services and Server</span>
+		</a>
+		<a class="forge-card" href={`${base}docs/forges/forgejo/`}>
+			<strong>Forgejo &amp; Gitea</strong><span>Self-hosted</span>
+		</a>
+		<a class="forge-card" href={`${base}docs/forges/codeberg/`}>
+			<strong>Codeberg</strong><span>Zero config</span>
+		</a>
+	</div>
+</section>
+
+<!-- Callout -->
+<section class="callout">
+	<div class="callout-inner">
+		<h3>Reviewing an agent's patch?</h3>
+		<p>mrman makes the review session a shared object: you read and comment in the TUI while an agent watches the stream, answers, and — only when you have said so — submits.</p>
+		<a href={`${base}docs/guides/agents/`} class="btn btn-primary">Agent Collaboration</a>
+		<a href={`${base}docs/reference/keybindings/`} class="btn btn-secondary">Keybindings</a>
+	</div>
+</section>
+
+<!-- Footer -->
+<footer class="landing-footer">
+	<p>Apache 2.0 &middot; Built by <a href="https://github.com/infrashift">InfraShift</a></p>
+</footer>
+
+<script>
+// Theme toggle
+const toggle = document.getElementById('theme-toggle');
+const html = document.documentElement;
+
+function setTheme(theme: string) {
+	html.setAttribute('data-theme', theme);
+	localStorage.setItem('mrman-theme', theme);
+	if (toggle) toggle.textContent = theme === 'dark' ? '☾' : '☀';
+}
+
+toggle?.addEventListener('click', () => {
+	setTheme(html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+});
+
+// Restore saved preference
+setTheme(localStorage.getItem('mrman-theme') || 'dark');
+</script>
+
+</body>
+</html>

@@ -1,4 +1,7 @@
-# Keybindings
+---
+title: Keybindings
+description: "Every key, chord, mouse action and : command in mrman, with the count prefixes each one accepts."
+---
 
 Press `?` in the app for the same list. `<leader>` is `;` by default and is
 configurable to any single character (`leader` in the config).

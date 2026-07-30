@@ -1,4 +1,7 @@
-# Configuration
+---
+title: Configuration
+description: Every option in ~/.config/mrman/config.toml — display, comment types, forge hosts, authentication, themes and templates.
+---
 
 mrman reads `$XDG_CONFIG_HOME/mrman/config.toml`, which is
 `~/.config/mrman/config.toml` unless you have moved it. Themes live beside
@@ -52,10 +55,15 @@ definition = "must fix before merge"  # guidance text, included in the legend
 color = "red"                         # a terminal color name or #RRGGBB
 ```
 
-Declaring any types replaces the defaults entirely, and the first becomes
-the default type. An untyped option is always available at the end of the
-cycle, so you can leave a comment without classifying it — untyped comments
-get no badge, no tag and no legend entry.
+**There are no built-in comment types.** With none declared the only type is
+the untyped one: every comment is untyped, gets no badge and no `[TYPE]` tag,
+and `Tab` has nothing to cycle.
+
+Declaring types makes the first one the default, and the comment box shows
+the current type in its title (`Add L60 comment [ISSUE]`). An untyped option
+stays available at the end of the cycle, so you can still leave a comment
+without classifying it — untyped comments get no badge, no tag and no legend
+entry.
 
 ## Forges
 
