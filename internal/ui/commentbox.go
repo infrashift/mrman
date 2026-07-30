@@ -104,9 +104,21 @@ func (p *DiffPane) commentBoxRow(a *app.App, ann *app.AnnotatedLine, idx int, in
 				lineInfo = fmt.Sprintf("L%d ", ann.Line)
 			}
 		}
+		// A comment whose anchor no longer checks out says so on its own
+		// border. Silence here is what makes a carried-over session dangerous:
+		// the line number renders exactly as confidently as a good one.
+		anchorText := ""
+		anchorStyle := render.Style{Fg: t.FgDim}
+		if label := a.AnchorVerdictFor(comment.ID).Label(); label != "" {
+			anchorText = "(" + label + ") "
+			if a.HasOutdatedAnchor(comment.ID) {
+				anchorStyle = render.Style{Fg: t.MessageWarningBg, Bold: true}
+			}
+		}
 		head := "    " + corner + "── "
 		fillWidth := width - render.StringWidth(head) - render.StringWidth(badge) -
-			render.StringWidth(lineInfo) - render.StringWidth(ind.Text)
+			render.StringWidth(lineInfo) - render.StringWidth(anchorText) -
+			render.StringWidth(ind.Text)
 		if fillWidth < 0 {
 			fillWidth = 0
 		}
@@ -115,6 +127,7 @@ func (p *DiffPane) commentBoxRow(a *app.App, ann *app.AnnotatedLine, idx int, in
 			{Text: head, Style: borderStyle},
 			{Text: badge, Style: typeStyle},
 			{Text: lineInfo, Style: render.Style{Fg: t.FgDim}},
+			{Text: anchorText, Style: anchorStyle},
 			{Text: strings.Repeat("─", fillWidth), Style: borderStyle},
 		}}
 	case total - 1:

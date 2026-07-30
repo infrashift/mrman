@@ -150,6 +150,17 @@ func (a *App) bucketComment(state *SubmitState, c *model.Comment, anchor submit.
 		})
 		return
 	}
+	// A comment whose anchor failed validation is refused an inline position
+	// even though its line number still maps. It goes to the resolver, which
+	// makes the reviewer decide per comment whether it belongs in the summary
+	// body or nowhere — mrman does not get to guess where criticism lands.
+	if a.HasOutdatedAnchor(c.ID) {
+		state.Unmappable = append(state.Unmappable, UnmappableItem{
+			Comment: c, Path: path, Reason: submit.StaleAnchor,
+			Action: submit.MoveToSummary,
+		})
+		return
+	}
 	mapped := submit.MapComment(c, anchor, file, prefix)
 	if mapped.Inline != nil {
 		state.Mappable = append(state.Mappable, *mapped.Inline)

@@ -118,8 +118,9 @@ func (r LineRange) IsSingle() bool { return r.Start == r.End }
 // Contains reports whether line falls inside the range.
 func (r LineRange) Contains(line uint32) bool { return line >= r.Start && line <= r.End }
 
-// LineContext captures the anchored line's numbers and content at comment
-// creation time.
+// LineContext captures the anchored line's numbers and content as of the last
+// time the anchor was known good: comment creation, or the most recent
+// re-anchoring after the diff moved underneath it.
 type LineContext struct {
 	NewLine *uint32 `json:"new_line"`
 	OldLine *uint32 `json:"old_line"`

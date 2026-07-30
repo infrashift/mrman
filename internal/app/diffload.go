@@ -201,6 +201,13 @@ func (a *App) ApplyLoadedSelection(files []model.DiffFile, session *model.Review
 	a.FileListState = FileListState{}
 	a.ClearExpandedGaps()
 
+	// A selection load can narrow the diff to a subrange of commits, which
+	// hides hunks the comments were written against. Anchor verdicts are not
+	// recomputed here and the old ones are dropped: a comment must never read
+	// "outdated" because the reviewer narrowed the view past it. The next
+	// full-target open or reload re-establishes them.
+	a.ClearAnchorVerdicts()
+
 	// Set up the inline commit selector for commit-bearing sources
 	// (newest-first display order); staged/unstaged-only loads leave the
 	// selector state untouched, mirroring tuicr's load_*_selection.

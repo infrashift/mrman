@@ -275,6 +275,16 @@ type App struct {
 	// until ApplyLoadedSelection consumes them to build ReviewCommits.
 	pendingSelectedCommits []vcs.CommitInfo
 
+	// AnchorStats summarizes the last anchor validation pass, so the open and
+	// reload paths can tell the reviewer what moved.
+	AnchorStats AnchorStats
+	// anchorVerdicts records per-comment anchor verdicts from that pass,
+	// keyed by comment id. Derived state, never persisted: it describes the
+	// relationship between the session and one particular diff, and writing
+	// it into the session file would freeze a judgement that is only true
+	// until the next edit.
+	anchorVerdicts map[string]AnchorVerdict
+
 	// remoteThreadsByLine and remoteThreadsByFile index the visible remote
 	// discussions for the current annotation stream. Refreshed by
 	// RebuildAnnotations and read by the height math, so row emission and

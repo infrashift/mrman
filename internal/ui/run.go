@@ -172,6 +172,7 @@ func Run(opts cli.TuiOptions) error {
 	for _, w := range warnings {
 		a.SetWarning(w)
 	}
+	reportAnchorValidation(a)
 	if storeErr != nil {
 		a.SetStickyWarning("Sessions are not persisted: " + storeErr.Error())
 	}
@@ -185,6 +186,22 @@ func Run(opts cli.TuiOptions) error {
 		fmt.Print(m.PendingStdout)
 	}
 	return err
+}
+
+// reportAnchorValidation surfaces what opening the session did to its comment
+// anchors. Re-anchoring is informational; an anchor that could not be placed
+// at all is a warning, because the reviewer is about to read a comment box
+// whose line number is no longer evidence of anything.
+func reportAnchorValidation(a *app.App) {
+	msg := a.AnchorStats.Message()
+	if msg == "" {
+		return
+	}
+	if a.AnchorStats.Outdated > 0 {
+		a.SetWarning(msg)
+		return
+	}
+	a.SetMessage(msg)
 }
 
 // whitespaceMode maps the ignore_whitespace config onto the VCS diff mode.

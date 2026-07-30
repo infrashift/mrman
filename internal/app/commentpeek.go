@@ -164,9 +164,16 @@ func (a *App) peekCommentLines(item CommentNavigatorItem) []PeekLine {
 	if comment == nil {
 		return nil
 	}
+	// The peek panel puts the anchored source line right next to the comment,
+	// so an anchor that no longer checks out shows the wrong code as though it
+	// were the subject. Say so in the header.
+	label := peekAuthorLabel(comment.Author, a.CommentTypeLabel(comment.CommentType))
+	if verdict := a.AnchorVerdictFor(comment.ID).Label(); verdict != "" {
+		label += " (" + verdict + ")"
+	}
 	return append([]PeekLine{{
 		Kind:        PeekCommentHeader,
-		Text:        peekAuthorLabel(comment.Author, a.CommentTypeLabel(comment.CommentType)),
+		Text:        label,
 		CommentType: comment.CommentType,
 	}}, peekBodyLines(comment.Content)...)
 }
@@ -304,14 +311,15 @@ func (a *App) LineContextAt(path string, line uint32, side model.LineSide) *mode
 	if fileIdx < 0 {
 		return nil
 	}
-	file := &a.DiffFiles[fileIdx]
+	return lineContextIn(&a.DiffFiles[fileIdx], line, side)
+}
+
+// lineContextIn is LineContextAt against an already-resolved file, so the
+// anchor validation pass does not repeat the path lookup per comment.
+func lineContextIn(file *model.DiffFile, line uint32, side model.LineSide) *model.LineContext {
 	for hunkIdx := range file.Hunks {
 		for _, dl := range file.Hunks[hunkIdx].Lines {
-			no := dl.NewLineno
-			if side == model.LineSideOld {
-				no = dl.OldLineno
-			}
-			if no == nil || *no != line {
+			if no := linenoOn(&dl, side); no == nil || *no != line {
 				continue
 			}
 			return &model.LineContext{

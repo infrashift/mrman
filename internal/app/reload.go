@@ -27,6 +27,8 @@ type ReloadStats struct {
 	// content moved — the number that decides whether the reviewer has to
 	// go back over anything.
 	Unreviewed int
+	// Anchors is what the reload did to the comments' line anchors.
+	Anchors AnchorStats
 }
 
 // Message renders the stats the way tuicr phrases them.
@@ -44,11 +46,18 @@ func (s ReloadStats) Message() string {
 	if s.Unreviewed > 0 {
 		msg += fmt.Sprintf(", %d changed since last review", s.Unreviewed)
 	}
+	if anchors := s.Anchors.Message(); anchors != "" {
+		msg += "; " + anchors
+	}
 	return msg
 }
 
 // ApplyReloadedDiff swaps in freshly read diff files, keeping the session
 // (and therefore every comment) and reporting what moved.
+//
+// Keeping the comments is not the same as keeping them correct: the content
+// they were written about may have moved or gone. Every anchor is re-checked
+// against the new diff, and the stats say what that cost.
 //
 // Expanded gaps and the PR context cache are dropped: they were computed
 // against the old content and would place stale lines in the middle of a
@@ -77,6 +86,12 @@ func (a *App) ApplyReloadedDiff(files []model.DiffFile) ReloadStats {
 	a.SortFilesByDirectory(true)
 	a.ExpandAllDirs()
 	a.populateFileLineCountCache()
+
+	stats.Anchors = a.ValidateCommentAnchors()
+	if stats.Anchors.Moved > 0 {
+		a.Dirty = true
+	}
+
 	a.RebuildAnnotations()
 	return stats
 }

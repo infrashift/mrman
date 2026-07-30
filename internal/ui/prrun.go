@@ -141,6 +141,8 @@ func RunPr(target string, opts cli.TuiOptions) error {
 		a.SetWarning(w)
 	}
 	a.SetMessage(fmt.Sprintf("Reviewing %s#%d · %s", repo.Slug(), details.Number, details.Title))
+	// After the greeting, so a stale anchor is not buried under it.
+	reportAnchorValidation(a)
 
 	prog := tea.NewProgram(m)
 	_, err = prog.Run()

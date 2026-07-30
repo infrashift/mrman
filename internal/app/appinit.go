@@ -58,6 +58,16 @@ func NewApp(backend vcs.Backend, info *vcs.Info, files []model.DiffFile, session
 	a.SortFilesByDirectory(true)
 	a.ExpandAllDirs()
 	a.populateFileLineCountCache()
+
+	// Before the first annotation pass, so a re-anchored comment is rendered
+	// at the line it was moved to rather than the line it was written at. A
+	// reopened session is exactly where the diff may have moved underneath
+	// the comments; a fresh one has nothing to validate and pays a walk over
+	// an empty map.
+	if a.ValidateCommentAnchors().Moved > 0 {
+		a.Dirty = true
+	}
+
 	a.RebuildAnnotations()
 	return a
 }

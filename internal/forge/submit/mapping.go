@@ -80,6 +80,12 @@ const (
 	TooLargeFile
 	// LineNotInDiff means the anchor line is outside every hunk.
 	LineNotInDiff
+	// StaleAnchor means the comment's line anchor failed validation against
+	// the current diff: the code it was written about moved out of reach or
+	// is no longer identifiable. The line number would still map, which is
+	// precisely why this is refused rather than posted — an inline comment on
+	// the wrong line is worse than one in the summary body.
+	StaleAnchor
 )
 
 // HumanLabel returns the short human-readable reason shown by the resolver.
@@ -95,6 +101,8 @@ func (r UnmappableReason) HumanLabel() string {
 		return "file too large"
 	case LineNotInDiff:
 		return "line not in current diff"
+	case StaleAnchor:
+		return "anchored line changed since the comment was written"
 	}
 	return "unmappable"
 }
