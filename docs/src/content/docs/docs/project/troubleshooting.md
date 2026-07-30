@@ -170,6 +170,7 @@ review body rather than being dropped. The reason is stated:
 | Reason | Fix |
 |---|---|
 | `line not in current diff` | The line is outside every hunk — comment on a changed line, or leave it review-level |
+| `anchored line changed since the comment was written` | The code the comment describes moved out of reach or is no longer identifiable — see [outdated comments](#a-comment-is-marked-outdated) |
 | `range spans both diff sides` | Keep an inline range on one side |
 | `no valid anchor line` | A file-level comment found no new-side line |
 | `binary file` | Nothing to anchor to |
@@ -180,6 +181,43 @@ cursor position by hand is not the same as navigating: comments file under the
 *current file*, so an out-of-band cursor move can aim a comment at the wrong
 file. mrman catches this and reports *"line not in current diff"* rather than
 posting somewhere wrong.
+
+## A comment is marked `(outdated)`
+
+The diff moved under it. Every comment records the line it was written about, and
+on reopen or `:e` mrman checks that record against the current diff. `(outdated)`
+means the check failed one of two ways:
+
+- **The line is gone.** The code it described is no longer in the diff.
+- **The line is ambiguous.** Its content now appears in several places, so there
+  is no telling which one was meant. A comment on a lone `}` is the usual case.
+
+mrman deliberately does not guess. The old line number still resolves to *some*
+line, and posting there would attach your criticism to code you never read — so
+the comment keeps its text, wears the badge, and at submit time goes to the
+resolver instead of inline. Edit it, re-place it by hand, or send it to the
+review body.
+
+`(moved)` is the benign sibling: the content was found at exactly one other
+line and the comment followed it. Nothing is wrong; the badge exists so a
+comment that silently changed position tells you it did.
+
+## My review did not come back after a rebase or amend
+
+A working-tree review is carried onto the new HEAD automatically, so this
+usually means one of the deliberate exclusions applied:
+
+| Situation | Why |
+|---|---|
+| **Detached HEAD** | The identity *is* the commit, so there is no stable anchor to carry — two detached checkouts are unrelated positions, not one review |
+| **You switched branches** | A review is anchored to its branch |
+| **A commit range** (`-r`) | A range names its own endpoints, so a different range is a different review |
+| **Nothing was in it** | An untouched session is not carried, to avoid churning files on every commit |
+| **Staged vs working tree** | Different diff sources are different reviews |
+
+The previous session is not deleted in any of these cases. Find it with
+`mrman review list --repo .` — the `anchor` column shows which HEAD each one
+belongs to.
 
 ## `go install` fails, or `GOWORK=off go build` fails
 

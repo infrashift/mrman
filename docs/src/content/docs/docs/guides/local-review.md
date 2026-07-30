@@ -165,6 +165,10 @@ The markdown is rendered through a Go template with an embedded default, and
 you can replace it — see [Templates](../../reference/templates/).
 `export_legend = false` drops the comment-type legend if you find it noisy.
 
+Export is how a local review reaches another person, since there is no forge to
+post it to — [Sharing a Review](../sharing/) covers that end to end, including
+copying from a remote machine over SSH.
+
 ## Sessions
 
 Every review persists to `~/.local/share/mrman/reviews` automatically. Reopen

@@ -123,10 +123,21 @@ an **Unplaced comments** section of the review body, with the reason:
 | Reason | Meaning |
 |---|---|
 | `line not in current diff` | The anchor line is outside every hunk |
+| `anchored line changed since the comment was written` | The comment's anchor failed validation against the current diff |
 | `range spans both diff sides` | An inline range comment must stay on one side |
 | `no valid anchor line` | A file-level comment found no line on the new side |
 | `binary file` | No anchor can be derived |
 | `file too large` | The file exceeded the threshold and was not diffed |
+
+The second one is worth understanding, because it is the only reason where the
+line number *would* still have mapped. If a comment is marked `(outdated)` —
+the code it was written about has gone, or now appears in several places —
+mrman refuses it an inline position on purpose. An inline comment on the wrong
+line is worse than one in the review body, and the tool does not get to guess
+where your criticism lands. This holds on the `--auto` agent path too: the
+resolver runs before the skip-confirm branch, so nothing posts inline on an
+anchor that failed. See [outdated
+comments](../../project/troubleshooting/#a-comment-is-marked-outdated).
 
 On a forge without multi-line comment support, range comments **downgrade**
 rather than fail: the comment posts on its end line with a `Lines X–Y:` prefix

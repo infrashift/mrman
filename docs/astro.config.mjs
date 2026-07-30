@@ -47,6 +47,7 @@ export default defineConfig({
 				{
 					label: 'Guides',
 					items: [
+						{ label: 'Sharing a Review', slug: 'docs/guides/sharing' },
 						{ label: 'Agent Collaboration', slug: 'docs/guides/agents' },
 						{ label: 'Terminal Setup', slug: 'docs/guides/terminals' },
 					],

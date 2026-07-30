@@ -75,11 +75,27 @@ re-anchoring your comments), and on a multi-commit pull request mrman marks
 the commits your last review already covered and preselects what landed
 since.
 
+### Sharing a review
+
+A pull request review goes to the forge with `:submit`. A local review —
+working tree or commit range — has no forge to post to, so `y` / `:clip`
+exports it as markdown addressed to a reader, numbered and located
+(`src/cache.go:75`), and copies it to your clipboard; over SSH, tmux or
+Zellij that falls back to OSC 52 so it lands in *your* clipboard, not the
+remote host's. See
+[Sharing a Review](https://infrashift.github.io/mrman/docs/guides/sharing/).
+
 ### Sessions and agent collaboration
 
-Reviews persist automatically (`~/.local/share/mrman/reviews`). On start
-mrman prints `mrman-session: <slug>` to stderr; agents can then read and
-write the same review while you have it open — changes merge live:
+Reviews persist automatically (`~/.local/share/mrman/reviews`). A working-tree
+review survives an amend or rebase: it is carried onto the new HEAD, and every
+comment's anchor is re-checked against the new diff — one whose line moved
+follows it, one whose code is gone is flagged `(outdated)` and refused an
+inline position at submit rather than posted against whatever now occupies its
+line number.
+
+On start mrman prints `mrman-session: <slug>` to stderr; agents can then read
+and write the same review while you have it open — changes merge live:
 
 ```sh
 mrman review list --repo .
