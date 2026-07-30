@@ -207,3 +207,7 @@ in the meantime. See the note at the bottom of the `Makefile`.
 - **Four forges instead of two**, through their APIs rather than by shelling
   out to `gh` and `glab`.
 - **CUE-validated configuration** and **user-templatable markdown output**.
+
+## License
+
+Apache 2.0 — see [LICENSE](LICENSE).
