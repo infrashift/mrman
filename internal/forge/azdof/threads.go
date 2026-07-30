@@ -12,9 +12,10 @@ import (
 
 // ListReviewThreads fetches the PR's comment threads and keeps the
 // file-anchored ones. Thread status maps onto resolution (fixed, wontFix,
-// closed, and byDesign count as resolved); outdated-ness is approximated:
-// a thread the server no longer tracks against the pull request (no
-// pullRequestThreadContext) is assumed stale.
+// closed, and byDesign count as resolved) and, separately, onto a
+// Disposition label so the badge can say which of the four it was;
+// outdated-ness is approximated: a thread the server no longer tracks
+// against the pull request (no pullRequestThreadContext) is assumed stale.
 func (d *Driver) ListReviewThreads(ctx context.Context, pr *forge.PullRequestDetails) ([]forge.RemoteReviewThread, error) {
 	const op = "list_review_threads"
 	rows, err := d.threads(ctx, op, pr)
@@ -32,11 +33,12 @@ func (d *Driver) ListReviewThreads(ctx context.Context, pr *forge.PullRequestDet
 			continue
 		}
 		converted := forge.RemoteReviewThread{
-			ID:         strconv.Itoa(derefInt(thread.Id)),
-			Path:       strings.TrimPrefix(threadFilePath(thread), "/"),
-			IsResolved: isResolvedStatus(thread.Status),
-			IsOutdated: thread.PullRequestThreadContext == nil,
-			Comments:   comments,
+			ID:          strconv.Itoa(derefInt(thread.Id)),
+			Path:        strings.TrimPrefix(threadFilePath(thread), "/"),
+			IsResolved:  isResolvedStatus(thread.Status),
+			IsOutdated:  thread.PullRequestThreadContext == nil,
+			Disposition: dispositionLabel(thread.Status),
+			Comments:    comments,
 		}
 		converted.Side, converted.Line, converted.StartLine = threadAnchor(thread.ThreadContext)
 		threads = append(threads, converted)
@@ -216,6 +218,36 @@ func threadAnchor(tc *git.CommentThreadContext) (forge.Side, *uint32, *uint32) {
 		startLine = &s
 	}
 	return side, &line, startLine
+}
+
+// dispositionLabel renders an Azure DevOps thread status as the short label
+// shown on the thread's badge. Azure DevOps distinguishes four ways for a
+// thread to be finished, and "won't fix" carries information that a generic
+// "resolved" throws away.
+//
+// Active returns "" because it is the default state and needs no badge, as
+// does an absent status — setting a thread to "unknown" makes Azure DevOps
+// omit the field entirely rather than store the string, so nil is the shape
+// that actually arrives and there is nothing meaningful to report about it.
+func dispositionLabel(status *git.CommentThreadStatus) string {
+	if status == nil {
+		return ""
+	}
+	switch *status {
+	case git.CommentThreadStatusValues.Fixed:
+		// "resolved" matches the web UI's label for Fixed, and keeps the
+		// badge wording identical to every other forge's resolved threads.
+		return "resolved"
+	case git.CommentThreadStatusValues.WontFix:
+		return "won't fix"
+	case git.CommentThreadStatusValues.Closed:
+		return "closed"
+	case git.CommentThreadStatusValues.ByDesign:
+		return "by design"
+	case git.CommentThreadStatusValues.Pending:
+		return "pending"
+	}
+	return ""
 }
 
 // isResolvedStatus reports whether a thread status counts as resolved.

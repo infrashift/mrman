@@ -290,13 +290,20 @@ func RemoteSummarySegments(summary *forge.RemoteReviewSummary, viewportWidth int
 	return segments
 }
 
-// RemoteThreadBadge is the status badge shown on a thread's top border.
+// RemoteThreadBadge is the status badge shown on a thread's top border. A
+// forge that distinguishes more than resolved/unresolved supplies its own
+// label in Disposition — "won't fix" says something "resolved" does not —
+// and forges without one fall back to the generic wording.
 func RemoteThreadBadge(thread *forge.RemoteReviewThread) string {
+	state := thread.Disposition
+	if state == "" && thread.IsResolved {
+		state = "resolved"
+	}
 	switch {
-	case thread.IsResolved && thread.IsOutdated:
-		return "resolved · outdated"
-	case thread.IsResolved:
-		return "resolved"
+	case state != "" && thread.IsOutdated:
+		return state + " · outdated"
+	case state != "":
+		return state
 	case thread.IsOutdated:
 		return "outdated"
 	}

@@ -333,6 +333,44 @@ func TestRemoteThreadBadgeVariants(t *testing.T) {
 	}
 }
 
+// TestRemoteThreadBadgeDisposition covers a forge that distinguishes more
+// than resolved/unresolved. Azure DevOps has four terminal thread states and
+// one open-but-waiting state, and collapsing them all to "resolved" throws
+// away the difference between "fixed" and "won't fix". A driver supplies its
+// own wording in Disposition and it wins over the generic label; drivers
+// without one leave it empty and keep the old behavior.
+func TestRemoteThreadBadgeDisposition(t *testing.T) {
+	for _, tc := range []struct {
+		name               string
+		disposition        string
+		resolved, outdated bool
+		want               string
+	}{
+		{"wont fix", "won't fix", true, false, "won't fix"},
+		{"by design", "by design", true, false, "by design"},
+		{"closed", "closed", true, false, "closed"},
+		{"fixed reads as resolved", "resolved", true, false, "resolved"},
+		// Pending is unresolved, so it gets no badge today; a disposition
+		// gives an open-but-waiting thread a label it could not otherwise
+		// have.
+		{"pending is unresolved but labelled", "pending", false, false, "pending"},
+		{"disposition composes with outdated", "won't fix", true, true, "won't fix · outdated"},
+		{"unresolved pending plus outdated", "pending", false, true, "pending · outdated"},
+		// Forges with no richer state must be untouched.
+		{"empty falls back to resolved", "", true, false, "resolved"},
+		{"empty and unresolved stays bare", "", false, false, ""},
+		{"empty unresolved outdated", "", false, true, "outdated"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			th := thread("t", "a.go", 1, forge.SideNew, tc.resolved, tc.outdated)
+			th.Disposition = tc.disposition
+			if got := RemoteThreadBadge(&th); got != tc.want {
+				t.Errorf("badge = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 // TestTotalLinesAgreesWithAnnotationsWithRemoteComments pins the invariant
 // that silently truncates the diff pane when broken: TotalLines() and the
 // annotation stream are computed independently and must agree exactly.

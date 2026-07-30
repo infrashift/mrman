@@ -300,6 +300,13 @@ type RemoteReviewThread struct {
 	// IsOutdated reports whether the thread's anchor is stale
 	// (approximated on forges without the ThreadOutdated capability).
 	IsOutdated bool `json:"is_outdated"`
+	// Disposition is a short lowercase label for the forge's own thread
+	// state, when the forge distinguishes more than resolved/unresolved.
+	// Azure DevOps does ("won't fix", "by design", "pending", ...); the
+	// others do not and leave this empty, which makes the badge fall back
+	// to plain "resolved". Display only: IsResolved still drives filtering,
+	// so a new disposition can never accidentally hide a thread.
+	Disposition string `json:"disposition,omitempty"`
 	// Comments holds the root comment first, replies in posted order.
 	Comments []RemoteReviewComment `json:"comments"`
 }
