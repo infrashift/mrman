@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -30,6 +31,31 @@ func makeRepo(t *testing.T) string {
 	repo := filepath.Join(t.TempDir(), "repo")
 	if err := os.MkdirAll(repo, 0o755); err != nil {
 		t.Fatal(err)
+	}
+	return repo
+}
+
+// makeRepoWithOrigin creates a real checkout with an origin remote, so slug
+// derivation resolves a genuine owner/repo instead of falling back to the
+// directory basename.
+func makeRepoWithOrigin(t *testing.T, originURL string) string {
+	t.Helper()
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not installed")
+	}
+	repo := filepath.Join(t.TempDir(), "checkout")
+	if err := os.MkdirAll(repo, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{
+		{"init", "-q", "-b", "main"},
+		{"remote", "add", "origin", originURL},
+	} {
+		cmd := exec.Command("git", args...)
+		cmd.Dir = repo
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
 	}
 	return repo
 }
@@ -188,6 +214,27 @@ func TestKeepSessionWithReviewedHunksWhenDeletingIfEmpty(t *testing.T) {
 	}
 }
 
+// assertHashSuffix checks the identity part of a session filename: the last
+// "-<16hex>" before .json. The label in front is decoration and deliberately
+// unpinned beyond the specific assertions at each call site.
+func assertHashSuffix(t *testing.T, path string) {
+	t.Helper()
+	name := strings.TrimSuffix(filepath.Base(path), ".json")
+	idx := strings.LastIndex(name, "-")
+	if idx < 0 {
+		t.Fatalf("no hash suffix in %s", name)
+	}
+	hash := name[idx+1:]
+	if len(hash) != 16 {
+		t.Fatalf("expected a 16-hex identity suffix, got %q in %s", hash, name)
+	}
+	for _, r := range hash {
+		if !strings.ContainsRune("0123456789abcdef", r) {
+			t.Fatalf("identity suffix %q is not hex", hash)
+		}
+	}
+}
+
 func TestSaveUnderFlatSessionsDirForLocal(t *testing.T) {
 	store := newTestStore(t)
 	sess := makeLocalSession(t, makeRepo(t), "abc1234", strp("main"), model.SourceWorkingTree, nil)
@@ -197,9 +244,14 @@ func TestSaveUnderFlatSessionsDirForLocal(t *testing.T) {
 	if filepath.Base(filepath.Dir(path)) != SessionsDirname {
 		t.Fatalf("expected %s/ parent, got %s", SessionsDirname, path)
 	}
+	assertHashSuffix(t, path)
+	// The label says what the session is without opening it: the test repo has
+	// no origin, so the repo token is the bare directory name.
 	name := filepath.Base(path)
-	if len(name) != 21 || !strings.HasSuffix(name, ".json") {
-		t.Fatalf("expected 16-hex-char filename, got %s", name)
+	for _, want := range []string{"repo@", "main", "worktree", "abc1234"} {
+		if !strings.Contains(name, want) {
+			t.Errorf("filename %s should carry %q", name, want)
+		}
 	}
 }
 
@@ -210,9 +262,39 @@ func TestSaveUnderFlatSessionsDirForPr(t *testing.T) {
 	if filepath.Base(filepath.Dir(path)) != SessionsDirname {
 		t.Fatalf("expected %s/ parent, got %s", SessionsDirname, path)
 	}
+	assertHashSuffix(t, path)
+	// A PR session leads with the same repo token a local one would, so one
+	// glob reaches both; the host and PR number follow.
 	name := filepath.Base(path)
-	if len(name) != 21 || !strings.HasSuffix(name, ".json") {
-		t.Fatalf("expected 16-hex-char filename, got %s", name)
+	for _, want := range []string{"agavra-tuicr@", "github.com", "pr-125"} {
+		if !strings.Contains(name, want) {
+			t.Errorf("filename %s should carry %q", name, want)
+		}
+	}
+}
+
+// TestLocalAndPrSessionsShareARepoGlob is the pruning contract: one pattern
+// per repo has to reach everything mrman stored for it, or "delete this
+// repo's reviews" means opening files to find out which they are.
+func TestLocalAndPrSessionsShareARepoGlob(t *testing.T) {
+	store := newTestStore(t)
+	repo := makeRepoWithOrigin(t, "https://github.com/agavra/tuicr.git")
+
+	localPath := mustSave(t, store,
+		makeLocalSession(t, repo, "abc1234", strp("main"), model.SourceWorkingTree, nil))
+	prPath := mustSave(t, store, makePrSession(makePrKey(125, "abcdef0123456789")))
+
+	matches, err := filepath.Glob(
+		filepath.Join(store.ReviewsDir, SessionsDirname, "agavra-tuicr@*"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := map[string]bool{}
+	for _, m := range matches {
+		found[m] = true
+	}
+	if !found[localPath] || !found[prPath] {
+		t.Errorf("glob matched %v, want both %s and %s", matches, localPath, prPath)
 	}
 }
 

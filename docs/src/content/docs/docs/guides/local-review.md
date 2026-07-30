@@ -170,6 +170,28 @@ you can replace it — see [Templates](../../reference/templates/).
 Every review persists to `~/.local/share/mrman/reviews` automatically. Reopen
 the same target and your comments and reviewed marks come back.
 
+Session files live in `reviews/sessions/` and are named for what they hold:
+
+```
+infrashift-mrman@main-worktree-abc1234-3f2a1b0c9d8e7f60.json
+infrashift-mrman@github.com-pr-12-a1b2c3d4e5f60718.json
+```
+
+The trailing hash is the session's identity; everything before it is there so
+the directory is legible. The repo comes first and is spelled the same way for
+a repo's local and pull-request sessions, so one pattern reaches all of them:
+
+```sh
+ls   ~/.local/share/mrman/reviews/sessions/infrashift-mrman@*
+rm   ~/.local/share/mrman/reviews/sessions/infrashift-mrman@*   # drop a repo's reviews
+```
+
+The repo name comes from your `origin` remote. A checkout without one falls
+back to the directory's own name, so `mrman@main-worktree-…` rather than
+`infrashift-mrman@main-worktree-…`. Don't parse these names — they follow the
+branch and remote, and change when those do. `mrman review list --repo .` is
+the supported way to ask what sessions exist.
+
 `:w` saves explicitly, `:q` refuses to quit while comments are unsaved, `:q!`
 discards, and `ZZ` / `:wq` save and quit. `:clear` wipes comments and reviewed
 marks; `:clearc` wipes only the comments.

@@ -210,7 +210,7 @@ to an on-premise instance.
 | `~/.config/mrman/config.toml` | [Configuration](../configuration/) |
 | `~/.config/mrman/themes/` | [Local themes](../themes/) |
 | `~/.config/mrman/templates/` | [Templates](../templates/) (by convention) |
-| `~/.local/share/mrman/reviews/` | Saved sessions |
+| `~/.local/share/mrman/reviews/` | Saved sessions (`sessions/<repo>@<what>-<hash>.json`) |
 | `<repo>/.mrmanignore` | Per-repository ignore rules |
 
 `$XDG_CONFIG_HOME` and `$XDG_DATA_HOME` are honored if set.

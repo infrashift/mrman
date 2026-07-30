@@ -18,8 +18,14 @@ import (
 const (
 	// ManifestFilename is the manifest file's name inside the reviews dir.
 	ManifestFilename = "index.json"
-	// ManifestVersion is the persisted manifest schema version.
-	ManifestVersion = "2.0"
+	// ManifestVersion is the persisted manifest schema version. It doubles as
+	// the marker for the session-filename layout: "2.0" files are bare
+	// hashes, "3.0" files carry a readable <repo>@<descriptor>- prefix. The
+	// entry shape is unchanged between the two; only the paths differ.
+	ManifestVersion = "3.0"
+	// manifestVersionHashedNames is the version whose session files are named
+	// by hash alone, migrated on first open by migrateSessionNames.
+	manifestVersionHashedNames = "2.0"
 	// SessionsDirname is the subdirectory inside reviews/ where session JSON
 	// files live under the flat layout. Its presence signals "current layout"
 	// to the migration check.
