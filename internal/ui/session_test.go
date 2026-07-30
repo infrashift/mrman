@@ -2,6 +2,8 @@ package ui
 
 import (
 	"bytes"
+	"io"
+	"os"
 	"testing"
 	"time"
 
@@ -172,4 +174,62 @@ func TestQuitGuardsDirtyComments(t *testing.T) {
 	if m.App.Dirty {
 		t.Fatal(":w must clear dirty")
 	}
+}
+
+// TestAnnounceSessionDuringRunSkipsTerminal pins the fix for a frame-corruption
+// bug. openSession runs mid-loop when the target selector confirms a commit
+// range, so the slug announcement would land inside a frame Bubble Tea owns on
+// the alt screen. That desynchronizes the renderer and shows up as saved
+// comment text rendering one character per line.
+//
+// Agents redirect stderr and must still receive the slug, so the write is
+// suppressed only when stderr is the terminal.
+func TestAnnounceSessionDuringRunSkipsTerminal(t *testing.T) {
+	branch := "main"
+	session := model.NewReviewSession(t.TempDir(), "abc123", &branch, model.SourceWorkingTree)
+
+	for _, tc := range []struct {
+		name       string
+		isTerminal bool
+		wantWrite  bool
+	}{
+		{"terminal: stay silent so the frame is not corrupted", true, false},
+		{"redirected: agents still get the slug", false, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			restoreProbe := stderrIsTerminal
+			stderrIsTerminal = func() bool { return tc.isTerminal }
+			t.Cleanup(func() { stderrIsTerminal = restoreProbe })
+
+			got := captureStderr(t, func() { announceSessionDuringRun(session) })
+			if wrote := got != ""; wrote != tc.wantWrite {
+				t.Errorf("wrote=%v (%q), want wrote=%v", wrote, got, tc.wantWrite)
+			}
+			if tc.wantWrite && !bytes.Contains([]byte(got), []byte("mrman-session: ")) {
+				t.Errorf("announcement = %q, want the mrman-session prefix", got)
+			}
+		})
+	}
+}
+
+// captureStderr redirects os.Stderr for the duration of fn and returns what
+// was written to it.
+func captureStderr(t *testing.T, fn func()) string {
+	t.Helper()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("pipe: %v", err)
+	}
+	saved := os.Stderr
+	os.Stderr = w
+	fn()
+	os.Stderr = saved
+	if err := w.Close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+	out, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	return string(out)
 }

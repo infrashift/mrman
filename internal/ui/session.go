@@ -5,6 +5,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/charmbracelet/x/term"
+
 	"github.com/infrashift/mrman/internal/app"
 	"github.com/infrashift/mrman/internal/model"
 	"github.com/infrashift/mrman/internal/persistence"
@@ -67,16 +69,42 @@ func openSession(store *persistence.Store, fresh *model.ReviewSession) (*session
 		}
 	}
 
-	announceSession(session)
+	announceSessionDuringRun(session)
 	return lc, session
 }
 
+// stderrIsTerminal is the TTY probe for the session announcement, a var so
+// tests can drive both paths.
+var stderrIsTerminal = func() bool {
+	return term.IsTerminal(os.Stderr.Fd())
+}
+
 // announceSession prints the session slug to stderr for collaborating
-// agents, before the TUI takes over the terminal.
+// agents, before the TUI takes over the terminal. Safe only from the
+// pre-Run call sites; see announceSessionDuringRun.
 func announceSession(session *model.ReviewSession) {
 	if s, err := slug.ForSession(session); err == nil {
 		fmt.Fprintf(os.Stderr, "mrman-session: %s\n", s.String())
 	}
+}
+
+// announceSessionDuringRun announces a session opened while the TUI is
+// already running — the target selector confirming a commit range, which
+// creates the session mid-loop rather than before Run.
+//
+// A raw stderr write is only safe when stderr is not the terminal. Bubble
+// Tea owns the alt screen and diffs its own frames; an unsolicited write
+// lands inside the current frame, corrupts it, and leaves the renderer's
+// idea of the screen wrong for every frame after — which shows up as
+// comment text appearing one character per line. Agents redirect stderr, so
+// they still get the slug; a human at a terminal loses a line they could not
+// have read inside a full-screen frame anyway, and `mrman review list`
+// still finds the session.
+func announceSessionDuringRun(session *model.ReviewSession) {
+	if stderrIsTerminal() {
+		return
+	}
+	announceSession(session)
 }
 
 // save persists the live session with merge-on-write and refreshes the
