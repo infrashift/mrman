@@ -27,6 +27,11 @@ type sessionLifecycle struct {
 	// (review_watch_interval_ms = 0).
 	watchDisabled bool
 	lastWatchAt   time.Time
+	// adoptedFrom is the HEAD a carried-forward session was written against,
+	// empty when the session was resolved at the current HEAD or created
+	// fresh. The reviewer is told: comments arriving from a HEAD they have
+	// since rewritten is the one thing about this that could surprise them.
+	adoptedFrom string
 }
 
 // msDuration converts config milliseconds to a duration.
@@ -45,9 +50,15 @@ func statFile(path string) *fileState {
 	return &fileState{modTime: info.ModTime(), size: info.Size()}
 }
 
-// openSession loads the latest matching persisted session or keeps the fresh
-// one, eagerly persists it, announces the slug on stderr, and marks it
-// active.
+// openSession resolves the session to review: the one persisted at this exact
+// HEAD, else a live session carried forward from a previous HEAD, else the
+// fresh one. It then eagerly persists the result, announces the slug on
+// stderr, and marks it active.
+//
+// The carry-forward is what lets a review survive an amend or a rebase. It is
+// tried only when the exact lookup misses, so an unmoved HEAD never pays for
+// it, and it is safe only because NewApp re-validates every comment's anchor
+// against the new diff afterwards.
 func openSession(store *persistence.Store, fresh *model.ReviewSession) (*sessionLifecycle, *model.ReviewSession) {
 	lc := &sessionLifecycle{store: store, watchEvery: time.Second}
 	session := fresh
@@ -60,6 +71,13 @@ func openSession(store *persistence.Store, fresh *model.ReviewSession) (*session
 			session = existing
 			lc.path = path
 			lc.wasCreated = false
+		} else if adopted, ok, aerr := store.AdoptSessionForNewHead(
+			fresh.RepoPath, fresh.BranchName, fresh.BaseCommit, fresh.DiffSource,
+		); aerr == nil && ok {
+			session = adopted.Session
+			lc.path = adopted.Path
+			lc.wasCreated = false
+			lc.adoptedFrom = adopted.FromHead
 		}
 		if path, err := store.SaveSession(session); err == nil {
 			lc.path = path

@@ -172,7 +172,7 @@ func Run(opts cli.TuiOptions) error {
 	for _, w := range warnings {
 		a.SetWarning(w)
 	}
-	reportAnchorValidation(a)
+	reportSessionResume(a, lifecycle)
 	if storeErr != nil {
 		a.SetStickyWarning("Sessions are not persisted: " + storeErr.Error())
 	}
@@ -186,6 +186,26 @@ func Run(opts cli.TuiOptions) error {
 		fmt.Print(m.PendingStdout)
 	}
 	return err
+}
+
+// reportSessionResume tells the reviewer where the comments on screen came
+// from. A session carried forward from a HEAD they have since rewritten is
+// worth saying out loud — combined with the anchor report it is the whole
+// story: these comments are older than this diff, and here is what moved.
+func reportSessionResume(a *app.App, lc *sessionLifecycle) {
+	if lc == nil || lc.adoptedFrom == "" {
+		reportAnchorValidation(a)
+		return
+	}
+	msg := fmt.Sprintf("Resumed this review from a previous HEAD (%.7s)", lc.adoptedFrom)
+	if anchors := a.AnchorStats.Message(); anchors != "" {
+		msg += " · " + anchors
+	}
+	if a.AnchorStats.Outdated > 0 {
+		a.SetWarning(msg)
+		return
+	}
+	a.SetMessage(msg)
 }
 
 // reportAnchorValidation surfaces what opening the session did to its comment

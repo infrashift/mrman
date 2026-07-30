@@ -62,6 +62,31 @@ Pristine sessions get a stable identity derived from the head SHA and a hash
 of the path set, so they survive a `git pull` that does not change which files
 exist.
 
+## Sessions across an amend or rebase
+
+A review of your working tree is tied to the commit it sits on top of, so
+amending or rebasing moves the ground under it. mrman carries the review
+forward rather than dropping it: reopen after a `git commit --amend` and your
+comments and reviewed marks are still there, on the same branch, now recorded
+against the new HEAD.
+
+Carrying them over is only safe because each comment remembers the line it was
+written about, so on reopen mrman checks every one against the new diff:
+
+- The line is unchanged — nothing to say.
+- The line moved — the comment moves with it, and the status bar says how many
+  were re-anchored.
+- The line is gone, or its content now appears in several places so there is no
+  telling which one was meant — the comment is marked `(outdated)` on its box
+  and mrman refuses to post it inline, offering it for the review summary
+  instead. It never guesses a line for you.
+
+Two cases deliberately do not carry forward. A **detached HEAD** has no stable
+anchor — its identity *is* the commit — so two detached checkouts are unrelated
+positions rather than one review that moved. And a **commit range** names its
+own endpoints, which makes a different range a different review by
+construction.
+
 ## Working through a diff
 
 Reviewed marks are the point of the tool. `r` toggles the current file

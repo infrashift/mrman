@@ -320,6 +320,192 @@ func (s *Store) LoadLatestSessionForContext(
 	return fullPath, sess, true, nil
 }
 
+// AdoptedSession describes a session carried forward onto a new HEAD.
+type AdoptedSession struct {
+	// Path is the session's new on-disk path, under its new identity.
+	Path string
+	// Session is the carried-forward session, re-stamped to the new HEAD.
+	Session *model.ReviewSession
+	// FromHead is the HEAD the session was written against, for telling the
+	// reviewer where their comments came from. Empty when the session was
+	// already at the requested HEAD by the time the lock was taken — see
+	// AdoptSessionForNewHead on the race that makes that possible.
+	FromHead string
+	// FromSlug is the identity the session used to have, empty when nothing
+	// was carried.
+	FromSlug string
+}
+
+// AdoptSessionForNewHead carries a live review forward onto a new HEAD.
+//
+// LoadLatestSessionForContext resolves a session only at the exact HEAD it was
+// written against, so an amend or a rebase leaves it unfindable and the review
+// starts empty. That was the original fix for stale comments (tuicr #378) and
+// it works by throwing the reviewer's work away. This is the replacement: the
+// most recently updated session for the same repo, branch, and live diff
+// source is adopted, re-stamped to the new HEAD, and moved to its new
+// identity, leaving no duplicate behind.
+//
+// Adopting is only safe because anchors are re-validated afterwards
+// (app.ValidateCommentAnchors): a comment whose line moved is re-anchored and
+// one whose code is gone is flagged, so nothing silently points at code it was
+// not written about. Do not relax this further without that guarantee.
+//
+// found is false when the source is not live, when nothing matches, or when
+// the only candidates are empty — an untouched session is not worth carrying,
+// and adopting one would churn files on every commit for reviewers who never
+// comment.
+//
+// The first thing it does under the lock is re-run the exact lookup. Callers
+// reach here because that lookup missed, but it ran unlocked: a second mrman
+// on the same repo and HEAD could have carried the session forward in between,
+// and returning "not found" would send the caller off to save a fresh session
+// straight over the one just carried. In that case the session is returned with
+// an empty FromHead — resumed, not carried by this process.
+func (s *Store) AdoptSessionForNewHead(
+	repoPath string,
+	branch *string,
+	head string,
+	src model.SessionDiffSource,
+) (*AdoptedSession, bool, error) {
+	// Ruled out before the slug is derived at all: a range source needs a
+	// commit range this function is not given, so deriving first would report
+	// corruption where the honest answer is "not a carry-forward candidate".
+	if !slug.IsLiveSource(src) {
+		return nil, false, nil
+	}
+	if err := s.maybeMigrate(); err != nil {
+		return nil, false, err
+	}
+
+	identity := model.NewReviewSession(repoPath, head, branch, src)
+	target, err := sessionSlug(identity)
+	if err != nil {
+		return nil, false, err
+	}
+	targetLocal, _ := slugKindParts(target)
+	if targetLocal == nil {
+		return nil, false, nil
+	}
+
+	canonical := canonicalPath(repoPath)
+	var adopted *AdoptedSession
+	err = s.withLock(func() error {
+		// Recheck under the lock; see the note above on the unlocked miss.
+		if entry := loadManifestOrDefault(s.ReviewsDir).
+			GetLocal(targetLocal.String(), canonical); entry != nil {
+			path := filepath.Join(s.ReviewsDir, entry.Path)
+			sess, lerr := s.LoadSession(path)
+			if lerr != nil {
+				return nil //nolint:nilerr // best-effort: fall back to a fresh review
+			}
+			adopted = &AdoptedSession{Path: path, Session: sess}
+			return nil
+		}
+		candidate, ok := s.findCarryForwardCandidate(*targetLocal, canonical)
+		if !ok {
+			return nil
+		}
+		oldPath := filepath.Join(s.ReviewsDir, candidate.entry.Path)
+		sess, lerr := s.LoadSession(oldPath)
+		if lerr != nil {
+			// A corrupt or vanished previous session is not a reason to fail
+			// the open; the caller falls back to a fresh review.
+			return nil //nolint:nilerr // deliberate: adoption is best-effort
+		}
+		if !sess.HasComments() && !sess.HasReviewedState() {
+			return nil
+		}
+
+		fromHead := sess.BaseCommit
+		sess.BaseCommit = head
+		newPath, lerr := s.saveSessionUnlocked(sess)
+		if lerr != nil {
+			return lerr
+		}
+		// Only after the new file exists: the old entry and file go, so the
+		// review is carried rather than copied. A duplicate would show up
+		// twice in `mrman review list` with the same comments, and an agent
+		// handed the stale slug would write somewhere nobody is reading.
+		if newPath != oldPath {
+			if lerr := s.removeManifestEntry(candidate.slugStr, candidate.entry.Path); lerr != nil {
+				return lerr
+			}
+			if lerr := os.Remove(oldPath); lerr != nil && !os.IsNotExist(lerr) {
+				return lerr
+			}
+		}
+		adopted = &AdoptedSession{
+			Path: newPath, Session: sess,
+			FromHead: fromHead, FromSlug: candidate.slugStr,
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, false, err
+	}
+	return adopted, adopted != nil, nil
+}
+
+// carryForwardCandidate is one manifest entry eligible for adoption.
+type carryForwardCandidate struct {
+	slugStr string
+	entry   ManifestEntry
+}
+
+// findCarryForwardCandidate picks the most recently updated local entry that
+// is the same live review as target at a different HEAD, in the same checkout.
+func (s *Store) findCarryForwardCandidate(
+	target slug.LocalSlug, canonicalRepo string,
+) (carryForwardCandidate, bool) {
+	targetStr := target.String()
+	var best carryForwardCandidate
+	found := false
+	loadManifestOrDefault(s.ReviewsDir).each(func(slugStr string, entry ManifestEntry) {
+		if !entry.Kind.IsLocal() || slugStr == targetStr {
+			return
+		}
+		if entry.CanonicalRepoPath == nil || *entry.CanonicalRepoPath != canonicalRepo {
+			return
+		}
+		parsed, perr := slug.Parse(slugStr)
+		if perr != nil {
+			return
+		}
+		local, _ := slugKindParts(parsed)
+		if local == nil || !target.SameLiveReview(*local) {
+			return
+		}
+		if !found || entry.UpdatedAt.After(best.entry.UpdatedAt) {
+			best, found = carryForwardCandidate{slugStr: slugStr, entry: entry}, true
+		}
+	})
+	return best, found
+}
+
+// removeManifestEntry drops one (slug, relative path) entry. Unlike
+// removeSessionAt it takes the slug explicitly, because a carried-forward
+// session no longer derives the slug it was filed under.
+func (s *Store) removeManifestEntry(slugStr, relative string) error {
+	manifest := loadManifestOrDefault(s.ReviewsDir)
+	bucket, ok := manifest.Entries[slugStr]
+	if !ok {
+		return nil
+	}
+	kept := bucket[:0]
+	for _, entry := range bucket {
+		if entry.Path != relative {
+			kept = append(kept, entry)
+		}
+	}
+	if len(kept) == 0 {
+		delete(manifest.Entries, slugStr)
+	} else {
+		manifest.Entries[slugStr] = kept
+	}
+	return SaveManifest(s.ReviewsDir, manifest)
+}
+
 // LoadPrSession looks up the persisted PR session for a key. found is false
 // when no entry exists for the key's slug, or when the manifest's current
 // head differs from the requested head (the old head's file may still be on

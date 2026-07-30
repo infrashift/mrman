@@ -304,8 +304,15 @@ func TestLoadSessionWhenHeadMatches(t *testing.T) {
 
 func TestNotLoadWorktreeSessionAfterHeadAdvances(t *testing.T) {
 	// Regression parity with tuicr #378: a worktree session is keyed by
-	// (branch, head) so committing on the same branch starts a fresh session
-	// instead of resurrecting comments tied to the previous HEAD.
+	// (branch, head), so this exact-context lookup does not resolve across a
+	// HEAD change.
+	//
+	// This is no longer the whole story, and it is not what keeps stale
+	// comments honest — AdoptSessionForNewHead deliberately carries such a
+	// session forward, and anchor re-validation is what makes that safe. What
+	// this test still pins is that the exact lookup stays exact: adoption must
+	// remain a distinct, deliberate step rather than something a caller gets
+	// by accident.
 	store := newTestStore(t)
 	repo := makeRepo(t)
 	mustSave(t, store, makeLocalSession(t, repo, "abc1234", strp("main"), model.SourceWorkingTree, nil))

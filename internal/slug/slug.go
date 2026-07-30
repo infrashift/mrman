@@ -18,9 +18,19 @@
 // staged-and-unstaged-and-commits/<base>..<head>).
 //
 // The "live" working-tree sources (worktree, staged, unstaged,
-// staged-and-unstaged) embed the short SHA of the current HEAD so that a new
-// commit on the same branch produces a fresh session instead of resurrecting
-// stale comments tied to the previous HEAD.
+// staged-and-unstaged) embed the short SHA of the current HEAD, so a new
+// commit on the same branch is a distinct identity rather than the same
+// session at a new position. That distinction is deliberate and load-bearing:
+// it is what makes the previous HEAD's session findable as a separate thing.
+//
+// It is not, on its own, what keeps stale comments from lying. Originally it
+// was — a new HEAD simply lost the old session (tuicr #378) — but a review
+// that discards your work on every amend is a poor trade. The persistence
+// layer now carries a live session forward onto a new HEAD (see
+// Store.AdoptSessionForNewHead) and every comment's anchor is re-validated
+// against the new diff, so a comment that no longer describes its line says
+// so instead of quietly pointing at the wrong code. SameLiveReview is the
+// relation that carry-forward matches on.
 //
 // Unlike tuicr, PR slugs are host-qualified — for example
 // gh:github.com/infrashift/mrman/pr/12 or
@@ -115,6 +125,19 @@ const (
 	SourceStagedUnstagedAndCommits
 )
 
+// IsLive reports whether the kind is one of the live working-tree sources,
+// whose slug segment carries a bare HEAD token rather than a commit range.
+// These are the only sources whose identity moves when HEAD moves.
+func (k SourceKind) IsLive() bool {
+	switch k {
+	case SourceWorktree, SourceStaged, SourceUnstaged, SourceStagedAndUnstaged:
+		return true
+	case SourcePristine, SourceCommits, SourceWorktreeAndCommits, SourceStagedUnstagedAndCommits:
+		return false
+	}
+	return false
+}
+
 // SlugSource is the diff-source segment of a local slug. Live kinds
 // (worktree, staged, unstaged, staged-and-unstaged) carry the short HEAD SHA
 // in Head (or "none" for an unborn HEAD) and leave Base empty. Range kinds
@@ -159,6 +182,27 @@ type LocalSlug struct {
 	Repo   string
 	Anchor SlugAnchor
 	Source SlugSource
+}
+
+// SameLiveReview reports whether other is the same live review as s at a
+// possibly different HEAD: same repo, same branch, same live diff source,
+// with only the HEAD token free to differ.
+//
+// This is the relation that lets a review survive an amend or a rebase. Two
+// conditions keep it narrow. The source must be live, because a commit range
+// names its own endpoints — a different range is a different review by
+// construction, not the same one moved along. And the anchor must be a
+// branch: a detached HEAD's anchor is itself derived from the commit, so
+// there is no stable identity to carry, and treating two detached checkouts
+// as one review would resurrect comments across an unrelated jump.
+func (s LocalSlug) SameLiveReview(other LocalSlug) bool {
+	if !s.Source.Kind.IsLive() || s.Source.Kind != other.Source.Kind {
+		return false
+	}
+	if s.Anchor.Branch == "" || s.Anchor.Branch != other.Anchor.Branch {
+		return false
+	}
+	return s.Owner == other.Owner && s.Repo == other.Repo
 }
 
 // String renders the local slug.

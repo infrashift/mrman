@@ -37,6 +37,12 @@ matches by coordinate. Each row carries `slug`, `kind` (`local` or `pr`),
 `path`, `updated_at`, `comment_count`, `reviewed_count`, `file_count`, `anchor`,
 `active` and `granted_events`.
 
+A local slug embeds the HEAD it was taken at, so **do not cache one across a
+commit**. If the user amends or rebases, mrman carries the review onto the new
+HEAD under a new slug and the old one stops resolving. Re-run
+`mrman review list` to get the current handle rather than treating a slug as
+permanent.
+
 ## Two workflows, opposite rules
 
 This is the distinction that matters, and the packaged skill leads with it

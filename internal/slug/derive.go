@@ -93,27 +93,59 @@ func ForSession(s *model.ReviewSession) (Slug, error) {
 	return LocalSlug{Owner: owner, Repo: repo, Anchor: anchor, Source: source}, nil
 }
 
+// KindForSource maps a session's diff source onto its slug source kind. ok is
+// false for sources with no slug form (notably pull requests, which use PrSlug
+// instead).
+//
+// This is the single place the model's diff sources and the slug's source
+// kinds are lined up. IsLiveSource and sourceForSession both go through it, so
+// a new source cannot be classified as live in one and not the other.
+func KindForSource(src model.SessionDiffSource) (SourceKind, bool) {
+	switch src {
+	case model.SourceWorkingTree:
+		return SourceWorktree, true
+	case model.SourceStaged:
+		return SourceStaged, true
+	case model.SourceUnstaged:
+		return SourceUnstaged, true
+	case model.SourceStagedAndUnstaged:
+		return SourceStagedAndUnstaged, true
+	case model.SourcePristine:
+		return SourcePristine, true
+	case model.SourceCommitRange:
+		return SourceCommits, true
+	case model.SourceWorkingTreeAndCommits:
+		return SourceWorktreeAndCommits, true
+	case model.SourceStagedUnstagedAndCommits:
+		return SourceStagedUnstagedAndCommits, true
+	}
+	return 0, false
+}
+
+// IsLiveSource reports whether a session diff source is one of the live
+// working-tree kinds, whose slug identity moves when HEAD moves.
+//
+// Answerable from the source alone, which matters: a range source cannot even
+// have its slug derived without a commit range, so callers deciding whether a
+// session is a carry-forward candidate must be able to rule it out first.
+func IsLiveSource(src model.SessionDiffSource) bool {
+	kind, ok := KindForSource(src)
+	return ok && kind.IsLive()
+}
+
 // sourceForSession maps a session's diff source onto its slug source segment.
 func sourceForSession(s *model.ReviewSession) (SlugSource, error) {
-	switch s.DiffSource {
-	case model.SourceWorkingTree:
-		return SlugSource{Kind: SourceWorktree, Head: liveHeadToken(s.BaseCommit)}, nil
-	case model.SourceStaged:
-		return SlugSource{Kind: SourceStaged, Head: liveHeadToken(s.BaseCommit)}, nil
-	case model.SourceUnstaged:
-		return SlugSource{Kind: SourceUnstaged, Head: liveHeadToken(s.BaseCommit)}, nil
-	case model.SourceStagedAndUnstaged:
-		return SlugSource{Kind: SourceStagedAndUnstaged, Head: liveHeadToken(s.BaseCommit)}, nil
-	case model.SourcePristine:
-		return SlugSource{Kind: SourcePristine}, nil
-	case model.SourceCommitRange:
-		return rangeSource(s, SourceCommits)
-	case model.SourceWorkingTreeAndCommits:
-		return rangeSource(s, SourceWorktreeAndCommits)
-	case model.SourceStagedUnstagedAndCommits:
-		return rangeSource(s, SourceStagedUnstagedAndCommits)
+	kind, ok := KindForSource(s.DiffSource)
+	if !ok {
+		return SlugSource{}, fmt.Errorf("%w: %s", ErrUnsupportedDiffSource, s.DiffSource)
 	}
-	return SlugSource{}, fmt.Errorf("%w: %s", ErrUnsupportedDiffSource, s.DiffSource)
+	switch {
+	case kind.IsLive():
+		return SlugSource{Kind: kind, Head: liveHeadToken(s.BaseCommit)}, nil
+	case kind == SourcePristine:
+		return SlugSource{Kind: SourcePristine}, nil
+	}
+	return rangeSource(s, kind)
 }
 
 // rangeSource builds a range slug source from the session's commit range,
