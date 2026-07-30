@@ -174,6 +174,11 @@ func (u *connectionUser) displayName() string {
 	return u.ProviderDisplayName
 }
 
+// connectionDataAPIVersion is the api-version sent for the raw
+// connectionData call. Azure DevOps serves that resource under preview
+// versioning only, so the "-preview" suffix is mandatory.
+const connectionDataAPIVersion = "7.1-preview"
+
 // connectionData mirrors GET {org}/_apis/connectionData, which the SDK does
 // not expose.
 type connectionData struct {
@@ -191,7 +196,11 @@ func (d *Driver) viewerUser(ctx context.Context, op string) (*connectionUser, er
 		return d.viewer, nil
 	}
 	requestURL := d.orgURL + "/_apis/connectionData"
-	req, err := d.core.CreateRequestMessage(ctx, http.MethodGet, requestURL, "7.1",
+	// connectionData is a preview-only resource: a plain "7.1" (or "7.0",
+	// or "6.0") is rejected with VssInvalidPreviewVersionException and HTTP
+	// 400, which surfaced as every approve/request-changes failing against
+	// dev.azure.com. The suffix is required, not cosmetic.
+	req, err := d.core.CreateRequestMessage(ctx, http.MethodGet, requestURL, connectionDataAPIVersion,
 		nil, "", azuredevops.MediaTypeApplicationJson, nil)
 	if err != nil {
 		return nil, d.wrap(op, err)

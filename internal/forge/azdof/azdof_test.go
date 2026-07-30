@@ -94,6 +94,30 @@ func TestViewerUserCachesConnectionData(t *testing.T) {
 	}
 }
 
+// TestViewerUserRequestsPreviewAPIVersion pins the "-preview" suffix on the
+// raw connectionData call. Azure DevOps serves that resource under preview
+// versioning only and answers a plain "7.1" with HTTP 400
+// VssInvalidPreviewVersionException, which broke every approve and
+// request-changes against dev.azure.com. The path-matching fakes elsewhere in
+// this package cannot catch it, so assert the negotiated version directly.
+func TestViewerUserRequestsPreviewAPIVersion(t *testing.T) {
+	var accept string
+	d := newTestDriver(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		accept = r.Header.Get("Accept")
+		writeJSON(w, http.StatusOK, connectionDataJSON())
+	}))
+	if _, err := d.viewerUser(context.Background(), "test"); err != nil {
+		t.Fatalf("viewerUser: %v", err)
+	}
+	// The SDK encodes the requested api-version into the Accept header.
+	if !strings.Contains(accept, "api-version="+connectionDataAPIVersion) {
+		t.Errorf("Accept = %q, want api-version=%s", accept, connectionDataAPIVersion)
+	}
+	if !strings.Contains(connectionDataAPIVersion, "-preview") {
+		t.Errorf("connectionDataAPIVersion = %q, want a -preview version", connectionDataAPIVersion)
+	}
+}
+
 func TestViewerUserMissingIdentity(t *testing.T) {
 	d := newTestDriver(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, `{}`)
