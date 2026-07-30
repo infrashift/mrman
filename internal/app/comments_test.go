@@ -679,3 +679,96 @@ func TestNavigatorKeepsCommentsWhenHunkCollapsed(t *testing.T) {
 		t.Errorf("a collapsed hunk's comment must have no target: %+v", items[0])
 	}
 }
+
+// TestCommentNavSelectPeeksWhenCollapsed covers the way back into a comment on
+// a file you already finished: Enter jumps when there is a row to jump to, and
+// opens the read-only peek panel when the file is folded. Toggling r off would
+// work too, but it unfolds the file and moves the reviewer somewhere they did
+// not ask to go.
+func TestCommentNavSelectPeeksWhenCollapsed(t *testing.T) {
+	file := makeFileWithHunks("test.rs", []model.DiffHunk{makeHunk(1, 3)})
+	a := buildAppWithFiles([]model.DiffFile{file}, 20)
+	side := model.LineSideNew
+	a.Session.File("test.rs").AddLineComment(2, newSessionComment("needs a guard", "issue", &side))
+	a.RebuildAnnotations()
+
+	// Visible: Enter jumps and opens no panel.
+	a.FocusPanel(PanelComments)
+	a.CommentNav.Cursor = 0
+	a.CommentNavSelect()
+	if a.CommentPeek != nil {
+		t.Fatal("a visible comment must be jumped to, not peeked")
+	}
+
+	// Folded: Enter peeks.
+	a.Session.File("test.rs").Reviewed = true
+	a.RebuildAnnotations()
+	a.CommentNav.Cursor = 0
+	a.CommentNavSelect()
+	if a.CommentPeek == nil {
+		t.Fatal("a collapsed comment must open the peek panel")
+	}
+	if a.InputMode != input.ModeCommentPeek {
+		t.Errorf("InputMode = %v, want ModeCommentPeek", a.InputMode)
+	}
+
+	// The panel shows the comment and some file context around its anchor.
+	var sawAnchor, sawBody bool
+	for _, line := range a.CommentPeek.Lines {
+		switch line.Kind {
+		case PeekAnchor:
+			sawAnchor = true
+			if line.Lineno != 2 {
+				t.Errorf("anchor line = %d, want 2", line.Lineno)
+			}
+		case PeekCommentBody:
+			if line.Text == "needs a guard" {
+				sawBody = true
+			}
+		}
+	}
+	if !sawAnchor {
+		t.Error("the panel must mark the commented line")
+	}
+	if !sawBody {
+		t.Errorf("the panel must show the comment body, got %+v", a.CommentPeek.Lines)
+	}
+
+	// Closing restores normal mode without touching the reviewed flag: the
+	// file stays folded, which is the whole point.
+	a.CloseCommentPeek()
+	if a.CommentPeek != nil || a.InputMode != input.ModeNormal {
+		t.Error("closing must clear the panel and return to normal mode")
+	}
+	if !a.Session.IsFileReviewed("test.rs") {
+		t.Error("peeking must not unmark the file as reviewed")
+	}
+}
+
+// TestPeekScrollClamps keeps the panel's own scrolling inside its content.
+func TestPeekScrollClamps(t *testing.T) {
+	file := makeFileWithHunks("test.rs", []model.DiffHunk{makeHunk(1, 3)})
+	a := buildAppWithFiles([]model.DiffFile{file}, 20)
+	side := model.LineSideNew
+	a.Session.File("test.rs").AddLineComment(2, newSessionComment("a\nb\nc\nd\ne\nf", "note", &side))
+	a.RebuildAnnotations()
+	a.Session.File("test.rs").Reviewed = true
+	a.RebuildAnnotations()
+
+	a.CommentNav.Cursor = 0
+	a.CommentNavSelect()
+	p := a.CommentPeek
+	if p == nil {
+		t.Fatal("expected the peek panel")
+	}
+	p.ViewportHeight = 3
+
+	a.PeekScroll(-5)
+	if p.ScrollOffset != 0 {
+		t.Errorf("scrolling above the top gave offset %d, want 0", p.ScrollOffset)
+	}
+	a.PeekScroll(1000)
+	if want := len(p.Lines) - 3; p.ScrollOffset != want {
+		t.Errorf("scrolling past the end gave offset %d, want %d", p.ScrollOffset, want)
+	}
+}

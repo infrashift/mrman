@@ -58,6 +58,8 @@ func MapKey(k tea.Key, mode Mode, leader rune) Action {
 		return mapConfirm(k, true)
 	case ModeSubmitActionPicker:
 		return mapSubmitPicker(k)
+	case ModeCommentPeek:
+		return mapCommentPeek(k)
 	}
 	return act(None)
 }
@@ -315,6 +317,36 @@ func mapComment(k tea.Key) Action {
 	}
 	if r, ok := ch(k); ok {
 		return Action{Kind: InsertChar, Ch: r}
+	}
+	return act(None)
+}
+
+// mapCommentPeek maps keys for the read-only comment peek panel: scroll with
+// the usual vertical motions, dismiss with Esc, q or Enter.
+func mapCommentPeek(k tea.Key) Action {
+	switch {
+	case ctrl(k, 'd'):
+		return act(HalfPageDown)
+	case ctrl(k, 'u'):
+		return act(HalfPageUp)
+	}
+	switch k.Code {
+	case tea.KeyEscape, tea.KeyEnter:
+		return act(ExitMode)
+	case tea.KeyDown:
+		return actN(CursorDown, 1)
+	case tea.KeyUp:
+		return actN(CursorUp, 1)
+	}
+	if r, ok := ch(k); ok {
+		switch r {
+		case 'q':
+			return act(ExitMode)
+		case 'j':
+			return actN(CursorDown, 1)
+		case 'k':
+			return actN(CursorUp, 1)
+		}
 	}
 	return act(None)
 }

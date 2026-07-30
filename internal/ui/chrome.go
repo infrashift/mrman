@@ -178,6 +178,8 @@ func modeChipText(a *app.App) string {
 		return " RESOLVE "
 	case input.ModeSubmitConfirm, input.ModeSubmitActionPicker:
 		return " SUBMIT "
+	case input.ModeCommentPeek:
+		return " PEEK "
 	}
 	return " ? "
 }
@@ -211,6 +213,8 @@ func modeHint(a *app.App) string {
 		return "   ctrl-s save · esc cancel"
 	case input.ModeHelp:
 		return "   / search · n/N match · q/?/esc close"
+	case input.ModeCommentPeek:
+		return "   j/k scroll · ctrl-d/u page · q/esc/↵ close"
 	case input.ModeConfirm:
 		return "   y yes · n no"
 	case input.ModeCommitSelect:

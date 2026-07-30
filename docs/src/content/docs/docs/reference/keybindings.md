@@ -71,7 +71,24 @@ multi-commit review.
 | Key | Action |
 |---|---|
 | `j` / `k` | Move |
-| `Enter` | Jump to the comment in the diff |
+| `Enter` | Jump to the comment in the diff, or peek it when its file is folded |
+
+The navigator lists every comment in the review, including those on files you
+have marked reviewed — folding a file keeps your notes on it in the list. Those
+rows have no diff row to jump to, so `Enter` opens a read-only **peek panel**
+instead: the commented line with a few lines of context, and the comment
+beneath it. The file stays folded.
+
+The marker glyph shows scope (`★` review, `▣` file, `●` line, `◇` a forge
+thread) and its colour shows the comment type.
+
+## Comment peek panel
+
+| Key | Action |
+|---|---|
+| `j` / `k` | Scroll |
+| `Ctrl-d` / `Ctrl-u` | Half page down / up |
+| `q` / `Esc` / `Enter` | Close |
 
 ## Commit selector (when focused)
 

@@ -91,6 +91,17 @@ four entirely.
 `m` / `M` jump between comments, `i` or `A` edits the one at the cursor, `dd`
 deletes it.
 
+The **comment navigator** in the bottom-left lists every comment in the review.
+Its marker shows scope (`★` review, `▣` file, `●` line, `◇` a forge thread) and
+the marker's colour shows the comment type. `Tab` to it and `Enter` jumps to a
+comment in the diff.
+
+Comments stay listed when you mark their file reviewed, so folding a finished
+file does not lose your notes on it. Because a folded file has no diff row to
+jump to, `Enter` on one of those rows opens a read-only peek panel — the
+commented line with a little context, and the comment — leaving the file
+folded.
+
 ## Staging what you reviewed
 
 ```

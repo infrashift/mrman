@@ -1,7 +1,10 @@
 package ui
 
 import (
+	"strings"
 	"testing"
+
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/infrashift/mrman/internal/app"
 	"github.com/infrashift/mrman/internal/model"
@@ -78,4 +81,62 @@ func TestCommentNavMarkerEncodesScopeAndType(t *testing.T) {
 			t.Errorf("colour = %v, want FgDim: a forge thread carries no local type", style.Fg)
 		}
 	})
+}
+
+// TestCommentPeekOverlayRendersContextAndComment covers the peek panel's
+// rendering: the commented line with context around it, then the comment,
+// inside a bordered box with its own key hint.
+func TestCommentPeekOverlayRendersContextAndComment(t *testing.T) {
+	_, m := testLifecycle(t)
+	moveToDiffLine(t, m)
+	pressRune(m, 'c')
+	for _, r := range "needs a guard" {
+		pressRune(m, r)
+	}
+	press(m, "", tea.KeyEnter, 0)
+
+	// Fold the file, then peek the comment from the navigator.
+	pressRune(m, 'r')
+	items := m.App.BuildCommentNavigatorItems()
+	if len(items) != 1 {
+		t.Fatalf("expected the comment to survive folding, got %d items", len(items))
+	}
+	if items[0].TargetAnnotation != app.NoTargetAnnotation {
+		t.Fatalf("setup: expected a collapsed comment, got %+v", items[0])
+	}
+	m.App.FocusPanel(app.PanelComments)
+	m.App.CommentNav.Cursor = 0
+	m.App.CommentNavSelect()
+	if m.App.CommentPeek == nil {
+		t.Fatal("setup: the peek panel did not open")
+	}
+
+	frame := ansiSequence.ReplaceAllString(viewString(m), "")
+	for _, want := range []string{
+		"needs a guard", // the comment body
+		"j/k scroll",    // the panel's own hint
+		"Esc close",     //
+	} {
+		if !strings.Contains(frame, want) {
+			t.Errorf("peek frame missing %q:\n%s", want, frame)
+		}
+	}
+	// The status bar names the mode, so the reviewer knows why keys changed.
+	if !strings.Contains(frame, "PEEK") {
+		t.Errorf("status bar must show PEEK:\n%s", frame)
+	}
+	// The panel is a peek, not a replacement diff: it stays bounded.
+	rows := m.diffPane.commentPeekOverlay(m.App, 80, 40)
+	if len(rows) > 18 {
+		t.Errorf("panel rendered %d rows; it must stay bounded", len(rows))
+	}
+
+	// Esc closes it and leaves the file folded.
+	press(m, "", tea.KeyEscape, 0)
+	if m.App.CommentPeek != nil {
+		t.Error("Esc must close the panel")
+	}
+	if !m.App.Session.IsFileReviewed(m.App.DiffFiles[0].DisplayPath()) {
+		t.Error("peeking must not unmark the file as reviewed")
+	}
 }

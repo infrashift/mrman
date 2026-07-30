@@ -141,6 +141,8 @@ type App struct {
 	FileListState FileListState
 	DiffState     DiffState
 	HelpState     HelpState
+	// CommentPeek is the open read-only comment panel, nil when closed.
+	CommentPeek *CommentPeekState
 
 	CommandBuffer     string
 	SearchBuffer      string

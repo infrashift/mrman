@@ -491,6 +491,8 @@ func (m *Model) dispatch(action input.Action) bool {
 		return m.dispatchSearch(action)
 	case input.ModeComment:
 		return m.dispatchComment(action)
+	case input.ModeCommentPeek:
+		return m.dispatchCommentPeek(action)
 	case input.ModeVisualSelect:
 		return m.dispatchVisual(action)
 	case input.ModeNormal:
@@ -927,6 +929,24 @@ func (m *Model) dispatchFileList(action input.Action) bool {
 }
 
 // dispatchCommentNav handles keys while the comment navigator has focus.
+// dispatchCommentPeek handles the read-only comment panel: scroll or dismiss.
+func (m *Model) dispatchCommentPeek(action input.Action) bool {
+	a := m.App
+	switch action.Kind {
+	case input.ExitMode:
+		a.CloseCommentPeek()
+	case input.CursorDown:
+		a.PeekScroll(max(action.N, 1))
+	case input.CursorUp:
+		a.PeekScroll(-max(action.N, 1))
+	case input.HalfPageDown:
+		a.PeekScroll(max(a.CommentPeek.ViewportHeight/2, 1))
+	case input.HalfPageUp:
+		a.PeekScroll(-max(a.CommentPeek.ViewportHeight/2, 1))
+	}
+	return false
+}
+
 func (m *Model) dispatchCommentNav(action input.Action) bool {
 	a := m.App
 	switch action.Kind {
@@ -1153,6 +1173,9 @@ func (m *Model) View() tea.View {
 			modal = modal[:colH]
 		}
 		copy(diffInner[colH-len(modal):], modal)
+	}
+	if peek := m.diffPane.commentPeekOverlay(a, diffW, colH); len(peek) > 0 {
+		copy(diffInner[colH-len(peek):], peek)
 	}
 	mainCols = append(mainCols, m.titledPanel(
 		strings.Join(diffInner, "\n"), m.diffTitle(),

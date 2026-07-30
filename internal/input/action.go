@@ -118,6 +118,10 @@ const (
 	ModeSubmitResolver
 	ModeSubmitConfirm
 	ModeSubmitActionPicker
+	// ModeCommentPeek is the read-only panel showing one comment plus a few
+	// lines of surrounding file context, for comments whose file is folded
+	// and therefore have no diff row to jump to.
+	ModeCommentPeek
 )
 
 func act(kind Kind) Action         { return Action{Kind: kind} }

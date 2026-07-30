@@ -160,5 +160,16 @@ func (a *App) CommentNavSelect() {
 	if a.CommentNav.Cursor < 0 || a.CommentNav.Cursor >= len(items) {
 		return
 	}
-	a.jumpToCommentItem(&items[a.CommentNav.Cursor])
+	item := items[a.CommentNav.Cursor]
+	// A collapsed file has no row to jump to, so read the comment in place
+	// instead of silently doing nothing — or unfolding the file and moving the
+	// reviewer somewhere they did not ask to go.
+	if item.TargetAnnotation == NoTargetAnnotation {
+		if a.OpenCommentPeek(item) {
+			return
+		}
+		a.SetMessage("Nothing to show for this comment")
+		return
+	}
+	a.jumpToCommentItem(&item)
 }
