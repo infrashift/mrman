@@ -7,9 +7,12 @@ with AI agents through a JSON CLI, and submit the finished review to
 **GitHub, GitLab, Azure DevOps, or Forgejo** — SaaS or on-premise.
 
 mrman is a Go reimplementation of [tuicr](https://github.com/agavra/tuicr)
-(Rust), built on [Bubble Tea](https://github.com/charmbracelet/bubbletea),
+(Rust, MIT), built on [Bubble Tea](https://github.com/charmbracelet/bubbletea),
 with feature parity plus a four-forge integration layer, CUE-validated
-configuration, and user-templatable markdown output.
+configuration, and user-templatable markdown output. tuicr is the project this
+one is a port of, and much of what mrman is comes from there — that and
+everything else mrman stands on is credited in
+[Acknowledgements](https://infrashift.github.io/mrman/docs/project/acknowledgements/).
 
 **Documentation: <https://infrashift.github.io/mrman/>**
 

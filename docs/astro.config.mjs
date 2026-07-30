@@ -71,6 +71,7 @@ export default defineConfig({
 						{ label: 'Troubleshooting', slug: 'docs/project/troubleshooting' },
 						{ label: 'Contributing', slug: 'docs/project/contributing' },
 						{ label: 'Testing Against a Real Forge', slug: 'docs/contributing/live-testing' },
+						{ label: 'Acknowledgements', slug: 'docs/project/acknowledgements' },
 					],
 				},
 			],
