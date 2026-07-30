@@ -61,21 +61,29 @@ func (p *CommentNavPane) BuildLines(a *app.App, width, height int) []string {
 	return lines
 }
 
-// commentNavMarker is the scope glyph for a navigator row. Remote items get
-// a distinct, muted marker so a reviewer can tell at a glance which rows are
-// their own unsent drafts and which are the forge's existing conversation.
+// commentNavMarker is the marker for a navigator row: the glyph encodes
+// scope, the colour encodes comment type.
+//
+// The pane is width/5 — about 26 columns — and already truncates the author,
+// so a "[ISSUE]" tag would cost more than it is worth. Colouring the marker
+// carries the type at no width cost. Untyped comments fall through to the
+// secondary colour, so typed and untyped rows stay distinguishable.
+//
+// Remote items get a distinct, muted marker: they are the forge's existing
+// conversation rather than a reviewer's own unsent draft, and they carry no
+// local type to colour by.
 func commentNavMarker(t *theme.Theme, item *app.CommentNavigatorItem) (string, render.Style) {
 	if item.IsRemote {
 		return "◇ ", render.Style{Fg: t.FgDim}
 	}
+	glyph := "● "
 	switch item.Key.Scope {
 	case app.NavScopeReview:
-		return "★ ", render.Style{Fg: t.CommentNote}
+		glyph = "★ "
 	case app.NavScopeFile:
-		return "▣ ", render.Style{Fg: t.CommentSuggestion}
-	default:
-		return "● ", render.Style{Fg: t.CommentIssue}
+		glyph = "▣ "
 	}
+	return glyph, render.Style{Fg: commentTypeColor(t, item.CommentType), Bold: true}
 }
 
 // commentNavLabel is the location text for a navigator row: the tightest

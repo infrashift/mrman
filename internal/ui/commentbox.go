@@ -8,24 +8,26 @@ import (
 	render "github.com/infrashift/mrman/charmkit/cellrender"
 	"github.com/infrashift/mrman/internal/app"
 	"github.com/infrashift/mrman/internal/model"
+	"github.com/infrashift/mrman/internal/theme"
 )
 
 // borderPrefix is the comment box body lead-in: 4-space pad + │ + 2 spaces.
 const borderPrefix = "    │  "
 
-// commentTypeColor maps a comment type to its theme slot.
-func (p *DiffPane) commentTypeColor(t model.CommentType) color.Color {
+// commentTypeColor maps a comment type to its theme slot. Shared with the
+// comment navigator, which colours its markers by type.
+func commentTypeColor(th *theme.Theme, t model.CommentType) color.Color {
 	switch t.ID() {
 	case "note":
-		return p.Theme.CommentNote
+		return th.CommentNote
 	case "suggestion":
-		return p.Theme.CommentSuggestion
+		return th.CommentSuggestion
 	case "issue":
-		return p.Theme.CommentIssue
+		return th.CommentIssue
 	case "praise":
-		return p.Theme.CommentPraise
+		return th.CommentPraise
 	}
-	return p.Theme.FgSecondary
+	return th.FgSecondary
 }
 
 // resolveCommentRow locates the comment for a comment annotation row and the
@@ -75,7 +77,7 @@ func (p *DiffPane) commentBoxRow(a *app.App, ann *app.AnnotatedLine, idx int, in
 		return render.LogicalLine{Kind: render.RowBlank, Spans: []render.Span{ind}}
 	}
 	borderStyle := render.Style{Fg: t.FgPrimary, Bold: true}
-	typeStyle := render.Style{Fg: p.commentTypeColor(comment.CommentType), Bold: true}
+	typeStyle := render.Style{Fg: commentTypeColor(p.Theme, comment.CommentType), Bold: true}
 
 	switch displayIdx {
 	case 0:
@@ -159,7 +161,7 @@ func (p *DiffPane) commentInputOverlay(a *app.App, vim *vimState, width int) []s
 	t := p.Theme
 	emitter := &render.Emitter{}
 	borderStyle := render.Style{Fg: t.BorderFocused, Bold: true}
-	typeStyle := render.Style{Fg: p.commentTypeColor(a.CommentType), Bold: true}
+	typeStyle := render.Style{Fg: commentTypeColor(p.Theme, a.CommentType), Bold: true}
 
 	verb := "Add"
 	if a.EditingCommentID != nil {
