@@ -333,7 +333,7 @@ func parseHunk(src *lineSource, filePath string, h *syntax.Highlighter) (model.D
 	}
 
 	// Parse @@ -oldStart,oldCount +newStart,newCount @@
-	oldStart, oldCount, newStart, newCount, ok := parseHunkHeader(headerLine)
+	bounds, ok := parseHunkHeader(headerLine)
 	if !ok {
 		return model.DiffHunk{}, false, nil
 	}
@@ -342,11 +342,24 @@ func parseHunk(src *lineSource, filePath string, h *syntax.Highlighter) (model.D
 	var lineOrigins []model.LineOrigin
 	var oldLinenos, newLinenos []*uint32
 
-	oldLineno := oldStart
-	newLineno := newStart
+	oldLineno := bounds.OldStart
+	newLineno := bounds.NewStart
 
-	// Collect lines until next hunk or file.
-	for {
+	// oldSeen/newSeen count the body lines consumed on each side, so the hunk
+	// ends where its header said it would.
+	var oldSeen, newSeen uint32
+
+	// Collect lines until the hunk's declared length is spent, or the next
+	// hunk or file begins.
+	//
+	// The length budget is what keeps everything *after* a hunk out of it.
+	// A `git format-patch` signature ("-- \n2.43.0"), an mbox's next-message
+	// preamble, a diffstat line, a changelog bullet — all of them start with
+	// "-", "+" or " " and would otherwise be read as diff rows: the "---"
+	// guard below does not catch "-- ", and a leading space is a context
+	// line. That corrupts the hunk's line numbering and, through
+	// ComputeContentHash and HunkReviewKey, the reviewed state keyed off it.
+	for !bounds.spent(oldSeen, newSeen) {
 		line, hasLine, err := src.peek()
 		if err != nil {
 			return model.DiffHunk{}, false, err
@@ -374,6 +387,7 @@ func parseHunk(src *lineSource, filePath string, h *syntax.Highlighter) (model.D
 			}
 			ln := newLineno
 			newLineno++
+			newSeen++
 			origin, content, newLn = model.OriginAddition, line[1:], &ln
 		case strings.HasPrefix(line, "-"):
 			if strings.HasPrefix(line, "---") {
@@ -381,12 +395,15 @@ func parseHunk(src *lineSource, filePath string, h *syntax.Highlighter) (model.D
 			}
 			ln := oldLineno
 			oldLineno++
+			oldSeen++
 			origin, content, oldLn = model.OriginDeletion, line[1:], &ln
 		case strings.HasPrefix(line, " "), line == "":
 			// Empty lines are context lines whose trailing space was trimmed.
 			oldLn2, newLn2 := oldLineno, newLineno
 			oldLineno++
 			newLineno++
+			oldSeen++
+			newSeen++
 			origin, content, oldLn, newLn = model.OriginContext, strings.TrimPrefix(line, " "), &oldLn2, &newLn2
 		default:
 			continue // unknown format, skip
@@ -427,10 +444,10 @@ func parseHunk(src *lineSource, filePath string, h *syntax.Highlighter) (model.D
 	return model.DiffHunk{
 		Header:   headerLine,
 		Lines:    diffLines,
-		OldStart: oldStart,
-		OldCount: oldCount,
-		NewStart: newStart,
-		NewCount: newCount,
+		OldStart: bounds.OldStart,
+		OldCount: bounds.OldCount,
+		NewStart: bounds.NewStart,
+		NewCount: bounds.NewCount,
 	}, true, nil
 }
 
@@ -513,36 +530,62 @@ func diffOrigin(origin model.LineOrigin) syntax.DiffOrigin {
 	}
 }
 
+// hunkBounds is a parsed "@@ -oldStart,oldCount +newStart,newCount @@" header.
+//
+// Counted reports whether both ranges parsed cleanly. It gates using the
+// counts as a body-length budget: parseU32Or1 falls back to 1 for anything
+// unparsable, and budgeting a malformed header to one line would truncate a
+// hunk that today parses in full. A header we did not really understand is
+// better read to the next structural marker than trusted.
+type hunkBounds struct {
+	OldStart, OldCount uint32
+	NewStart, NewCount uint32
+	Counted            bool
+}
+
+// spent reports whether a body of oldSeen/newSeen lines has consumed
+// everything the header declared. Always false for an uncounted header, so a
+// hunk we could not measure is read to the next structural marker instead.
+func (b hunkBounds) spent(oldSeen, newSeen uint32) bool {
+	return b.Counted && oldSeen >= b.OldCount && newSeen >= b.NewCount
+}
+
 // parseHunkHeader parses "@@ -oldStart,oldCount +newStart,newCount @@ ctx"
 // (counts default to 1 when omitted). ok is false for malformed headers.
-func parseHunkHeader(line string) (oldStart, oldCount, newStart, newCount uint32, ok bool) {
+func parseHunkHeader(line string) (hunkBounds, bool) {
 	parts := strings.Fields(line)
 	if len(parts) < 3 || parts[0] != "@@" {
-		return 0, 0, 0, 0, false
+		return hunkBounds{}, false
 	}
-	oldStart, oldCount = parseRange(strings.TrimPrefix(parts[1], "-"))
-	newStart, newCount = parseRange(strings.TrimPrefix(parts[2], "+"))
-	return oldStart, oldCount, newStart, newCount, true
+	oldStart, oldCount, oldOK := parseRange(strings.TrimPrefix(parts[1], "-"))
+	newStart, newCount, newOK := parseRange(strings.TrimPrefix(parts[2], "+"))
+	return hunkBounds{
+		OldStart: oldStart, OldCount: oldCount,
+		NewStart: newStart, NewCount: newCount,
+		Counted: oldOK && newOK,
+	}, true
 }
 
 // parseRange parses "start,count" or "start" (count defaults to 1); invalid
-// numbers fall back to 1.
-func parseRange(s string) (start, count uint32) {
+// numbers fall back to 1. ok reports whether every number present parsed.
+func parseRange(s string) (start, count uint32, ok bool) {
 	startStr, countStr, hasComma := strings.Cut(s, ",")
-	start = parseU32Or1(startStr)
+	start, ok = parseU32Or1(startStr)
 	count = 1
 	if hasComma {
-		count = parseU32Or1(countStr)
+		var countOK bool
+		count, countOK = parseU32Or1(countStr)
+		ok = ok && countOK
 	}
-	return start, count
+	return start, count, ok
 }
 
-func parseU32Or1(s string) uint32 {
+func parseU32Or1(s string) (uint32, bool) {
 	n, err := strconv.ParseUint(s, 10, 32)
 	if err != nil {
-		return 1
+		return 1, false
 	}
-	return uint32(n)
+	return uint32(n), true
 }
 
 // parseDiffGitHeader parses paths from a "diff --git a/X b/X" header line,

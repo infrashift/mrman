@@ -67,17 +67,23 @@ func TestParseHunkHeader(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			oldStart, oldCount, newStart, newCount, ok := parseHunkHeader(tt.line)
+			b, ok := parseHunkHeader(tt.line)
 			if ok != tt.ok {
 				t.Fatalf("ok = %v, want %v", ok, tt.ok)
 			}
 			if !ok {
 				return
 			}
-			if oldStart != tt.oldStart || oldCount != tt.oldCount || newStart != tt.newStart || newCount != tt.newCount {
+			if b.OldStart != tt.oldStart || b.OldCount != tt.oldCount ||
+				b.NewStart != tt.newStart || b.NewCount != tt.newCount {
 				t.Fatalf("got (%d,%d,%d,%d), want (%d,%d,%d,%d)",
-					oldStart, oldCount, newStart, newCount,
+					b.OldStart, b.OldCount, b.NewStart, b.NewCount,
 					tt.oldStart, tt.oldCount, tt.newStart, tt.newCount)
+			}
+			// Every header in this table is well formed, so its counts are
+			// trustworthy as a body-length budget.
+			if !b.Counted {
+				t.Errorf("Counted = false for a well-formed header %q", tt.line)
 			}
 		})
 	}
@@ -88,19 +94,26 @@ func TestParseRange(t *testing.T) {
 		in    string
 		start uint32
 		count uint32
+		ok    bool
 	}{
-		{in: "10,5", start: 10, count: 5},
-		{in: "1,100", start: 1, count: 100},
-		{in: "42", start: 42, count: 1},
-		{in: "1", start: 1, count: 1},
-		{in: "abc", start: 1, count: 1},
-		{in: "abc,def", start: 1, count: 1},
+		{in: "10,5", start: 10, count: 5, ok: true},
+		{in: "1,100", start: 1, count: 100, ok: true},
+		{in: "42", start: 42, count: 1, ok: true},
+		{in: "1", start: 1, count: 1, ok: true},
+		// Unparsable numbers still fall back to 1, but say so, so the caller
+		// does not budget a hunk body against a number it invented.
+		{in: "abc", start: 1, count: 1, ok: false},
+		{in: "abc,def", start: 1, count: 1, ok: false},
+		{in: "10,def", start: 10, count: 1, ok: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.in, func(t *testing.T) {
-			start, count := parseRange(tt.in)
+			start, count, ok := parseRange(tt.in)
 			if start != tt.start || count != tt.count {
 				t.Fatalf("parseRange(%q) = (%d,%d), want (%d,%d)", tt.in, start, count, tt.start, tt.count)
+			}
+			if ok != tt.ok {
+				t.Errorf("parseRange(%q) ok = %v, want %v", tt.in, ok, tt.ok)
 			}
 		})
 	}
