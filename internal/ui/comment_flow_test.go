@@ -324,8 +324,63 @@ func commentBoxTitle(t *testing.T, view string) string {
 	t.Helper()
 	for line := range strings.SplitSeq(view, "\n") {
 		if strings.Contains(line, "comment ") && strings.Contains(line, "╭") {
-			return strings.TrimSpace(line)
+			return strings.TrimSpace(ansiSequence.ReplaceAllString(line, ""))
 		}
 	}
 	return "<no comment box header found>"
+}
+
+// TestVimCommentBoxTitleAdvertisesTabByMode keeps the vim box honest about
+// Tab. It never mentioned Tab at all, even though Normal mode cycles the
+// comment type with it — but Insert mode consumes Tab to insert
+// comment_tab_width spaces, so the hint has to follow the mode rather than
+// simply matching the plain box.
+func TestVimCommentBoxTitleAdvertisesTabByMode(t *testing.T) {
+	_, m := testLifecycle(t)
+	m.CommentVimMode = true
+	moveToDiffLine(t, m)
+	pressRune(m, 'c')
+
+	// The box opens in Insert mode, where Tab inserts spaces.
+	if title := commentBoxTitle(t, viewString(m)); strings.Contains(title, "Tab:type") {
+		t.Errorf("Insert mode must not advertise Tab:type:\n%s", title)
+	}
+
+	// Esc to Normal mode: Tab now reaches the type cycle.
+	press(m, "", tea.KeyEscape, 0)
+	normal := commentBoxTitle(t, viewString(m))
+	if !strings.Contains(normal, "Tab:type") {
+		t.Errorf("Normal mode cycles the type with Tab and must say so:\n%s", normal)
+	}
+	// The vim-specific hints survive the addition.
+	for _, want := range []string{"i:insert", "Ctrl-S:save"} {
+		if !strings.Contains(normal, want) {
+			t.Errorf("vim hint lost %q:\n%s", want, normal)
+		}
+	}
+
+	// Back to Insert mode and the claim goes away again.
+	pressRune(m, 'i')
+	if title := commentBoxTitle(t, viewString(m)); strings.Contains(title, "Tab:type") {
+		t.Errorf("returning to Insert mode must drop Tab:type:\n%s", title)
+	}
+}
+
+// TestVimCommentBoxTitleWithSingleType covers both conditions at once: Normal
+// mode, but a cycle with nothing to cycle to.
+func TestVimCommentBoxTitleWithSingleType(t *testing.T) {
+	_, m := testLifecycle(t)
+	m.CommentVimMode = true
+	m.App.CommentTypes = app.ResolveCommentTypes([]app.CommentTypeDef{{ID: "none"}})
+	moveToDiffLine(t, m)
+	pressRune(m, 'c')
+	press(m, "", tea.KeyEscape, 0)
+
+	title := commentBoxTitle(t, viewString(m))
+	if !strings.Contains(title, "NORMAL") {
+		t.Fatalf("expected Normal mode, got:\n%s", title)
+	}
+	if strings.Contains(title, "Tab:type") {
+		t.Errorf("a single-entry cycle must not advertise Tab even in Normal mode:\n%s", title)
+	}
 }

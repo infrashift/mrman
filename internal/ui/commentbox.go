@@ -173,13 +173,20 @@ func (p *DiffPane) commentInputOverlay(a *app.App, vim *vimState, width int) []s
 	// Only advertise Tab when it does something. A config declaring a single
 	// comment type leaves nothing to cycle, and offering the key anyway sends
 	// people looking for a bug when pressing it does nothing.
+	//
+	// The vim box has a second condition: Tab reaches the type cycle only from
+	// Normal mode, because Insert mode consumes it to insert comment_tab_width
+	// spaces. Advertising it there would be worse than silence — it would name
+	// the wrong behaviour for the mode you are in.
+	tabCycles := a.CanCycleCommentTypes()
 	hint := "(Enter:save Shift-Enter:newline Esc:cancel)"
-	if a.CanCycleCommentTypes() {
-		hint = "(Tab:type Enter:save Shift-Enter:newline Esc:cancel)"
-	}
 	if vim != nil {
 		modeTag = "[" + vim.label() + "] "
+		tabCycles = tabCycles && vim.cyclesTypeOnTab()
 		hint = "(i:insert  Ctrl-S:save  Esc:normal  :w save  :q discard)"
+	}
+	if tabCycles {
+		hint = "(Tab:type " + strings.TrimPrefix(hint, "(")
 	}
 	scope := "line"
 	switch {

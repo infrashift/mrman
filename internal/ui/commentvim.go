@@ -33,6 +33,14 @@ func newVimState(a *app.App, tabWidth int) *vimState {
 }
 
 // label is the [..] tag shown in the input box header.
+// cyclesTypeOnTab reports whether Tab currently cycles the comment type
+// rather than inserting spaces. Only Normal mode reaches the app-level
+// binding: in Insert mode the editor consumes Tab to insert TabWidth spaces,
+// and while a `:` command line is open the keystroke belongs to it.
+func (v *vimState) cyclesTypeOnTab() bool {
+	return v.cmdline == nil && v.editor.Mode() == vimtext.ModeNormal
+}
+
 func (v *vimState) label() string {
 	switch {
 	case v.cmdline != nil:
