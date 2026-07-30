@@ -31,8 +31,10 @@ is an honest account of where they differ.
 :::note[Licence]
 tuicr is MIT, © 2025 tuicr contributors. mrman is Apache-2.0. The MIT licence
 requires its copyright and permission notice to travel with substantial
-portions of the work, and given how much of mrman's structure is ported, that
-notice belongs with the distribution — see [Licensing](#licensing).
+portions of the work, so mrman carries it in the
+[`NOTICE`](https://github.com/infrashift/mrman/blob/main/NOTICE) file at the
+repository root, shipped in every release archive. It is reproduced under
+[Licensing](#licensing) below.
 :::
 
 ## Hunk — a different answer to the same question
@@ -118,7 +120,10 @@ with them; `go mod download` and your tooling of choice will enumerate them
 precisely, and this page is a courtesy rather than a substitute for that.
 
 The one that needs stating explicitly is tuicr's, because mrman is a port of it
-rather than merely a user of it:
+rather than merely a user of it. It lives in
+[`NOTICE`](https://github.com/infrashift/mrman/blob/main/NOTICE) — the
+canonical copy, alongside `LICENSE` in every release archive — and is
+reproduced here for convenience:
 
 ```text
 MIT License

@@ -99,7 +99,7 @@ package: ## Cross-compile release tarballs/zips into ./dist
 		echo "-> $$os/$$arch"; \
 		GOOS=$$os GOARCH=$$arch CGO_ENABLED=0 \
 			go build $(GOFLAGS) -ldflags '$(LDFLAGS)' -o $$out/$(BINARY)$$ext . || exit 1; \
-		cp README.md LICENSE $$out/ 2>/dev/null || true; \
+		cp README.md LICENSE NOTICE $$out/ || exit 1; \
 		if [ "$$os" = "windows" ]; then \
 			(cd $(DIST_DIR) && zip -qr $$(basename $$out).zip $$(basename $$out)); \
 		else \
