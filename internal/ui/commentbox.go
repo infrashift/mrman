@@ -170,7 +170,13 @@ func (p *DiffPane) commentInputOverlay(a *app.App, vim *vimState, width int) []s
 		badge = "[" + a.CommentType.Display() + "] "
 	}
 	modeTag := ""
-	hint := "(Tab:type Enter:save Shift-Enter:newline Esc:cancel)"
+	// Only advertise Tab when it does something. A config declaring a single
+	// comment type leaves nothing to cycle, and offering the key anyway sends
+	// people looking for a bug when pressing it does nothing.
+	hint := "(Enter:save Shift-Enter:newline Esc:cancel)"
+	if a.CanCycleCommentTypes() {
+		hint = "(Tab:type Enter:save Shift-Enter:newline Esc:cancel)"
+	}
 	if vim != nil {
 		modeTag = "[" + vim.label() + "] "
 		hint = "(i:insert  Ctrl-S:save  Esc:normal  :w save  :q discard)"

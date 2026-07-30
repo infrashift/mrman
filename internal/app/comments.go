@@ -97,6 +97,14 @@ func ResolveCommentTypes(configs []CommentTypeDef) []CommentTypeDef {
 	return resolved
 }
 
+// CanCycleCommentTypes reports whether the resolved cycle has more than one
+// entry, i.e. whether Tab does anything in the comment box. The single-entry
+// case is reachable through configuration — declaring only a "none" entry —
+// and the comment box uses this to decide whether to advertise Tab at all.
+func (a *App) CanCycleCommentTypes() bool {
+	return len(a.CommentTypes) > 1
+}
+
 // DefaultCommentType is the first entry of the resolved comment-type cycle.
 func (a *App) DefaultCommentType() model.CommentType {
 	if len(a.CommentTypes) > 0 {
@@ -994,7 +1002,7 @@ func (a *App) CycleCommentType() {
 	if len(a.CommentTypes) == 0 {
 		return
 	}
-	if len(a.CommentTypes) == 1 {
+	if !a.CanCycleCommentTypes() {
 		a.SetMessage("Only one comment type configured")
 		return
 	}
@@ -1008,7 +1016,7 @@ func (a *App) CycleCommentTypeReverse() {
 	if len(a.CommentTypes) == 0 {
 		return
 	}
-	if len(a.CommentTypes) == 1 {
+	if !a.CanCycleCommentTypes() {
 		a.SetMessage("Only one comment type configured")
 		return
 	}

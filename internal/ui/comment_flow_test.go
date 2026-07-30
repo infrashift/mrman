@@ -285,3 +285,47 @@ func TestExportLegendListsUsedCommentTypes(t *testing.T) {
 		t.Errorf("the tag must survive ShowLegend=false:\n%s", plain)
 	}
 }
+
+// TestCommentBoxTitleAdvertisesTabOnlyWhenCyclable pins the conditional hint.
+// The box used to offer "Tab:type" unconditionally, including when the cycle
+// held a single entry and Tab did nothing — which reads as a broken key rather
+// than an absent feature.
+func TestCommentBoxTitleAdvertisesTabOnlyWhenCyclable(t *testing.T) {
+	t.Run("built-in types are cyclable", func(t *testing.T) {
+		_, m := testLifecycle(t)
+		moveToDiffLine(t, m)
+		pressRune(m, 'c')
+		title := viewString(m)
+		if !strings.Contains(title, "Tab:type") {
+			t.Errorf("four built-in types must advertise Tab:\n%s", commentBoxTitle(t, title))
+		}
+	})
+
+	t.Run("a lone configured type is not", func(t *testing.T) {
+		_, m := testLifecycle(t)
+		m.App.CommentTypes = app.ResolveCommentTypes([]app.CommentTypeDef{{ID: "none"}})
+		moveToDiffLine(t, m)
+		pressRune(m, 'c')
+		title := viewString(m)
+		if strings.Contains(title, "Tab:type") {
+			t.Errorf("a single-entry cycle must not advertise Tab:\n%s", commentBoxTitle(t, title))
+		}
+		// The rest of the hint stays intact.
+		for _, want := range []string{"Enter:save", "Esc:cancel"} {
+			if !strings.Contains(title, want) {
+				t.Errorf("hint lost %q:\n%s", want, commentBoxTitle(t, title))
+			}
+		}
+	})
+}
+
+// commentBoxTitle extracts the comment box header row for failure messages.
+func commentBoxTitle(t *testing.T, view string) string {
+	t.Helper()
+	for line := range strings.SplitSeq(view, "\n") {
+		if strings.Contains(line, "comment ") && strings.Contains(line, "╭") {
+			return strings.TrimSpace(line)
+		}
+	}
+	return "<no comment box header found>"
+}
