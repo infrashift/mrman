@@ -232,6 +232,13 @@ func (m *Model) confirmSelection() {
 	}
 	m.session, session = openSession(m.store, fresh)
 	a.ApplyLoadedSelection(files, session, source)
+	// ApplyLoadedSelection replaces DiffState wholesale, which zeroes the
+	// viewport dimensions, and no WindowSizeMsg follows a selector confirm.
+	// Anything sizing itself from ViewportWidth then computes against zero:
+	// comment bodies wrapped at one character per line until the next
+	// resize. Every other diff-swapping path (inlinecommits.go, reload.go,
+	// prcontext.go) re-syncs for the same reason.
+	m.syncViewport()
 	a.InputMode = input.ModeNormal
 }
 

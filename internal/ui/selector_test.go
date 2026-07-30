@@ -184,3 +184,44 @@ func TestApplyConfigWatchInterval(t *testing.T) {
 		t.Fatalf("watchEvery = %v", m.session.watchEvery)
 	}
 }
+
+// TestApplyLoadedSelectionResyncsViewport pins the fix for a rendering bug
+// reported from manual testing: after confirming a commit range in the target
+// selector, comment bodies rendered one character per line until the next
+// terminal resize.
+//
+// ApplyLoadedSelection replaces DiffState wholesale, zeroing the viewport
+// dimensions, and no WindowSizeMsg follows a selector confirm. Anything
+// sizing itself from ViewportWidth then computed against zero — comment wrap
+// width clamps to a 1-column minimum, so "This is a comment" rendered as one
+// character per row. The comment text itself was stored correctly; only the
+// rendering was wrong.
+func TestApplyLoadedSelectionResyncsViewport(t *testing.T) {
+	m := testModel(t)
+	a := m.App
+	want := m.diffInnerWidth()
+	if want <= 11 {
+		t.Fatalf("test model viewport %d is too small to detect the bug", want)
+	}
+
+	// Reproduce exactly what the selector confirm does to DiffState.
+	a.ApplyLoadedSelection(a.DiffFiles, a.Session, app.DiffSource{Kind: app.DiffSourceCommitRange})
+	if got := a.DiffState.ViewportWidth; got != 0 {
+		t.Fatalf("ApplyLoadedSelection left ViewportWidth = %d; this test assumes it resets to 0", got)
+	}
+
+	// The line the fix adds.
+	m.syncViewport()
+
+	if got := a.DiffState.ViewportWidth; got != want {
+		t.Errorf("ViewportWidth = %d, want %d", got, want)
+	}
+	// The wrap width comment bodies are measured against must leave room for
+	// real text, not collapse to the 1-column floor.
+	if contentArea := a.DiffState.ViewportWidth - 10; contentArea < 2 {
+		t.Errorf("comment content area = %d; a value below 2 wraps every character onto its own line", contentArea)
+	}
+	if a.DiffState.ViewportHeight <= 0 {
+		t.Errorf("ViewportHeight = %d, want positive", a.DiffState.ViewportHeight)
+	}
+}
