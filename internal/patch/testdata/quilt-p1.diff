@@ -1,0 +1,9 @@
+Index: linux/drivers/bar.c
+===================================================================
+--- linux.orig/drivers/bar.c	2026-01-01 12:00:00.000000000 +0000
++++ linux/drivers/bar.c	2026-01-02 09:30:00.000000000 +0000
+@@ -10,3 +10,4 @@ void bar(void)
+ {
+ 	spin_lock(&lock);
++	might_sleep();
+ }

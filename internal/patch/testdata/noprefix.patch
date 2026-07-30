@@ -1,0 +1,7 @@
+diff --git a/thing.c b/thing.c
+--- thing.c
++++ thing.c
+@@ -1,2 +1,3 @@
+ int x;
++int y;
+ int z;

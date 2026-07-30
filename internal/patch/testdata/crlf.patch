@@ -1,0 +1,12 @@
+From 111 Mon Sep 17 00:00:00 2001
+From: A <a@b.c>
+Subject: [PATCH] crlf test
+
+Body.
+---
+diff --git a/c.txt b/c.txt
+--- a/c.txt
++++ b/c.txt
+@@ -1,1 +1,2 @@
+ one
++two

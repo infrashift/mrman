@@ -1,0 +1,31 @@
+From 9f3c1a2b7d4e50610000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Dev Eloper <dev@example.org>
+Date: Wed, 1 Jan 2026 12:00:00 +0000
+Subject: [PATCH] drivers/foo: guard the probe
+
+The probe dereferences bar without checking it.
+
+Changes since v1:
+- use -EINVAL, not -ENODEV
+
+Signed-off-by: Dev Eloper <dev@example.org>
+---
+ drivers/foo.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/drivers/foo.c b/drivers/foo.c
+index 1234567..89abcde 100644
+--- a/drivers/foo.c
++++ b/drivers/foo.c
+@@ -100,5 +100,8 @@ static int foo_probe(struct platform_device *pdev)
+ 	int ret;
+ 
++	if (!bar)
++		return -EINVAL;
++
+ 	ret = baz(pdev);
+ 	return ret;
+ }
+-- 
+2.43.0
+

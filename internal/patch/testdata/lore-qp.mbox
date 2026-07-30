@@ -1,0 +1,19 @@
+From bbb1111 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Bj=C3=B6rn=20Andersson?= <bjorn@example.org>
+Date: Thu, 2 Jan 2026 08:00:00 +0000
+Subject: =?UTF-8?q?[PATCH]=20fs=3A=20h=C3=A4ndle=20the=20na=C3=AFve=20case?=
+Message-Id: <20260102080000.7-1-bjorn@example.org>
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: quoted-printable
+
+The na=C3=AFve path was never handled.
+
+Signed-off-by: Bj=C3=B6rn Andersson <bjorn@example.org>
+---
+diff --git a/fs/naive.c b/fs/naive.c
+--- a/fs/naive.c
++++ b/fs/naive.c
+@@ -1,2 +1,3 @@
+ int handle(void)
++	/* na=C3=AFve */
+ 	return 0;

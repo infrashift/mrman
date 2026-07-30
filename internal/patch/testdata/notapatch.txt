@@ -1,0 +1,6 @@
+Hello,
+
+This is just an email with no diff in it at all. It mentions
+diff and patch as words, but carries neither.
+
+Thanks

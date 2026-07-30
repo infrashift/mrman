@@ -1,0 +1,15 @@
+From ccc1111 Mon Sep 17 00:00:00 2001
+From: A <a@b.c>
+Subject: [PATCH] doc: mention the From line
+
+The docs should say:
+
+>From here on, the parser is happy.
+
+---
+diff --git a/doc.txt b/doc.txt
+--- a/doc.txt
++++ b/doc.txt
+@@ -1,1 +1,2 @@
+ hello
++world

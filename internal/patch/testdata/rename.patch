@@ -1,0 +1,11 @@
+diff --git a/old/name.c b/new/name.c
+similarity index 92%
+rename from old/name.c
+rename to new/name.c
+index 4444444..5555555 100644
+--- a/old/name.c
++++ b/new/name.c
+@@ -1,2 +1,2 @@
+ int a;
+-int b;
++int c;
