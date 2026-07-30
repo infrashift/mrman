@@ -126,3 +126,49 @@ func TestRepoCoordinateFromParsedSlugs(t *testing.T) {
 		t.Errorf("pr coordinate = %+v, want %+v", got, want)
 	}
 }
+
+// TestParseRepoCoordinateDropsAzureDevOpsGitMarker pins the "_git" skip.
+// Azure DevOps clone URLs are {org}/{project}/_git/{repo}, so taking the last
+// two segments naively yields owner="_git" — which never matches the
+// {project}/{repo} coordinate derived from that repo's PR slugs, and made
+// `mrman review list --repo <ado checkout>` silently return nothing.
+func TestParseRepoCoordinateDropsAzureDevOpsGitMarker(t *testing.T) {
+	for _, tc := range []struct {
+		name, input, owner, repo string
+	}{
+		{"https clone url", "https://dev.azure.com/org/project/_git/repo", "project", "repo"},
+		{"with user info", "https://user@dev.azure.com/org/project/_git/repo", "project", "repo"},
+		{"legacy visualstudio", "https://org.visualstudio.com/project/_git/repo", "project", "repo"},
+		{"legacy default collection", "https://org.visualstudio.com/DefaultCollection/project/_git/repo", "project", "repo"},
+		{"web url", "https://dev.azure.com/org/project/_git/repo/pullrequest/7", "pullrequest", "7"},
+		{"already marker-free coordinate", "org/project/repo", "project", "repo"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			coord, err := ParseRepoCoordinate(tc.input)
+			if err != nil {
+				t.Fatalf("ParseRepoCoordinate(%q): %v", tc.input, err)
+			}
+			if coord.Owner != tc.owner || coord.Repo != tc.repo {
+				t.Errorf("= %+v, want owner=%q repo=%q", coord, tc.owner, tc.repo)
+			}
+		})
+	}
+}
+
+// TestParseRepoCoordinateADOCheckoutMatchesPRSlug is the regression this
+// exists for: the coordinate from an Azure DevOps clone URL must match the
+// one derived from a PR slug for the same repository.
+func TestParseRepoCoordinateADOCheckoutMatchesPRSlug(t *testing.T) {
+	fromRemote, err := ParseRepoCoordinate("https://user@dev.azure.com/myorg/myproject/_git/myrepo")
+	if err != nil {
+		t.Fatalf("remote: %v", err)
+	}
+	fromCoordinate, err := ParseRepoCoordinate("myorg/myproject/myrepo")
+	if err != nil {
+		t.Fatalf("coordinate: %v", err)
+	}
+	if !fromRemote.Matches(fromCoordinate) {
+		t.Errorf("%+v does not match %+v — --repo <checkout> would find no PR sessions",
+			fromRemote, fromCoordinate)
+	}
+}

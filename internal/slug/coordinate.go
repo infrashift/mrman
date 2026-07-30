@@ -24,12 +24,23 @@ type RepoCoordinate struct {
 	Repo  string
 }
 
+// adoGitMarker is the literal segment Azure DevOps puts between a project
+// and its repository ({org}/{project}/_git/{repo}). It is a URL marker, not
+// a namespace, so coordinate derivation skips it.
+const adoGitMarker = "_git"
+
 // ParseRepoCoordinate parses a user-supplied repo selector: "owner/repo",
 // "host/owner/repo", "forge:host/owner/repo" (also accepting the gh/gl/ado/fj
 // slug prefixes), or an HTTPS / HTTP / SSH / SCP URL. The last two path
 // segments become owner/repo (so nested GitLab subgroups degrade
 // gracefully); a lone segment yields a repo with no owner. A trailing .git
 // is stripped.
+//
+// Azure DevOps' "_git" path marker is dropped first. Its clone URLs are
+// {org}/{project}/_git/{repo}, so keeping the marker would make "_git" the
+// owner and stop a checkout's coordinate ever matching the {project}/{repo}
+// one derived from its PR slugs — which silently broke `mrman review list
+// --repo <ado checkout>`.
 func ParseRepoCoordinate(input string) (RepoCoordinate, error) {
 	trimmed := strings.TrimSpace(input)
 	withoutForge := stripForgePrefix(trimmed)
@@ -44,7 +55,7 @@ func ParseRepoCoordinate(input string) (RepoCoordinate, error) {
 	}
 	var segments []string
 	for _, seg := range strings.Split(strings.Trim(normalized, "/"), "/") {
-		if seg != "" {
+		if seg != "" && seg != adoGitMarker {
 			segments = append(segments, seg)
 		}
 	}
