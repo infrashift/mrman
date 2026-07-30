@@ -69,10 +69,11 @@ blocker, not a local-setup problem.
    `C` comments on the whole file, `v` selects a range first, and
    `<leader>c` (`;c`) comments on the review as a whole.
 
-   Out of the box comments are **untyped**. Define
-   [comment types](../reference/configuration/#comment-types) and `Tab` starts
-   cycling them, with the current one shown in the box title
-   (`Add L60 comment [ISSUE]`).
+   `Tab` cycles the comment type, shown in the box title (`Add L60 comment
+   [ISSUE]`). Four ship by default — `NOTE`, `ISSUE`, `SUGGESTION`, `PRAISE` —
+   starting on `NOTE`, then an untyped entry for comments that need no
+   classifying. [Define your own](../reference/configuration/#comment-types) to
+   replace them.
 
 4. **Track what you have read.** `r` marks the current file reviewed, `R` the
    current hunk. `m` / `M` jump between comments.
@@ -106,9 +107,9 @@ While you are in there, the options people change first:
 theme = "tokyo-night-storm"   # see the Themes reference for the full list
 comment_vim = true            # modal editing in the comment box
 
-[[comment_types]]             # without these, every comment is untyped
-id = "issue"
-label = "ISSUE"
+[[comment_types]]             # optional: replaces the four built-ins
+id = "blocker"
+label = "BLOCKER"
 definition = "must fix before merge"
 color = "red"
 ```

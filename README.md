@@ -209,6 +209,9 @@ in the meantime. See the note at the bottom of the `Makefile`.
   `:update` and no startup version check.
 - **No Mercurial backend.** git, Jujutsu, `--file` and `-A` are supported.
 - **`Space` also expands context gaps**, alongside tuicr's `Enter`.
+- **Four comment types ship by default** (NOTE, ISSUE, SUGGESTION, PRAISE);
+  tuicr ships only the untyped one, so the feature is invisible until
+  configured.
 - **Four forges instead of two**, through their APIs rather than by shelling
   out to `gh` and `glab`.
 - **CUE-validated configuration** and **user-templatable markdown output**.

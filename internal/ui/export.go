@@ -25,6 +25,7 @@ func renderExport(a *app.App, opts exportOptions) (string, error) {
 		SessionSlug:     sessionSlugString(a),
 		DiffSourceLabel: scope.Label(),
 		ShowLegend:      opts.ShowLegend,
+		CommentTypes:    legendEntries(a.CommentTypes),
 	})
 	if err != nil {
 		return "", err
@@ -34,6 +35,22 @@ func renderExport(a *app.App, opts exportOptions) (string, error) {
 		a.SetWarning(w)
 	}
 	return output.RenderNotes(tmpl, data)
+}
+
+// legendEntries converts the app's resolved comment types into the export's
+// legend shape. Without this the "Comment types:" line never rendered at all —
+// export_legend defaulted to on, but no caller supplied the types it needed,
+// so every definition a user wrote in [[comment_types]] was dropped.
+func legendEntries(defs []app.CommentTypeDef) []output.LegendEntry {
+	entries := make([]output.LegendEntry, 0, len(defs))
+	for _, d := range defs {
+		entry := output.LegendEntry{ID: d.ID, Label: d.Label}
+		if d.Definition != nil {
+			entry.Definition = *d.Definition
+		}
+		entries = append(entries, entry)
+	}
+	return entries
 }
 
 func sessionSlugString(a *app.App) string {

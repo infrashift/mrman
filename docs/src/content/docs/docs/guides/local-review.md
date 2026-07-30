@@ -81,12 +81,12 @@ Comments come in four scopes:
 | `C` | The whole file |
 | `<leader>c` (`;c`) | The review as a whole |
 
-Comment types are entirely yours to define, and **there are no built-in ones**:
-until you declare some in
-[comment types](../../reference/configuration/#comment-types), every comment is
-untyped and `Tab` has nothing to cycle. Once declared, `Tab` cycles them and the
-box title shows the current one (`Add L60 comment [ISSUE]`), with an untyped
-entry always at the end of the cycle for comments that need no classifying.
+`Tab` in the comment box cycles the comment type, and the box title shows the
+current one (`Add L60 comment [ISSUE]`). Four ship by default — **NOTE**,
+**ISSUE**, **SUGGESTION**, **PRAISE** — starting on `NOTE`, with an untyped
+entry at the end for comments that need no classifying. Declaring your own in
+[comment types](../../reference/configuration/#comment-types) replaces those
+four entirely.
 
 `m` / `M` jump between comments, `i` or `A` edits the one at the cursor, `dd`
 deletes it.

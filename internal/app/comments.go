@@ -45,14 +45,41 @@ func noneCommentTypeDef() CommentTypeDef {
 	return CommentTypeDef{ID: model.CommentTypeNoneID}
 }
 
+// BuiltinCommentTypes is the comment-type cycle used when the config
+// declares none: NOTE, ISSUE, SUGGESTION, PRAISE, then the typeless entry.
+//
+// This is a deliberate divergence from tuicr, which ships only the typeless
+// type so an unconfigured review cannot classify anything and Tab has nothing
+// to cycle — the feature was invisible until you found it in the docs and
+// wrote a config file.
+//
+// NOTE leads, so it is the default a new comment starts on: an unclassified
+// remark should read as a remark, not as a blocker. ISSUE as the default would
+// stamp [ISSUE] on every submitted comment from anyone who never configured
+// types.
+//
+// No Color is set. internal/ui maps these four ids onto the theme's
+// comment_note / comment_issue / comment_suggestion / comment_praise slots, so
+// they follow the active theme instead of pinning literal colors that would
+// fight it.
+func BuiltinCommentTypes() []CommentTypeDef {
+	def := func(s string) *string { return &s }
+	return []CommentTypeDef{
+		{ID: "note", Label: "NOTE", Definition: def("worth knowing; answer or acknowledge")},
+		{ID: "issue", Label: "ISSUE", Definition: def("must fix before merge")},
+		{ID: "suggestion", Label: "SUGGESTION", Definition: def("optional improvement; implement it or say why not")},
+		{ID: "praise", Label: "PRAISE", Definition: def("positive feedback; nothing to do")},
+	}
+}
+
 // ResolveCommentTypes resolves the effective, ordered comment-type list.
-// With no configured types the only type is None — untyped comments with no
-// [TYPE] prefix. Configuring types overrides that default (the first entry
-// becomes the default), but None stays available: it is appended so it can
-// still be cycled to, unless the user declared a "none" entry themselves.
+// With no configured types the cycle is BuiltinCommentTypes plus None.
+// Configuring types replaces the built-ins entirely (the first entry becomes
+// the default), but None stays available: it is appended so it can still be
+// cycled to, unless the user declared a "none" entry themselves.
 func ResolveCommentTypes(configs []CommentTypeDef) []CommentTypeDef {
 	if len(configs) == 0 {
-		return []CommentTypeDef{noneCommentTypeDef()}
+		configs = BuiltinCommentTypes()
 	}
 	resolved := make([]CommentTypeDef, 0, len(configs)+1)
 	for _, config := range configs {

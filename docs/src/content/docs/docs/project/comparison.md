@@ -62,6 +62,7 @@ behavioral spec — and adds a few things.
 | **Templatable markdown** | Both the exported notes and the submitted review body are Go templates you can override |
 | **Agent collaboration** | A JSON CLI for reading and writing a live review session, with a human-held submit interlock |
 | **`Space` expands context gaps** | Alongside tuicr's `Enter` |
+| **Built-in comment types** | NOTE, ISSUE, SUGGESTION, PRAISE out of the box; tuicr ships only the untyped type, so classification is invisible until configured |
 
 ### Deliberate differences
 

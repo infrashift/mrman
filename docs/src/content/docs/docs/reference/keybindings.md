@@ -216,6 +216,9 @@ Tab completes commands; repeated presses cycle the matches.
 ## Differences from tuicr
 
 - `Space` also expands context gaps; tuicr uses `Enter` alone. Both work.
+- `Tab` in the comment box cycles four built-in comment types (NOTE, ISSUE,
+  SUGGESTION, PRAISE) and then the untyped entry. tuicr ships only the untyped
+  type, so `Tab` does nothing there until types are configured.
 - No `:update` — mrman has no self-updater by design. Use your package
   manager or `go install`.
 - No Mercurial backend. git, Jujutsu, `--file` and `-A` are supported.

@@ -6,6 +6,7 @@ package app
 // transitions, save/edit/delete, and the comment navigator.
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -128,19 +129,41 @@ func TestNextCommentReportsPosition(t *testing.T) {
 
 // --- Comment type cycling (target_selector_tests.rs) ---
 
-func TestDefaultCommentTypeIsNoneWithoutConfig(t *testing.T) {
+// TestDefaultCommentTypeWithoutConfig covers the built-in cycle. Unlike
+// tuicr, an unconfigured mrman ships NOTE / ISSUE / SUGGESTION / PRAISE plus
+// the typeless entry, and NOTE leads so an unclassified comment reads as a
+// remark rather than a blocker.
+func TestDefaultCommentTypeWithoutConfig(t *testing.T) {
 	file := makeFileWithHunks("test.rs", []model.DiffHunk{makeHunk(1, 3)})
 	a := buildAppWithFiles([]model.DiffFile{file}, 20)
 	a.DiffState.CursorLine = hunkDiffLine(t, a, 0, 0)
 	a.EnterCommentMode(false)
 	assertEq(t, a.InputMode, input.ModeComment, "mode")
-	// Out of the box the only type is None — untyped, no prefix.
-	if !a.CommentType.IsNone() {
-		t.Fatal("default type must be none")
+	assertEq(t, a.CommentType.ID(), "note", "default type id")
+	if a.CommentType.IsNone() {
+		t.Fatal("the default type must no longer be the typeless one")
 	}
-	assertEq(t, a.CommentType.ID(), "none", "type id")
 
-	// With a single type there is nothing to cycle to; stays on None.
+	// Tab walks the built-ins in order and ends on the typeless entry, which
+	// stays reachable so a comment can still be left unclassified.
+	for _, want := range []string{"issue", "suggestion", "praise", "none", "note"} {
+		a.CycleCommentType()
+		assertEq(t, a.CommentType.ID(), want, "cycled type id")
+	}
+}
+
+// TestSingleConfiguredTypeStillReachesNone pins the "nothing to cycle" path
+// that the built-ins no longer exercise: a config declaring only a "none"
+// entry has a one-element cycle.
+func TestSingleConfiguredTypeStillReachesNone(t *testing.T) {
+	file := makeFileWithHunks("test.rs", []model.DiffHunk{makeHunk(1, 3)})
+	a := buildAppWithFiles([]model.DiffFile{file}, 20)
+	a.CommentTypes = ResolveCommentTypes([]CommentTypeDef{{ID: "none"}})
+	a.DiffState.CursorLine = hunkDiffLine(t, a, 0, 0)
+	a.EnterCommentMode(false)
+	if !a.CommentType.IsNone() {
+		t.Fatal("a lone none entry must be the default type")
+	}
 	a.CycleCommentType()
 	if !a.CommentType.IsNone() {
 		t.Fatal("cycle with one type must stay on none")
@@ -496,5 +519,60 @@ func TestBuildCommentNavigatorItemsCollapsesMultilineComments(t *testing.T) {
 	}
 	if !a.HasCommentNavigatorItems() {
 		t.Fatal("navigator has items")
+	}
+}
+
+// TestBuiltinCommentTypes pins the shipped cycle. The four ids are not
+// arbitrary: internal/ui maps exactly these onto the theme's comment_note /
+// comment_issue / comment_suggestion / comment_praise slots, so renaming one
+// silently drops it to the fallback colour.
+func TestBuiltinCommentTypes(t *testing.T) {
+	resolved := ResolveCommentTypes(nil)
+
+	ids := make([]string, 0, len(resolved))
+	for _, d := range resolved {
+		ids = append(ids, d.ID)
+	}
+	want := []string{"note", "issue", "suggestion", "praise", "none"}
+	if !slices.Equal(ids, want) {
+		t.Fatalf("cycle = %v, want %v", ids, want)
+	}
+
+	// Every built-in carries a label and a legend definition; the typeless
+	// entry deliberately carries neither.
+	for _, d := range resolved[:len(resolved)-1] {
+		if d.Label != strings.ToUpper(d.ID) {
+			t.Errorf("%s: label = %q, want %q", d.ID, d.Label, strings.ToUpper(d.ID))
+		}
+		if d.Definition == nil || *d.Definition == "" {
+			t.Errorf("%s: needs a definition, it appears in the exported legend", d.ID)
+		}
+		// Colour comes from the theme slot for the id, not a pinned literal.
+		if d.Color != nil {
+			t.Errorf("%s: Color = %q, want nil so the theme decides", d.ID, *d.Color)
+		}
+	}
+}
+
+// TestConfiguredCommentTypesReplaceBuiltins keeps the override contract:
+// declaring types replaces the built-ins entirely rather than extending them,
+// so a user who wants only their own two types gets only those (plus the
+// typeless entry, which stays reachable).
+func TestConfiguredCommentTypesReplaceBuiltins(t *testing.T) {
+	resolved := ResolveCommentTypes([]CommentTypeDef{
+		{ID: "blocker", Label: "BLOCKER"},
+		{ID: "nit"},
+	})
+
+	ids := make([]string, 0, len(resolved))
+	for _, d := range resolved {
+		ids = append(ids, d.ID)
+	}
+	if !slices.Equal(ids, []string{"blocker", "nit", "none"}) {
+		t.Fatalf("cycle = %v, want [blocker nit none] with no built-ins", ids)
+	}
+	// An omitted label still falls back to the id.
+	if resolved[1].Label != "nit" {
+		t.Errorf("label = %q, want the id as fallback", resolved[1].Label)
 	}
 }

@@ -238,3 +238,50 @@ func TestExportAfterComment(t *testing.T) {
 	}
 	_ = model.ClearCommentsOnly // keep model import for clarity of intent
 }
+
+// TestExportLegendListsUsedCommentTypes covers the "Comment types:" legend.
+// It never rendered: export_legend defaults to on, but renderExport did not
+// pass the app's resolved types into ExportOptions, so usedLegendEntries was
+// always handed nil and every definition written in [[comment_types]] was
+// silently dropped.
+//
+// The legend lists only the types a session actually used, so a review with
+// one NOTE must not advertise ISSUE, SUGGESTION and PRAISE.
+func TestExportLegendListsUsedCommentTypes(t *testing.T) {
+	_, m := testLifecycle(t)
+	moveToDiffLine(t, m)
+	pressRune(m, 'c')
+	for _, r := range "a plain remark" {
+		pressRune(m, r)
+	}
+	press(m, "", tea.KeyEnter, 0)
+
+	// The built-in default type is NOTE, so this comment is a note.
+	text, err := renderExport(m.App, exportOptions{ShowLegend: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(text, "Comment types: NOTE (worth knowing") {
+		t.Errorf("export is missing the NOTE legend entry:\n%s", text)
+	}
+	if !strings.Contains(text, "**[NOTE]**") {
+		t.Errorf("export is missing the [NOTE] tag:\n%s", text)
+	}
+	for _, unused := range []string{"ISSUE", "SUGGESTION", "PRAISE"} {
+		if strings.Contains(text, unused) {
+			t.Errorf("legend advertises unused type %s:\n%s", unused, text)
+		}
+	}
+
+	// export_legend = false drops the line but keeps the per-comment tag.
+	plain, err := renderExport(m.App, exportOptions{ShowLegend: false})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(plain, "Comment types:") {
+		t.Errorf("ShowLegend=false must drop the legend line:\n%s", plain)
+	}
+	if !strings.Contains(plain, "**[NOTE]**") {
+		t.Errorf("the tag must survive ShowLegend=false:\n%s", plain)
+	}
+}

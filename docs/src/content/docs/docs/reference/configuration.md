@@ -55,15 +55,37 @@ definition = "must fix before merge"  # guidance text, included in the legend
 color = "red"                         # a terminal color name or #RRGGBB
 ```
 
-**There are no built-in comment types.** With none declared the only type is
-the untyped one: every comment is untyped, gets no badge and no `[TYPE]` tag,
-and `Tab` has nothing to cycle.
+### The built-in types
 
-Declaring types makes the first one the default, and the comment box shows
-the current type in its title (`Add L60 comment [ISSUE]`). An untyped option
-stays available at the end of the cycle, so you can still leave a comment
-without classifying it — untyped comments get no badge, no tag and no legend
-entry.
+With nothing declared you get four, in this cycle order:
+
+| Type | Means |
+|---|---|
+| `note` | worth knowing; answer or acknowledge |
+| `issue` | must fix before merge |
+| `suggestion` | optional improvement; implement it or say why not |
+| `praise` | positive feedback; nothing to do |
+| *(untyped)* | no badge, no tag, no legend entry |
+
+`note` leads, so it is the type a new comment starts on — an unclassified
+remark should read as a remark, not as a blocker. `Tab` walks the list and ends
+on the untyped entry, so a comment can still be left unclassified.
+
+These four ids are also the ones themes color, through the `comment_note`,
+`comment_issue`, `comment_suggestion` and `comment_praise`
+[slots](../themes/#the-41-slots), so they follow your theme rather than a
+pinned color.
+
+### Declaring your own
+
+Declaring any types **replaces the built-ins entirely** — you get exactly what
+you list, not your types added to theirs. The first entry becomes the default,
+and the comment box shows the current type in its title (`Add L60 comment
+[ISSUE]`). An untyped option is still appended at the end of the cycle, unless
+you declare a `none` entry yourself.
+
+`definition` is what appears in the exported legend, which lists only the types
+a review actually used.
 
 ## Forges
 

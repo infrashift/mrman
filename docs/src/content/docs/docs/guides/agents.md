@@ -74,10 +74,11 @@ mrman review comments --session <slug>
 
 Each comment carries `id`, `location`, `path`, `start_line`, `end_line`,
 `side`, `comment_type`, `lifecycle_state`, `content` and `author`. Comment
-types are your intent made machine-readable: `issue` blocks, `suggestion`
-should be implemented or argued with, `note` wants an answer, `praise` wants
-nothing. Because types are user-defined, a type's `definition` in your config
-is what tells an agent what it means.
+types are your intent made machine-readable, and the four built-ins mean what
+they say: `issue` blocks, `suggestion` should be implemented or argued with,
+`note` wants an answer, `praise` wants nothing. Since types are replaceable, an
+agent should read a type's `definition` rather than assume — a session may use
+`blocker` and `nit` instead.
 
 ### 2. The agent reviews a patch
 
