@@ -576,3 +576,106 @@ func TestConfiguredCommentTypesReplaceBuiltins(t *testing.T) {
 		t.Errorf("label = %q, want the id as fallback", resolved[1].Label)
 	}
 }
+
+// TestNavigatorKeepsCommentsWhenFileCollapsed is the behaviour a reviewer
+// asked for: marking a file reviewed folds it, and the comment list used to
+// empty out with it — losing the notes exactly when you had finished with the
+// file and wanted to keep them.
+func TestNavigatorKeepsCommentsWhenFileCollapsed(t *testing.T) {
+	file := makeFileWithHunks("test.rs", []model.DiffHunk{makeHunk(1, 3)})
+	a := buildAppWithFiles([]model.DiffFile{file}, 20)
+	seedThreeScopedComments(a, "file")
+
+	before := a.BuildCommentNavigatorItems()
+	if len(before) != 3 {
+		t.Fatalf("expected review, file and line comments, got %d", len(before))
+	}
+
+	a.Session.File("test.rs").Reviewed = true
+	a.RebuildAnnotations()
+
+	after := a.BuildCommentNavigatorItems()
+	if len(after) != len(before) {
+		t.Fatalf("collapsing the file dropped items: %d before, %d after", len(before), len(after))
+	}
+	// Order and identity survive; only the jump target is gone.
+	for i := range before {
+		if after[i].Key != before[i].Key {
+			t.Errorf("item %d: key = %+v, want %+v (order must not shift)", i, after[i].Key, before[i].Key)
+		}
+		if after[i].CommentType != before[i].CommentType {
+			t.Errorf("item %d: type = %v, want %v", i, after[i].CommentType, before[i].CommentType)
+		}
+	}
+	// The review-scoped comment is not inside the file, so it keeps its row.
+	if after[0].Key.Scope != NavScopeReview || after[0].TargetAnnotation == NoTargetAnnotation {
+		t.Errorf("the review comment is outside the file and must stay navigable: %+v", after[0])
+	}
+	// The file's own comments have nowhere to jump to.
+	for _, item := range after[1:] {
+		if item.TargetAnnotation != NoTargetAnnotation {
+			t.Errorf("a collapsed file's comment must have no target: %+v", item)
+		}
+	}
+}
+
+// TestNavigableCommentItemsExcludesCollapsed keeps m / M honest: they move the
+// diff cursor, so they must skip comments with no row to land on. Without the
+// filter, PrevComment matched NoTargetAnnotation (-1 < cursor) and jumped to a
+// negative annotation index.
+func TestNavigableCommentItemsExcludesCollapsed(t *testing.T) {
+	file := makeFileWithHunks("test.rs", []model.DiffHunk{makeHunk(1, 3)})
+	a := buildAppWithFiles([]model.DiffFile{file}, 20)
+	seedThreeScopedComments(a, "file")
+	a.Session.File("test.rs").Reviewed = true
+	a.RebuildAnnotations()
+
+	all := a.BuildCommentNavigatorItems()
+	navigable := a.NavigableCommentItems()
+	if len(all) != 3 || len(navigable) != 1 {
+		t.Fatalf("all = %d (want 3), navigable = %d (want 1, the review comment)", len(all), len(navigable))
+	}
+	if navigable[0].Key.Scope != NavScopeReview {
+		t.Errorf("navigable item = %+v, want the review-scoped comment", navigable[0])
+	}
+
+	// Both directions must survive a list whose only navigable row is the
+	// review comment, without moving the cursor somewhere impossible.
+	a.PrevComment()
+	if a.DiffState.CursorLine < 0 {
+		t.Fatalf("PrevComment moved the cursor to %d", a.DiffState.CursorLine)
+	}
+	a.NextComment()
+	if a.DiffState.CursorLine < 0 {
+		t.Fatalf("NextComment moved the cursor to %d", a.DiffState.CursorLine)
+	}
+}
+
+// TestNavigatorKeepsCommentsWhenHunkCollapsed applies the same rule to R,
+// which collapses a single hunk rather than the whole file.
+func TestNavigatorKeepsCommentsWhenHunkCollapsed(t *testing.T) {
+	file := makeFileWithHunks("test.rs", []model.DiffHunk{makeHunk(1, 3)})
+	a := buildAppWithFiles([]model.DiffFile{file}, 20)
+	side := model.LineSideNew
+	a.Session.File("test.rs").AddLineComment(2, newSessionComment("in the hunk", "issue", &side))
+	a.RebuildAnnotations()
+
+	if got := len(a.BuildCommentNavigatorItems()); got != 1 {
+		t.Fatalf("expected the line comment, got %d items", got)
+	}
+	// R acts on the hunk under the cursor.
+	a.DiffState.CursorLine = hunkDiffLine(t, a, 0, 0)
+	a.ToggleHunkReviewed()
+	if !a.IsHunkReviewed(0, 0) {
+		t.Fatal("setup: the hunk was not marked reviewed")
+	}
+	a.RebuildAnnotations()
+
+	items := a.BuildCommentNavigatorItems()
+	if len(items) != 1 {
+		t.Fatalf("collapsing the hunk dropped the comment: %d items", len(items))
+	}
+	if items[0].TargetAnnotation != NoTargetAnnotation {
+		t.Errorf("a collapsed hunk's comment must have no target: %+v", items[0])
+	}
+}

@@ -267,6 +267,11 @@ type CommentNavigatorKey struct {
 	RemoteIdx int
 }
 
+// NoTargetAnnotation marks a navigator item whose comment is not currently
+// rendered, because its file or hunk is collapsed. There is no annotation row
+// to jump to, so Enter opens the peek panel instead.
+const NoTargetAnnotation = -1
+
 // CommentNavigatorItem is one row of the comment navigator panel.
 type CommentNavigatorItem struct {
 	Key CommentNavigatorKey
@@ -394,9 +399,44 @@ func (a *App) commentNavigatorItemForKey(key CommentNavigatorKey, targetAnnotati
 func (a *App) BuildCommentNavigatorItems() []CommentNavigatorItem {
 	var items []CommentNavigatorItem
 	var lastKey *CommentNavigatorKey
+	commitSet, hasCommitSet := a.selectedCommitSet()
+
+	// Marking a file (or hunk) reviewed collapses it, and the annotation
+	// stream then holds nothing for its comments — which used to empty them
+	// out of the navigator too, losing the list exactly when a reviewer had
+	// finished with a file and wanted to keep their notes on it.
+	//
+	// The collapse happens after the header row is emitted, so splicing the
+	// skipped comments in at that header puts them back in the position the
+	// annotations would have given them. Their TargetAnnotation is
+	// NoTargetAnnotation: there is no row to jump to while the file is folded.
+	appendCollapsed := func(keys []CommentNavigatorKey) {
+		for _, key := range keys {
+			if item, ok := a.commentNavigatorItemForKey(key, NoTargetAnnotation); ok {
+				items = append(items, item)
+			}
+		}
+		lastKey = nil
+	}
 
 	for idx := range a.LineAnnotations {
-		key, ok := commentNavigatorKeyFor(&a.LineAnnotations[idx])
+		ann := &a.LineAnnotations[idx]
+		switch ann.Kind {
+		case AnnFileHeader:
+			if a.isFileCollapsed(ann.FileIdx) {
+				appendCollapsed(a.collapsedFileNavigatorKeys(ann.FileIdx, commitSet, hasCommitSet))
+			}
+			lastKey = nil
+			continue
+		case AnnHunkHeader:
+			if a.IsHunkReviewed(ann.FileIdx, ann.HunkIdx) {
+				appendCollapsed(a.collapsedHunkNavigatorKeys(ann.FileIdx, ann.HunkIdx, commitSet, hasCommitSet))
+			}
+			lastKey = nil
+			continue
+		}
+
+		key, ok := commentNavigatorKeyFor(ann)
 		if !ok {
 			lastKey = nil
 			continue
@@ -411,6 +451,116 @@ func (a *App) BuildCommentNavigatorItems() []CommentNavigatorItem {
 		}
 	}
 	return items
+}
+
+// isFileCollapsed reports whether the annotation builder skipped a file's
+// content because it is marked reviewed. Single-file view ignores the
+// reviewed-collapse, so nothing is skipped there.
+func (a *App) isFileCollapsed(fileIdx int) bool {
+	if a.IsSingleFileView || fileIdx < 0 || fileIdx >= len(a.DiffFiles) {
+		return false
+	}
+	return a.Session.IsFileReviewed(a.DiffFiles[fileIdx].DisplayPath())
+}
+
+// collapsedFileNavigatorKeys returns every navigator key the annotation
+// builder would have emitted for a file, in the same order: the forge's
+// file-anchored threads, then file comments, then each hunk's lines.
+func (a *App) collapsedFileNavigatorKeys(fileIdx int, commitSet map[string]bool, hasCommitSet bool) []CommentNavigatorKey {
+	if fileIdx < 0 || fileIdx >= len(a.DiffFiles) {
+		return nil
+	}
+	file := &a.DiffFiles[fileIdx]
+	path := file.DisplayPath()
+	var keys []CommentNavigatorKey
+
+	for _, threadIdx := range a.remoteThreadsByFile[path] {
+		keys = append(keys, CommentNavigatorKey{
+			Scope: NavScopeRemoteThread, FileIdx: fileIdx, RemoteIdx: threadIdx,
+		})
+	}
+	if review := a.Session.File(path); review != nil {
+		for commentIdx, comment := range review.FileComments {
+			if !commentVisibleWith(comment, commitSet, hasCommitSet) {
+				continue
+			}
+			keys = append(keys, CommentNavigatorKey{
+				Scope: NavScopeFile, FileIdx: fileIdx, CommentIdx: commentIdx,
+			})
+		}
+	}
+	for hunkIdx := range file.Hunks {
+		keys = append(keys, a.collapsedHunkNavigatorKeys(fileIdx, hunkIdx, commitSet, hasCommitSet)...)
+	}
+	return keys
+}
+
+// collapsedHunkNavigatorKeys returns the navigator keys for one hunk's lines,
+// mirroring pushLineComments: for each diff line the forge's threads come
+// before the local drafts, and the old side before the new.
+func (a *App) collapsedHunkNavigatorKeys(fileIdx, hunkIdx int,
+	commitSet map[string]bool, hasCommitSet bool) []CommentNavigatorKey {
+	if fileIdx < 0 || fileIdx >= len(a.DiffFiles) {
+		return nil
+	}
+	file := &a.DiffFiles[fileIdx]
+	if hunkIdx < 0 || hunkIdx >= len(file.Hunks) {
+		return nil
+	}
+	path := file.DisplayPath()
+	var lineComments map[uint32][]*model.Comment
+	if review := a.Session.File(path); review != nil {
+		lineComments = review.LineComments
+	}
+
+	var keys []CommentNavigatorKey
+	for _, line := range file.Hunks[hunkIdx].Lines {
+		for _, sided := range []struct {
+			lineNo *uint32
+			side   model.LineSide
+		}{
+			{line.OldLineno, model.LineSideOld},
+			{line.NewLineno, model.LineSideNew},
+		} {
+			if sided.lineNo == nil {
+				continue
+			}
+			for _, threadIdx := range a.remoteThreadsByLine[remoteThreadAnchor{
+				Path: path, Side: sided.side, Line: *sided.lineNo,
+			}] {
+				keys = append(keys, CommentNavigatorKey{
+					Scope: NavScopeRemoteThread, FileIdx: fileIdx, RemoteIdx: threadIdx,
+				})
+			}
+			for commentIdx, comment := range lineComments[*sided.lineNo] {
+				matchesSide := (comment.Side != nil && *comment.Side == sided.side) ||
+					(sided.side == model.LineSideNew && comment.Side == nil)
+				if !matchesSide || !commentVisibleWith(comment, commitSet, hasCommitSet) {
+					continue
+				}
+				keys = append(keys, CommentNavigatorKey{
+					Scope: NavScopeLine, FileIdx: fileIdx,
+					Line: *sided.lineNo, Side: sided.side, CommentIdx: commentIdx,
+				})
+			}
+		}
+	}
+	return keys
+}
+
+// NavigableCommentItems returns the navigator items that have a diff row to
+// jump to — everything except comments inside a collapsed file or hunk. The
+// navigator panel lists all items; m / M move the diff cursor, so they can
+// only visit rows that actually exist.
+func (a *App) NavigableCommentItems() []CommentNavigatorItem {
+	items := a.BuildCommentNavigatorItems()
+	navigable := make([]CommentNavigatorItem, 0, len(items))
+	for _, item := range items {
+		if item.TargetAnnotation != NoTargetAnnotation {
+			navigable = append(navigable, item)
+		}
+	}
+	return navigable
 }
 
 // HasCommentNavigatorItems reports whether any navigable comment exists.
@@ -430,6 +580,11 @@ func (a *App) jumpToCommentItem(item *CommentNavigatorItem) {
 			}
 		}
 	}
+	if item.TargetAnnotation == NoTargetAnnotation {
+		// Nothing rendered to move to: the caller should have opened the peek
+		// panel instead of jumping.
+		return
+	}
 	a.MoveCursorToAnnotation(item.TargetAnnotation)
 	if fileIdx >= 0 {
 		fileChanged := a.DiffState.CurrentFileIdx != fileIdx
@@ -445,7 +600,7 @@ func (a *App) jumpToCommentItem(item *CommentNavigatorItem) {
 // NextComment jumps to the first comment after the cursor, wrapping to the
 // first comment overall.
 func (a *App) NextComment() {
-	items := a.BuildCommentNavigatorItems()
+	items := a.NavigableCommentItems()
 	if len(items) == 0 {
 		a.SetMessage("No comments")
 		return
@@ -466,7 +621,7 @@ func (a *App) NextComment() {
 // PrevComment jumps to the last comment before the cursor (skipping the
 // comment the cursor is on), wrapping to the last comment overall.
 func (a *App) PrevComment() {
-	items := a.BuildCommentNavigatorItems()
+	items := a.NavigableCommentItems()
 	if len(items) == 0 {
 		a.SetMessage("No comments")
 		return
