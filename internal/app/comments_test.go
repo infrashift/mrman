@@ -772,3 +772,76 @@ func TestPeekScrollClamps(t *testing.T) {
 		t.Errorf("scrolling past the end gave offset %d, want %d", p.ScrollOffset, want)
 	}
 }
+
+// TestSaveCommentSnapshotsLineContext covers the anchor snapshot. A comment is
+// anchored by (path, line, side) and nothing else, so after a rebase or amend
+// line 42 may be a different line — or gone. Recording the line's content at
+// creation time is what lets a later session tell "still the same code" from
+// "the line moved" from "the code is gone", instead of silently re-anchoring
+// onto whatever now occupies that number.
+func TestSaveCommentSnapshotsLineContext(t *testing.T) {
+	file := makeFileWithHunks("test.rs", []model.DiffHunk{makeHunk(1, 3)})
+	a := buildAppWithFiles([]model.DiffFile{file}, 20)
+	a.DiffState.CursorLine = hunkDiffLine(t, a, 0, 0)
+
+	a.EnterCommentMode(false)
+	a.CommentBuffer = "needs a guard"
+	saved := a.SaveComment()
+	if saved == nil {
+		t.Fatal("SaveComment returned nil")
+	}
+	if saved.LineContext == nil {
+		t.Fatal("a line comment must carry a line-context snapshot")
+	}
+	if saved.LineContext.NewLine == nil {
+		t.Fatalf("snapshot has no new-side line number: %+v", saved.LineContext)
+	}
+	// The snapshot must describe the line the comment is filed under.
+	anchor := a.LineContextAt("test.rs", *saved.LineContext.NewLine, model.LineSideNew)
+	if anchor == nil {
+		t.Fatal("the anchored line is not in the diff")
+	}
+	if saved.LineContext.Content != anchor.Content {
+		t.Errorf("snapshot content = %q, want the anchored line's %q",
+			saved.LineContext.Content, anchor.Content)
+	}
+}
+
+// TestFileAndReviewCommentsHaveNoLineContext keeps the snapshot to comments
+// that have a line to go stale. A file- or review-scoped comment has none, so
+// carrying an empty snapshot would only invite a false staleness verdict later.
+func TestFileAndReviewCommentsHaveNoLineContext(t *testing.T) {
+	file := makeFileWithHunks("test.rs", []model.DiffHunk{makeHunk(1, 3)})
+	a := buildAppWithFiles([]model.DiffFile{file}, 20)
+	a.DiffState.CursorLine = hunkDiffLine(t, a, 0, 0)
+
+	a.EnterCommentMode(true) // file-level
+	a.CommentBuffer = "this file does two jobs"
+	if saved := a.SaveComment(); saved == nil {
+		t.Fatal("SaveComment returned nil")
+	} else if saved.LineContext != nil {
+		t.Errorf("a file comment must carry no line context, got %+v", saved.LineContext)
+	}
+
+	a.EnterReviewCommentMode()
+	a.CommentBuffer = "overall this looks right"
+	if saved := a.SaveComment(); saved == nil {
+		t.Fatal("SaveComment returned nil")
+	} else if saved.LineContext != nil {
+		t.Errorf("a review comment must carry no line context, got %+v", saved.LineContext)
+	}
+}
+
+// TestLineContextAtMissingLine covers the unverifiable case: a line that is not
+// in the diff yields no snapshot, so the comment is simply unverifiable rather
+// than being wrongly recorded against the wrong content.
+func TestLineContextAtMissingLine(t *testing.T) {
+	file := makeFileWithHunks("test.rs", []model.DiffHunk{makeHunk(1, 3)})
+	a := buildAppWithFiles([]model.DiffFile{file}, 20)
+	if got := a.LineContextAt("test.rs", 9999, model.LineSideNew); got != nil {
+		t.Errorf("LineContextAt for a line outside the diff = %+v, want nil", got)
+	}
+	if got := a.LineContextAt("nope.rs", 1, model.LineSideNew); got != nil {
+		t.Errorf("LineContextAt for an unknown file = %+v, want nil", got)
+	}
+}

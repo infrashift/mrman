@@ -1054,6 +1054,9 @@ func (a *App) SaveComment() *model.Comment {
 		if path, ok := a.CurrentFilePath(); ok {
 			var target reviewcli.CommentTarget
 			var successMessage string
+			// Snapshotted for line-anchored comments only: a file- or
+			// review-scoped comment has no line whose content could go stale.
+			var lineContext *model.LineContext
 			switch {
 			case a.CommentIsFileLevel:
 				target = reviewcli.CommentTarget{Kind: reviewcli.TargetFile, Path: path}
@@ -1069,12 +1072,16 @@ func (a *App) SaveComment() *model.Comment {
 					Kind: reviewcli.TargetLineRange, Path: path,
 					Range: rng.Range, Side: rng.Side,
 				}
+				// Ranges are keyed by their end line, so that is the anchor
+				// whose content is worth snapshotting.
+				lineContext = a.LineContextAt(path, rng.Range.End, rng.Side)
 			case a.CommentLine != nil:
 				target = reviewcli.CommentTarget{
 					Kind: reviewcli.TargetLine, Path: path,
 					Line: a.CommentLine.Line, Side: a.CommentLine.Side,
 				}
 				successMessage = fmt.Sprintf("Comment added to line %d", a.CommentLine.Line)
+				lineContext = a.LineContextAt(path, a.CommentLine.Line, a.CommentLine.Side)
 			default:
 				target = reviewcli.CommentTarget{Kind: reviewcli.TargetFile, Path: path}
 				successMessage = "File comment added"
@@ -1086,6 +1093,7 @@ func (a *App) SaveComment() *model.Comment {
 				CommentType: a.CommentType,
 				Author:      a.usernameOrDefault(),
 				CommitID:    a.CommitIDForNewComment(),
+				LineContext: lineContext,
 			})
 			if err != nil {
 				message = fmt.Sprintf("Error: Could not save comment: %v", err)

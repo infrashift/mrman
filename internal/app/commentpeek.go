@@ -134,34 +134,7 @@ func (a *App) buildPeekLines(item CommentNavigatorItem) (lines []PeekLine, ancho
 // side out of the in-memory diff, so the panel needs no forge round trip even
 // for a folded file.
 func (a *App) peekContextLines(fileIdx int, line uint32, side *model.LineSide) ([]PeekLine, int) {
-	file := &a.DiffFiles[fileIdx]
-	wantOld := side != nil && *side == model.LineSideOld
-
-	// Flatten the file's diff lines, then locate the anchor within them, so
-	// context can cross a hunk boundary the way the diff pane shows it.
-	type flat struct {
-		lineno uint32
-		text   string
-		ok     bool
-	}
-	var rows []flat
-	anchorIdx := -1
-	for hunkIdx := range file.Hunks {
-		for _, dl := range file.Hunks[hunkIdx].Lines {
-			no := dl.NewLineno
-			if wantOld {
-				no = dl.OldLineno
-			}
-			row := flat{text: dl.Content}
-			if no != nil {
-				row.lineno, row.ok = *no, true
-			}
-			if row.ok && row.lineno == line && anchorIdx < 0 {
-				anchorIdx = len(rows)
-			}
-			rows = append(rows, row)
-		}
-	}
+	rows, anchorIdx := a.flattenDiffLines(fileIdx, line, side)
 	if anchorIdx < 0 {
 		return nil, -1
 	}
@@ -274,4 +247,87 @@ func peekBodyLines(content string) []PeekLine {
 		lines = append(lines, PeekLine{Kind: PeekCommentBody, Text: line})
 	}
 	return lines
+}
+
+// flatDiffLine is one diff row flattened out of a file's hunks, carrying the
+// line number on the requested side.
+type flatDiffLine struct {
+	lineno uint32
+	text   string
+	ok     bool // the line exists on the requested side
+}
+
+// flattenDiffLines flattens a file's hunks into one sequence and reports the
+// index of the row anchored at line on side, or -1 when that line is not in
+// the diff. Flattening across hunks is deliberate: the diff pane shows hunks
+// as one continuous body, so context should read the same way.
+func (a *App) flattenDiffLines(fileIdx int, line uint32, side *model.LineSide) ([]flatDiffLine, int) {
+	if fileIdx < 0 || fileIdx >= len(a.DiffFiles) {
+		return nil, -1
+	}
+	file := &a.DiffFiles[fileIdx]
+	wantOld := side != nil && *side == model.LineSideOld
+
+	var rows []flatDiffLine
+	anchorIdx := -1
+	for hunkIdx := range file.Hunks {
+		for _, dl := range file.Hunks[hunkIdx].Lines {
+			no := dl.NewLineno
+			if wantOld {
+				no = dl.OldLineno
+			}
+			row := flatDiffLine{text: dl.Content}
+			if no != nil {
+				row.lineno, row.ok = *no, true
+			}
+			if row.ok && row.lineno == line && anchorIdx < 0 {
+				anchorIdx = len(rows)
+			}
+			rows = append(rows, row)
+		}
+	}
+	return rows, anchorIdx
+}
+
+// LineContextAt snapshots the diff line anchored at line on side: both line
+// numbers and the line's content, as they are right now.
+//
+// This is what lets a later session distinguish "the anchor still points at
+// the code this comment was written about" from "the line moved" and from
+// "the code is gone" — a distinction the line number alone cannot make, and
+// the reason a review must not silently carry anchors across a rewrite.
+//
+// Returns nil when the line is not in the current diff, so a comment that
+// could not be snapshotted is simply unverifiable rather than wrongly marked.
+func (a *App) LineContextAt(path string, line uint32, side model.LineSide) *model.LineContext {
+	fileIdx := a.fileIdxForPath(path)
+	if fileIdx < 0 {
+		return nil
+	}
+	file := &a.DiffFiles[fileIdx]
+	for hunkIdx := range file.Hunks {
+		for _, dl := range file.Hunks[hunkIdx].Lines {
+			no := dl.NewLineno
+			if side == model.LineSideOld {
+				no = dl.OldLineno
+			}
+			if no == nil || *no != line {
+				continue
+			}
+			return &model.LineContext{
+				NewLine: clonePtrU32(dl.NewLineno),
+				OldLine: clonePtrU32(dl.OldLineno),
+				Content: dl.Content,
+			}
+		}
+	}
+	return nil
+}
+
+func clonePtrU32(p *uint32) *uint32 {
+	if p == nil {
+		return nil
+	}
+	v := *p
+	return &v
 }

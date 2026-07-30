@@ -38,6 +38,11 @@ type AddCommentRequest struct {
 	CommentType model.CommentType
 	Author      string
 	CommitID    *string
+	// LineContext snapshots the anchored line's numbers and content so a
+	// later session can tell whether the anchor still points at the code the
+	// comment was written about. Only callers with the diff in hand can
+	// supply it: the TUI does, `mrman review add` cannot and leaves it nil.
+	LineContext *model.LineContext
 }
 
 // AddCommentToSession is the single comment-insertion primitive shared by
@@ -85,6 +90,7 @@ func AddCommentToSession(session *model.ReviewSession, req AddCommentRequest) (*
 
 	comment.Author = req.Author
 	comment.CommitID = req.CommitID
+	comment.LineContext = req.LineContext.Clone()
 	session.UpdatedAt = nowFn()
 	return comment, nil
 }
