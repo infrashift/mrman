@@ -49,11 +49,22 @@ func New(path string, opts patch.Options) (*Backend, error) {
 	if err != nil {
 		return nil, err
 	}
-	if st, err := os.Stat(abs); err != nil {
+	st, err := os.Stat(abs)
+	if err != nil {
 		return nil, err
-	} else if st.IsDir() {
+	}
+	switch {
+	case st.IsDir():
 		return nil, &errs.InvalidInput{Detail: fmt.Sprintf(
 			"%s is a directory; --patch takes a single .patch, .diff or .mbox file", path)}
+	case !st.Mode().IsRegular():
+		// A pipe or process substitution can only be read once, and this
+		// backend re-reads the artifact on every reload — that is how :e
+		// works. Failing here says so, rather than letting the second read
+		// come back empty and report a perfectly good patch as unparseable.
+		return nil, &errs.InvalidInput{Detail: fmt.Sprintf(
+			"%s is not a regular file; --patch needs one it can re-read, so "+
+				"redirect to a file first", path)}
 	}
 
 	b := &Backend{source: abs, opts: opts}
@@ -168,12 +179,32 @@ func (b *Backend) CommitRangeDiff(rng vcs.ResolvedRevisionRange, h *syntax.Highl
 	}
 
 	var selected []patch.Patch
+	var diffless int
 	for i := range b.series.Patches {
-		if wanted[b.patchID(i)] {
-			selected = append(selected, b.series.Patches[i])
+		if !wanted[b.patchID(i)] {
+			continue
+		}
+		selected = append(selected, b.series.Patches[i])
+		if strings.TrimSpace(b.series.Patches[i].DiffText) == "" {
+			diffless++
 		}
 	}
+
+	// Selecting only a cover letter is a normal thing to do — it is a row in
+	// the strip like any other — and "no changes to review" would send the
+	// reviewer looking for an empty patch. Say what actually happened.
+	if len(selected) > 0 && diffless == len(selected) {
+		return nil, &errs.InvalidInput{Detail: coverLetterDetail(selected)}
+	}
 	return b.diffFor(selected, h)
+}
+
+// coverLetterDetail names why a selection carries nothing to review.
+func coverLetterDetail(selected []patch.Patch) string {
+	if len(selected) == 1 {
+		return "that message is prose only — a cover letter carries no diff"
+	}
+	return "none of the selected messages carry a diff"
 }
 
 // ChangeStatus reports no staged or unstaged changes.

@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 
 	"github.com/infrashift/mrman/internal/errs"
@@ -323,4 +324,62 @@ func hunkContains(files []model.DiffFile, want string) bool {
 		}
 	}
 	return false
+}
+
+// TestCoverLetterSelectionSaysWhy covers a normal thing to do: the cover
+// letter is a row in the commit strip like any other, and selecting it used
+// to report "no changes to review" — which sends the reviewer looking for an
+// empty patch rather than telling them the message is prose.
+func TestCoverLetterSelectionSaysWhy(t *testing.T) {
+	b := open(t, "format-patch-series-3.mbox")
+	commits, err := b.RecentCommits(0, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Oldest row is the 0/2 cover letter.
+	cover := commits[len(commits)-1]
+	if cover.ShortID != "0/2" {
+		t.Fatalf("expected the cover letter last, got %q", cover.ShortID)
+	}
+
+	_, err = b.CommitRangeDiff(vcs.ResolvedRevisionRange{CommitIDs: []string{cover.ID}}, nil)
+	if err == nil {
+		t.Fatal("selecting a cover letter should report why there is nothing to show")
+	}
+	if errors.Is(err, errs.ErrNoChanges) {
+		t.Error("ErrNoChanges reads as an empty patch; the cover letter needs its own words")
+	}
+	if !strings.Contains(err.Error(), "cover letter") {
+		t.Errorf("err = %q, want it to name the cover letter", err)
+	}
+
+	// A selection that includes a real patch still works.
+	withReal := vcs.ResolvedRevisionRange{CommitIDs: []string{cover.ID, commits[0].ID}}
+	if _, err := b.CommitRangeDiff(withReal, nil); err != nil {
+		t.Errorf("a selection containing a real patch should load: %v", err)
+	}
+}
+
+// TestRejectsNonRegularFiles covers `--patch <(git format-patch --stdout …)`,
+// which reads like it should work and cannot: the backend re-reads the
+// artifact on every reload — that is how :e works — and a pipe can only be
+// read once. Without this the second read comes back empty and a perfectly
+// good patch is reported as unparseable.
+func TestRejectsNonRegularFiles(t *testing.T) {
+	dir := t.TempDir()
+	fifo := filepath.Join(dir, "pipe.patch")
+	if err := syscall.Mkfifo(fifo, 0o600); err != nil {
+		t.Skipf("cannot create a fifo here: %v", err)
+	}
+
+	_, err := New(fifo, patch.Options{})
+	if err == nil {
+		t.Fatal("a pipe should be refused, not half-read")
+	}
+	if !strings.Contains(err.Error(), "regular file") {
+		t.Errorf("err = %q, want it to name the problem", err)
+	}
+	if !strings.Contains(err.Error(), "redirect to a file") {
+		t.Errorf("err = %q, want it to say what to do instead", err)
+	}
 }

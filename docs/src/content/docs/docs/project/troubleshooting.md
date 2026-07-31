@@ -219,6 +219,30 @@ The previous session is not deleted in any of these cases. Find it with
 `mrman review list --repo .` — the `anchor` column shows which HEAD each one
 belongs to.
 
+## `--patch` refuses a pipe or process substitution
+
+```
+invalid input: /dev/fd/63 is not a regular file
+```
+
+mrman re-reads the artifact every time you reload with `:e`, and a pipe can
+only be read once. Redirect to a file first:
+
+```sh
+git format-patch --stdout -3 > /tmp/series.mbox
+mrman --patch /tmp/series.mbox
+```
+
+## Selecting a patch says it carries no diff
+
+```
+Load failed: that message is prose only — a cover letter carries no diff
+```
+
+You selected the `0/N` cover letter on its own. It is a row in the commit strip
+like any other, but it holds the series' prose rather than a change. Read it
+there, or select it together with a patch that does carry a diff.
+
 ## `go install` fails, or `GOWORK=off go build` fails
 
 Expected until the first release. mrman keeps three reusable layers in a nested

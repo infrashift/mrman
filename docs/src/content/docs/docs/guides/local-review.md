@@ -48,6 +48,9 @@ no version control involved at all. There is no repository requirement, no
 remote, nothing to detect. It is the right tool for reviewing a design
 document, a generated report, or a directory someone sent you.
 
+`--patch` takes a `.patch`, `.diff` or mbox file and reviews it with no
+repository at all — see [Reviewing Patches](../patches/).
+
 `-A` (**pristine mode**) is the repository-wide version: it collects every
 tracked file and presents all of them as reviewable, so you can annotate code
 that nobody changed. Useful for onboarding notes, audits and architecture

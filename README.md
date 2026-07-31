@@ -36,6 +36,7 @@ mrman -r main..HEAD        # review a commit range / revset
 mrman -p src/              # limit the diff to a path prefix
 mrman --file notes.md      # review any file, no VCS needed
 mrman -A                   # pristine mode: annotate every tracked file
+mrman --patch series.mbox  # review a .patch, .diff or mbox file, no repo needed
 mrman pr 125               # review a pull request (repo from your checkout)
 mrman pr owner/repo#125    # ... or addressed explicitly
 mrman pr <PR/MR URL>       # ... or by URL (any supported forge)
@@ -77,6 +78,17 @@ advanced to a new head opens the review for that head rather than
 re-anchoring your comments), and on a multi-commit pull request mrman marks
 the commits your last review already covered and preselects what landed
 since.
+
+### Reviewing patches
+
+`--patch` reviews a `.patch`, `.diff` or mbox file with no repository behind
+it — for airgapped work, and for mailing-list projects where the unit of
+review is a posted series. A series presents as a commit strip, so `(` / `)`
+walk it patch by patch and each patch's changelog is itself reviewable.
+`:patch` replies with the diff quoted and your comments interleaved, tabs
+intact, threaded when the artifact carried a `Message-Id`. See
+[Reviewing Patches](https://infrashift.github.io/mrman/docs/guides/patches/)
+and [Patch Workflows](https://infrashift.github.io/mrman/docs/guides/patch-workflows/).
 
 ### Sharing a review
 

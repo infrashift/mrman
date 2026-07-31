@@ -11,6 +11,7 @@ preference.
 |---|---|---|
 | A pull request (`mrman pr …`) | **Submit to the forge** | Inline comments on the PR, in their normal review flow |
 | Local commits or the working tree | **Markdown export** | A document they can read anywhere — chat, email, an issue |
+| A posted patch (`mrman --patch …`) | **A quoted-diff reply** | The diff back with your comments inline, ready to send |
 | Anything, for an AI agent on this machine | **The session slug** | Live JSON access to your comments |
 
 There is no fourth option where you send someone a session file and they open
@@ -105,6 +106,16 @@ Two things make an exported review land better:
   SUGGESTION or PRAISE. The recipient can tell "this blocks" from "here is a
   thought" without inferring it from your tone, and the legend explains the
   vocabulary to someone who has never used mrman.
+
+## Patches: reply with the diff quoted
+
+A review of a posted patch has its own artifact: `:patch` renders the diff back
+with your comments interleaved beneath the lines they refer to, threaded
+against the original when it carried a `Message-Id`. That is what a mailing
+list expects, and markdown notes are not a substitute for it.
+
+[Reviewing Patches](../patches/) covers the mode;
+[Patch Workflows](../patch-workflows/) walks the exchange end to end.
 
 ## Agents: hand over the slug
 

@@ -27,6 +27,8 @@ These are persistent flags on the root command, so they apply to `mrman`,
 | `-A`, `--all-files` | false | Pristine mode: annotate every tracked file (git only) |
 | `--theme <name>` | — | Bundled theme name, or a file in `themes/` |
 | `--appearance <mode>` | — | `light`, `dark` or `system`, used when no explicit theme |
+| `--patch <file>` | | Review a `.patch`, `.diff` or mbox file with no repository ([guide](../../guides/patches/)) |
+| `--patch-strip <n>` | 1 | Leading path components to strip from a patch, like `patch -p<n>` |
 | `--stdout` | false | Export review markdown to stdout instead of the clipboard |
 | `--repo-url <url>` | — | Override the forge repository for PR operations |
 | `--forge <kind>` | — | Forge for ambiguous targets: `github`, `gitlab`, `azuredevops`, `forgejo` |

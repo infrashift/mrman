@@ -45,6 +45,13 @@ export default defineConfig({
 					],
 				},
 				{
+					label: 'Patches',
+					items: [
+						{ label: 'Reviewing Patches', slug: 'docs/guides/patches' },
+						{ label: 'Patch Workflows', slug: 'docs/guides/patch-workflows' },
+					],
+				},
+				{
 					label: 'Guides',
 					items: [
 						{ label: 'Sharing a Review', slug: 'docs/guides/sharing' },
