@@ -389,7 +389,7 @@ func (a *App) GoToSourceLine(targetLineno uint32, side model.LineSide) {
 	// collapsed (or partially collapsed) gap between hunks. If so, expand
 	// toward the target from whichever side the cursor is on; the unreached
 	// half of the gap stays collapsed behind an expander.
-	if result.Kind != FindExact {
+	if result.Kind != FindExact && a.contextGapsEnabled() {
 		if gapID, ok := a.findGapContainingLineno(currentFile, targetLineno, side); ok {
 			direction, limit := a.expandPlanToReach(gapID, targetLineno, side)
 			if err := a.ExpandGap(gapID, direction, limit); err != nil {

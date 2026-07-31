@@ -64,6 +64,14 @@ type ContextProvider interface {
 	FetchContextLines(oldPath, newPath *string, status model.FileStatus, start, end uint32) ([]model.DiffLine, error)
 	// FileLineCount returns the total line count of the file snapshot.
 	FileLineCount(oldPath, newPath *string, status model.FileStatus) (uint32, error)
+	// CanExpand reports whether there is anything outside the diff to expand
+	// into. A patch artifact carries only the context inside its own hunks
+	// and has no tree to read the rest from, so its expanders would be dead
+	// keys — the reviewer presses one and nothing happens, with no
+	// explanation. Making this a capability of the provider rather than a
+	// switch on the diff source means the answer travels with the thing that
+	// would have to do the fetching.
+	CanExpand() bool
 }
 
 // VcsContextProvider adapts a vcs.Backend into a ContextProvider, reading
@@ -92,6 +100,27 @@ func (p VcsContextProvider) FetchContextLines(oldPath, newPath *string, status m
 func (p VcsContextProvider) FileLineCount(oldPath, newPath *string, status model.FileStatus) (uint32, error) {
 	return p.Backend.FileLineCount(providerPath(oldPath, newPath), status, p.RefCommit)
 }
+
+// CanExpand is true: a checkout has the rest of the file on disk.
+func (p VcsContextProvider) CanExpand() bool { return true }
+
+// noContextProvider serves a diff that is all there is — a patch artifact.
+// It answers every request emptily and reports that expansion is impossible,
+// so the gap rows are never drawn in the first place.
+type noContextProvider struct{}
+
+// FetchContextLines returns nothing; there is no snapshot to read.
+func (noContextProvider) FetchContextLines(_, _ *string, _ model.FileStatus, _, _ uint32) ([]model.DiffLine, error) {
+	return nil, nil
+}
+
+// FileLineCount reports zero, which suppresses the end-of-file gap.
+func (noContextProvider) FileLineCount(_, _ *string, _ model.FileStatus) (uint32, error) {
+	return 0, nil
+}
+
+// CanExpand is false.
+func (noContextProvider) CanExpand() bool { return false }
 
 // GapSize is the number of hidden lines in a gap (new-side coordinates).
 func (a *App) GapSize(gapID GapID) (uint32, bool) {
@@ -426,11 +455,17 @@ func (a *App) refCommit() *string {
 // PR mode reads from the forge snapshot cache (prcontext.go); everything
 // else reads the local VCS backend.
 func (a *App) contextProvider() ContextProvider {
-	if a.InPrMode() {
+	switch {
+	case a.InPrMode():
 		return a.ensurePrContext()
+	case a.DiffSource.Kind == DiffSourcePatch:
+		return noContextProvider{}
 	}
 	return VcsContextProvider{Backend: a.VCS, RefCommit: a.refCommit()}
 }
+
+// contextGapsEnabled reports whether hidden-context rows are worth drawing.
+func (a *App) contextGapsEnabled() bool { return a.contextProvider().CanExpand() }
 
 // CollapseGap collapses an expanded gap.
 func (a *App) CollapseGap(gapID GapID) {
@@ -455,6 +490,11 @@ func (a *App) eofGapEnabled() bool {
 		DiffSourceStagedUnstagedAndCommits, DiffSourceCommitRange, DiffSourcePullRequest:
 		return true
 	case DiffSourceStaged:
+		return false
+	case DiffSourcePatch:
+		// No file on disk to measure. This switch also gates the eager
+		// per-file FileLineCount that NewApp runs at startup, which the patch
+		// backend cannot answer — so returning false here spares it too.
 		return false
 	}
 	return false

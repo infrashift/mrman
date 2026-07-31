@@ -42,9 +42,14 @@ type TuiOptions struct {
 	WorkingTree bool
 	File        string
 	AllFiles    bool
-	Stdout      bool
-	RepoURL     string
-	Forge       string
+	// Patch is a .patch, .diff or mbox artifact to review without a
+	// repository; PatchStrip is how many leading path components to drop
+	// from the paths it declares (0 means the -p1 convention).
+	Patch      string
+	PatchStrip int
+	Stdout     bool
+	RepoURL    string
+	Forge      string
 	// JSON opens a pull-request session headlessly and prints it, instead
 	// of launching the TUI.
 	JSON bool

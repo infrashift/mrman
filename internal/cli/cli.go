@@ -98,6 +98,8 @@ func addTuiFlags(cmd *cobra.Command, o *TuiOptions) {
 	f.BoolVarP(&o.WorkingTree, "working-tree", "w", false, "review working tree changes, skipping the selector")
 	f.StringVar(&o.File, "file", "", "review a file or directory without any VCS")
 	f.BoolVarP(&o.AllFiles, "all-files", "A", false, "annotate every tracked file (pristine mode, git only)")
+	f.StringVar(&o.Patch, "patch", "", "review a .patch, .diff or mbox file without any repository")
+	f.IntVar(&o.PatchStrip, "patch-strip", 0, "leading path components to strip from a patch (like patch -p, default 1)")
 	f.BoolVar(&o.Stdout, "stdout", false, "export review markdown to stdout instead of the clipboard")
 	f.StringVar(&o.RepoURL, "repo-url", "", "override the forge repository for PR operations")
 	f.StringVar(&o.Forge, "forge", "", "forge for ambiguous targets: github|gitlab|azuredevops|forgejo")
@@ -112,6 +114,13 @@ func addTuiFlags(cmd *cobra.Command, o *TuiOptions) {
 	cmd.MarkFlagsMutuallyExclusive("all-files", "path")
 	cmd.MarkFlagsMutuallyExclusive("all-files", "revisions")
 	cmd.MarkFlagsMutuallyExclusive("all-files", "working-tree")
+	// A patch artifact is its own review target: there is no repository to
+	// filter, revise or compare against.
+	cmd.MarkFlagsMutuallyExclusive("patch", "file")
+	cmd.MarkFlagsMutuallyExclusive("patch", "all-files")
+	cmd.MarkFlagsMutuallyExclusive("patch", "path")
+	cmd.MarkFlagsMutuallyExclusive("patch", "revisions")
+	cmd.MarkFlagsMutuallyExclusive("patch", "working-tree")
 	// Load-bearing: --json is the agent-invocable path, so it must never be
 	// able to issue a grant. See internal/cli/agentgrant.go.
 	cmd.MarkFlagsMutuallyExclusive("json", "auto")
@@ -243,6 +252,7 @@ func rejectTuiFlags(cmd *cobra.Command) error {
 	tuiFlags := []string{
 		"revisions", "theme", "appearance", "path", "working-tree",
 		"file", "all-files", "stdout", "repo-url", "forge",
+		"patch", "patch-strip",
 	}
 	root := cmd.Root()
 	for _, name := range tuiFlags {

@@ -27,6 +27,13 @@ const (
 	// DiffSourcePullRequest is a stub in M3: the PR identity payload lands
 	// with the forge milestone.
 	DiffSourcePullRequest
+	// DiffSourcePatch reviews a standalone patch artifact — a .patch file, a
+	// mail message, or an mbox series — with no repository behind it.
+	//
+	// New kinds must be appended here, never inserted: output.ScopeKind
+	// mirrors this order and callers convert with a plain int cast, so an
+	// insertion silently relabels every exported review.
+	DiffSourcePatch
 )
 
 // DiffSource is the runtime diff target. Commits carries the commit ids for
@@ -44,7 +51,7 @@ func (d DiffSource) IncludesWorktreeChanges() bool {
 	case DiffSourceWorkingTree, DiffSourceUnstaged, DiffSourceStagedAndUnstaged,
 		DiffSourceStagedUnstagedAndCommits:
 		return true
-	case DiffSourceStaged, DiffSourceCommitRange, DiffSourcePullRequest:
+	case DiffSourceStaged, DiffSourceCommitRange, DiffSourcePullRequest, DiffSourcePatch:
 		return false
 	}
 	return false

@@ -15,11 +15,13 @@ import (
 	"github.com/infrashift/mrman/internal/errs"
 	"github.com/infrashift/mrman/internal/ignore"
 	"github.com/infrashift/mrman/internal/model"
+	"github.com/infrashift/mrman/internal/patch"
 	"github.com/infrashift/mrman/internal/persistence"
 	"github.com/infrashift/mrman/internal/theme"
 	"github.com/infrashift/mrman/internal/vcs"
 	"github.com/infrashift/mrman/internal/vcs/detect"
 	"github.com/infrashift/mrman/internal/vcs/filebackend"
+	"github.com/infrashift/mrman/internal/vcs/patchbackend"
 )
 
 // Run opens the read-only TUI for the given CLI options (M3 scope: working
@@ -42,7 +44,16 @@ func Run(opts cli.TuiOptions) error {
 	}
 
 	var backend vcs.Backend
+	// patchBackend is non-nil only for a --patch review; it carries the
+	// parsed series for the commit strip and the reply exporter.
+	var patchBackend *patchbackend.Backend
 	switch {
+	case opts.Patch != "":
+		pb, pbErr := patchbackend.New(opts.Patch, patch.Options{StripLevel: opts.PatchStrip})
+		if pbErr != nil {
+			return pbErr
+		}
+		backend, patchBackend = pb, pb
 	case opts.File != "":
 		fb, fbErr := filebackend.New(opts.File)
 		if fbErr != nil {
@@ -74,7 +85,7 @@ func Run(opts cli.TuiOptions) error {
 	// No explicit target and a real VCS → open the target selector instead
 	// of loading a diff (tuicr's default entry).
 	selectorStart := opts.Revisions == "" && !opts.WorkingTree &&
-		opts.File == "" && !opts.AllFiles
+		opts.File == "" && !opts.AllFiles && opts.Patch == ""
 
 	highlighter := resolved.Highlighter()
 	var files []model.DiffFile
@@ -96,6 +107,12 @@ func Run(opts cli.TuiOptions) error {
 		// describe the commits still reviews the range fine, so failing
 		// here would trade a working review for a missing panel.
 		rangeCommits, _ = backend.CommitsInfo(reversed(rng.CommitIDs))
+	case patchBackend != nil:
+		files, err = backend.WorkingTreeDiff(highlighter)
+		source = app.DiffSource{Kind: app.DiffSourcePatch}
+		// Each patch is a row in the strip, so a series is walked with ( and )
+		// exactly like a multi-commit review.
+		rangeCommits, _ = backend.RecentCommits(0, 0)
 	default:
 		files, err = backend.WorkingTreeDiff(highlighter)
 	}
@@ -268,6 +285,8 @@ func sessionSource(src app.DiffSource) model.SessionDiffSource {
 		return model.SourceUnstaged
 	case app.DiffSourceStagedAndUnstaged:
 		return model.SourceStagedAndUnstaged
+	case app.DiffSourcePatch:
+		return model.SourcePatch
 	}
 	return model.SourceWorkingTree
 }

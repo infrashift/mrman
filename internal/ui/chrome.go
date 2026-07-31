@@ -141,6 +141,11 @@ func headerSourceChunk(a *app.App) string {
 		} else if n > 1 {
 			return fmt.Sprintf("staged + unstaged + %d commits", n)
 		}
+	case app.DiffSourcePatch:
+		if n := len(a.ReviewCommits); n > 1 {
+			return fmt.Sprintf("patch series · %d patches", n)
+		}
+		return "patch"
 	}
 	return ""
 }

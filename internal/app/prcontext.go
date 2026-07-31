@@ -99,6 +99,9 @@ func (p *PrContextProvider) FileLineCount(
 	return snapshot.Count, nil
 }
 
+// CanExpand is true: a forge serves whole-file snapshots on demand.
+func (p *PrContextProvider) CanExpand() bool { return true }
+
 func (p *PrContextProvider) snapshot(oldPath, newPath *string, status model.FileStatus) (*prFileSnapshot, error) {
 	key, ok := prContextKeyFor(oldPath, newPath, status)
 	if !ok {

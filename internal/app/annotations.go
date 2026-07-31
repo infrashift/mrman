@@ -262,7 +262,7 @@ func (a *App) RebuildAnnotations() {
 				gap := calculateGap(prevHunk, hunk.NewStart)
 				gapID := GapID{FileIdx: fileIdx, HunkIdx: hunkIdx}
 
-				if gap > 0 && a.ShouldRenderGapBeforeHunk(fileIdx, hunkIdx) {
+				if gap > 0 && a.contextGapsEnabled() && a.ShouldRenderGapBeforeHunk(fileIdx, hunkIdx) {
 					a.appendGapAnnotations(gapID, int(gap), hunkIdx == 0, false)
 				}
 

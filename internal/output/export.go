@@ -31,6 +31,8 @@ const (
 	// ScopePullRequest reviews a pull request (scope strings are stubs until
 	// PR mode lands).
 	ScopePullRequest
+	// ScopePatch reviews a standalone patch artifact.
+	ScopePatch
 )
 
 // ScopeLine returns the "Reviewing ..." header line for the scope, exactly
@@ -51,7 +53,10 @@ func (k ScopeKind) ScopeLine(commits []string) string {
 		return "Reviewing commits: " + strings.Join(shortSHAs(commits), ", ")
 	case ScopeStagedUnstagedAndCommits:
 		return "Reviewing staged + unstaged + commits: " + strings.Join(shortSHAs(commits), ", ")
-	case ScopeWorkingTree, ScopePullRequest:
+	case ScopeWorkingTree, ScopePullRequest, ScopePatch:
+		// A patch review's scope is the artifact's own name, which the caller
+		// supplies through ExportOptions.DiffSourceLabel — this function only
+		// sees commit ids, and a patch has none.
 		return ""
 	}
 	return ""
@@ -76,6 +81,8 @@ func (k ScopeKind) Label() string {
 		return "selected commit range + staged/unstaged changes"
 	case ScopePullRequest:
 		return "pull request"
+	case ScopePatch:
+		return "patch file"
 	}
 	return ""
 }
