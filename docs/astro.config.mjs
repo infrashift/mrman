@@ -38,10 +38,10 @@ export default defineConfig({
 						{ label: 'How PR Review Works', slug: 'docs/guides/pull-requests' },
 						{ label: 'GitHub', slug: 'docs/forges/github' },
 						{ label: 'GitHub Enterprise Server', slug: 'docs/forges/github-enterprise' },
-						{ label: 'GitLab', slug: 'docs/forges/gitlab' },
+						{ label: 'GitLab', slug: 'docs/forges/gitlab', badge: { text: 'Experimental', variant: 'caution' } },
 						{ label: 'Azure DevOps', slug: 'docs/forges/azure-devops' },
-						{ label: 'Forgejo & Gitea', slug: 'docs/forges/forgejo' },
-						{ label: 'Codeberg', slug: 'docs/forges/codeberg' },
+						{ label: 'Forgejo & Gitea', slug: 'docs/forges/forgejo', badge: { text: 'Experimental', variant: 'caution' } },
+						{ label: 'Codeberg', slug: 'docs/forges/codeberg', badge: { text: 'Experimental', variant: 'caution' } },
 					],
 				},
 				{

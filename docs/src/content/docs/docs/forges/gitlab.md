@@ -5,6 +5,13 @@ sidebar:
   order: 3
 ---
 
+:::caution[Experimental]
+The GitLab driver is implemented and unit-tested, but has not yet been
+exercised against a live instance the way the GitHub one has. Everything on
+this page describes what it does; what it has not had is a real server
+disagreeing with it. See [support levels](../../reference/forge-capabilities/#support-levels).
+:::
+
 mrman reviews GitLab **merge requests** with the same interface it uses for
 pull requests everywhere else. It talks to the GitLab REST API directly, with
 one GraphQL call for "request changes" — it does not shell out to `glab`.
