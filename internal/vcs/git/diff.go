@@ -263,6 +263,7 @@ func (b *Backend) buildUntrackedDiffFile(path string, h *syntax.Highlighter) *mo
 
 	newPath := path
 	return &model.DiffFile{
+		SourceIndex: -1,
 		NewPath:     &newPath,
 		Status:      model.StatusAdded,
 		Hunks:       hunks,
@@ -273,10 +274,11 @@ func (b *Backend) buildUntrackedDiffFile(path string, h *syntax.Highlighter) *mo
 func diffFileWithoutHunks(path string, isBinary, isTooLarge bool) *model.DiffFile {
 	newPath := path
 	return &model.DiffFile{
-		NewPath:    &newPath,
-		Status:     model.StatusAdded,
-		IsBinary:   isBinary,
-		IsTooLarge: isTooLarge,
+		SourceIndex: -1,
+		NewPath:     &newPath,
+		Status:      model.StatusAdded,
+		IsBinary:    isBinary,
+		IsTooLarge:  isTooLarge,
 	}
 }
 

@@ -137,6 +137,7 @@ func InsertCommitMessageIfSingle(files []model.DiffFile, commits []vcs.CommitInf
 	}}
 	path := fmt.Sprintf("Commit Message (%s)", commit.ShortID)
 	commitMsgFile := model.DiffFile{
+		SourceIndex:     -1,
 		NewPath:         &path,
 		Status:          model.StatusAdded,
 		Hunks:           hunks,

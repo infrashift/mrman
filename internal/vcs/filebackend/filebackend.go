@@ -250,6 +250,7 @@ func (b *Backend) buildDiffFileForPath(h *syntax.Highlighter, absPath string, si
 
 	if size > maxFileBytes {
 		return &model.DiffFile{
+			SourceIndex: -1,
 			NewPath:     &relPath,
 			Status:      model.StatusAdded,
 			IsTooLarge:  true,
@@ -276,6 +277,12 @@ func (b *Backend) buildDiffFileForPath(h *syntax.Highlighter, absPath string, si
 		lineContents[i] = vcs.Tabify(l)
 	}
 
+	// The origin marker a diff would carry, so Raw reads as a diff line.
+	rawPrefix := "+"
+	if b.mode == Pristine {
+		rawPrefix = " "
+	}
+
 	var highlighted [][]syntax.Span
 	highlightOK := false
 	if h != nil {
@@ -285,6 +292,7 @@ func (b *Backend) buildDiffFileForPath(h *syntax.Highlighter, absPath string, si
 	diffLines := make([]model.DiffLine, 0, len(lineContents))
 	for i, content := range lineContents {
 		lineNum := uint32(i + 1)
+		raw := rawPrefix + lines[i]
 
 		var spans []syntax.Span
 		if highlightOK && i < len(highlighted) && len(highlighted[i]) > 0 {
@@ -304,6 +312,7 @@ func (b *Backend) buildDiffFileForPath(h *syntax.Highlighter, absPath string, si
 		diffLines = append(diffLines, model.DiffLine{
 			Origin:           renderOrigin,
 			Content:          content,
+			Raw:              raw,
 			OldLineno:        oldLineno,
 			NewLineno:        &newLineno,
 			HighlightedSpans: spans,
@@ -337,6 +346,7 @@ func (b *Backend) buildDiffFileForPath(h *syntax.Highlighter, absPath string, si
 	}}
 
 	return &model.DiffFile{
+		SourceIndex: -1,
 		NewPath:     &relPath,
 		Status:      fileStatus,
 		Hunks:       hunks,

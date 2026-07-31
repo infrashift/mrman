@@ -36,8 +36,11 @@ func SliceContextLines(content string, startLine, endLine uint32) []model.DiffLi
 		lineNo := n
 		oldNo, newNo := lineNo, lineNo
 		result = append(result, model.DiffLine{
-			Origin:    model.OriginContext,
-			Content:   Tabify(lines[idx]),
+			Origin:  model.OriginContext,
+			Content: Tabify(lines[idx]),
+			// The source line with a context line's leading space, kept
+			// untabified so anything quoting this reads as the file does.
+			Raw:       " " + lines[idx],
 			OldLineno: &oldNo,
 			NewLineno: &newNo,
 		})

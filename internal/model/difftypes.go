@@ -48,9 +48,29 @@ const (
 
 // DiffLine is one line of a hunk. HighlightedSpans is nil when the line uses
 // default diff coloring.
+//
+// Content and Raw carry the same text for different purposes, and the split is
+// load-bearing:
+//
+//   - Content is display text. Tabs are expanded to spaces (vcs.Tabify) so
+//     highlighted spans line up with what is rendered. It is the only field
+//     hashes, anchors, search and syntax spans may read.
+//   - Raw is source text: the line exactly as the diff carried it, prefix and
+//     tabs included. It exists to be emitted, and nothing else.
+//
+// Content cannot simply be un-tabified. Comment.LineContext.Content persists a
+// snapshot of it into the session file, and anchor validation compares against
+// that snapshot — so changing what Content holds would make every comment in
+// every existing session report its anchor as gone. Hence a parallel field
+// rather than a fix in place. The cost is near zero for tab-free code, because
+// Tabify returns its input unchanged when there is no tab and both fields then
+// share one string.
 type DiffLine struct {
-	Origin           LineOrigin
-	Content          string
+	Origin  LineOrigin
+	Content string
+	// Raw is the verbatim source line including its +/-/space prefix, empty
+	// for lines mrman synthesized rather than read from a diff.
+	Raw              string
 	OldLineno        *uint32
 	NewLineno        *uint32
 	HighlightedSpans []syntax.Span
@@ -82,6 +102,18 @@ type DiffFile struct {
 	IsTooLarge      bool
 	IsCommitMessage bool
 	ContentHash     uint64
+	// RawHeader is the file's verbatim preamble — the "diff --git" line and
+	// any index, mode, rename or ---/+++ lines under it. Emitted when quoting
+	// a diff back; empty for synthesized files.
+	RawHeader []string
+	// SourceIndex is the file's position in the diff it was read from, or -1
+	// when synthesized.
+	//
+	// It exists because NewApp sorts DiffFiles by directory for display, which
+	// destroys the order the patch author chose. A review reply quoted out of
+	// that order is hard to follow against the original mail, so the exporter
+	// sorts back by this.
+	SourceIndex int
 }
 
 // DisplayPath returns the new path, falling back to the old path. A DiffFile

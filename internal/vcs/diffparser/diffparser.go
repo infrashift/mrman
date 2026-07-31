@@ -71,7 +71,13 @@ func ParseLines(next func() (string, bool, error), format Format, h *syntax.High
 			continue
 		}
 
+		// Keep the file's preamble verbatim — the header line just consumed
+		// plus whatever parseFileHeader consumes below — so a review reply can
+		// quote it back as the author wrote it.
+		rawHeader := []string{line}
+		src.record = &rawHeader
 		oldPath, newPath, status, err := parseFileHeader(src, format)
+		src.record = nil
 		if err != nil {
 			return nil, err
 		}
@@ -106,10 +112,12 @@ func ParseLines(next func() (string, bool, error), format Format, h *syntax.High
 				return nil, err
 			}
 			files = append(files, model.DiffFile{
-				OldPath:  oldPath,
-				NewPath:  newPath,
-				Status:   status,
-				IsBinary: true,
+				OldPath:     oldPath,
+				NewPath:     newPath,
+				Status:      status,
+				IsBinary:    true,
+				RawHeader:   rawHeader,
+				SourceIndex: len(files),
 			})
 			continue
 		}
@@ -152,6 +160,8 @@ func ParseLines(next func() (string, bool, error), format Format, h *syntax.High
 			Status:      status,
 			Hunks:       hunks,
 			ContentHash: model.ComputeContentHash(hunks),
+			RawHeader:   rawHeader,
+			SourceIndex: len(files),
 		})
 	}
 
@@ -168,6 +178,10 @@ type lineSource struct {
 	peeked string
 	hasPk  bool
 	done   bool
+	// record accumulates every line advance() hands out while it is non-nil.
+	// It exists so a file's verbatim header can be kept without threading a
+	// return value through each of parseFileHeader's ten branches.
+	record *[]string
 }
 
 func (s *lineSource) peek() (string, bool, error) {
@@ -193,6 +207,9 @@ func (s *lineSource) peek() (string, bool, error) {
 func (s *lineSource) advance() (string, bool, error) {
 	line, ok, err := s.peek()
 	s.hasPk = false
+	if ok && s.record != nil {
+		*s.record = append(*s.record, line)
+	}
 	return line, ok, err
 }
 
@@ -339,6 +356,9 @@ func parseHunk(src *lineSource, filePath string, h *syntax.Highlighter) (model.D
 	}
 
 	var lineContents []string
+	// lineRaws keeps each body line exactly as it arrived, prefix and tabs
+	// included, so a review reply can quote the diff back verbatim.
+	var lineRaws []string
 	var lineOrigins []model.LineOrigin
 	var oldLinenos, newLinenos []*uint32
 
@@ -410,6 +430,7 @@ func parseHunk(src *lineSource, filePath string, h *syntax.Highlighter) (model.D
 		}
 
 		lineContents = append(lineContents, vcs.Tabify(content))
+		lineRaws = append(lineRaws, line)
 		lineOrigins = append(lineOrigins, origin)
 		oldLinenos = append(oldLinenos, oldLn)
 		newLinenos = append(newLinenos, newLn)
@@ -432,6 +453,7 @@ func parseHunk(src *lineSource, filePath string, h *syntax.Highlighter) (model.D
 		diffLines = append(diffLines, model.DiffLine{
 			Origin:    origin,
 			Content:   content,
+			Raw:       lineRaws[idx],
 			OldLineno: oldLinenos[idx],
 			NewLineno: newLinenos[idx],
 			HighlightedSpans: highlightedLineForDiff(
