@@ -4,7 +4,10 @@
 diff with vim keybindings, leave typed comments at line / range / file /
 review scope, track what you've reviewed across sessions, collaborate live
 with AI agents through a JSON CLI, and submit the finished review to
-**GitHub, GitLab, Azure DevOps, or Forgejo** — SaaS or on-premise.
+**GitHub, GitLab, Azure DevOps, or Forgejo** — SaaS or on-premise. The GitLab
+and Forgejo/Gitea drivers (Codeberg included) are **experimental**: implemented
+and unit-tested, but not yet exercised against a live instance the way the
+GitHub one has been.
 
 mrman is a Go reimplementation of [tuicr](https://github.com/agavra/tuicr)
 (Rust, MIT), built on [Bubble Tea](https://github.com/charmbracelet/bubbletea),
@@ -244,7 +247,7 @@ in the meantime. See the note at the bottom of the `Makefile`.
   tuicr ships only the untyped one, so the feature is invisible until
   configured.
 - **Four forges instead of two**, through their APIs rather than by shelling
-  out to `gh` and `glab`.
+  out to `gh` and `glab` — GitLab and Forgejo experimental.
 - **CUE-validated configuration** and **user-templatable markdown output**.
 
 ## Documentation

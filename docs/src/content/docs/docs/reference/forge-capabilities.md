@@ -3,6 +3,34 @@ title: Forge Capabilities
 description: What each forge can do, what it cannot, and exactly what mrman does instead — the canonical table, straight from the drivers.
 ---
 
+## Support levels
+
+Capability and maturity are different questions, and this page answers both.
+The table below says what a driver *implements*; this section says how hard it
+has been leaned on.
+
+| Level | Forges | What it means |
+|---|---|---|
+| Supported | GitHub, GitHub Enterprise Server, Azure DevOps | Exercised end to end against a live instance, not only against recorded API shapes. |
+| **Experimental** | GitLab, Forgejo & Gitea, Codeberg | Implemented and unit-tested, but not yet exercised against a live instance. |
+
+Experimental does **not** mean unfinished — read the table below for what each
+driver actually does, which in GitLab's and Forgejo's case is most of it. It
+means the API shapes come from documentation and recorded fixtures rather than
+from a real server answering back, so a mismatch between what a forge documents
+and what it returns would reach you before it reaches us.
+
+A rejected submit is reported as a failure and your comments stay unlocked in
+the local session, so nothing is lost. On **GitLab** the caveat below about
+[atomic submit](#atomic-submit) applies with more force than usual: there is no
+single-call endpoint, so a failure partway leaves some comments already posted.
+mrman names which ones — read that report before re-submitting.
+
+If you run mrman against one of these, [a bug report](https://github.com/infrashift/mrman/issues)
+is the thing that moves it off this list.
+
+## The table
+
 Capabilities are checked **before** mrman acts, so nothing fails halfway
 through a submit: an unsupported operation is refused with a reason rather than
 attempted. Note the check happens when you choose an action, not when the
@@ -12,7 +40,7 @@ one the forge cannot do is refused before any request goes out.
 This table is the canonical one. Each row corresponds to a field the driver
 declares, so it does not drift from the code.
 
-| | GitHub | GitLab | Forgejo / Gitea | Azure DevOps |
+| | GitHub | GitLab ⚗️ | Forgejo / Gitea ⚗️ | Azure DevOps |
 |---|:--:|:--:|:--:|:--:|
 | Draft reviews | ✓ | ✓ | ✓ | **—** |
 | Approve | ✓ | ✓ | ✓ | ✓ (vote) |
@@ -28,7 +56,7 @@ declares, so it does not drift from the code.
 | Commit-scoped reviews | ✓ | ✓ | ✓ | **—** |
 
 GitHub Enterprise Server matches the GitHub column; Codeberg matches the
-Forgejo one.
+Forgejo one. ⚗️ marks an experimental driver, as defined above.
 
 ## What each gap actually does
 

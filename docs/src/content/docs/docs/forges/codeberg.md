@@ -5,6 +5,12 @@ sidebar:
   order: 6
 ---
 
+:::caution[Experimental]
+Codeberg is served by the Forgejo driver, which is implemented and unit-tested
+but has not yet been exercised against a live instance the way the GitHub one
+has. See [support levels](../../reference/forge-capabilities/#support-levels).
+:::
+
 [Codeberg](https://codeberg.org) is a public Forgejo instance, and mrman claims
 `codeberg.org` automatically. There is **nothing to configure** — set a token
 and go.

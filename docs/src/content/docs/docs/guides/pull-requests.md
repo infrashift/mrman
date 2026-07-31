@@ -10,9 +10,12 @@ works the same way on all four forges; the per-forge pages cover
 authentication, URL shapes and the specific things a forge cannot do.
 
 Jump to yours: [GitHub](../../forges/github/) · [GitHub Enterprise
-Server](../../forges/github-enterprise/) · [GitLab](../../forges/gitlab/) ·
+Server](../../forges/github-enterprise/) · [GitLab](../../forges/gitlab/) ⚗️ ·
 [Azure DevOps](../../forges/azure-devops/) · [Forgejo &
-Gitea](../../forges/forgejo/) · [Codeberg](../../forges/codeberg/)
+Gitea](../../forges/forgejo/) ⚗️ · [Codeberg](../../forges/codeberg/) ⚗️
+
+⚗️ marks a driver that is [experimental](../../reference/forge-capabilities/#support-levels)
+— implemented and unit-tested, but not yet run against a live instance.
 
 ## Opening one
 

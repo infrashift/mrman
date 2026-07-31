@@ -12,7 +12,9 @@ import { CardGrid, Card, LinkCard } from '@astrojs/starlight/components';
 diff with vim keybindings, leave typed comments at line / range / file /
 review scope, track what you have reviewed across sessions, collaborate live
 with AI agents through a JSON CLI, and submit the finished review to
-**GitHub, GitLab, Azure DevOps, or Forgejo** — SaaS or on-premise.
+**GitHub, GitLab, Azure DevOps, or Forgejo** — SaaS or on-premise. GitLab and
+Forgejo (including Codeberg) are
+[experimental](../docs/reference/forge-capabilities/#support-levels).
 
 ```sh
 mrman -w                   # review working-tree changes
@@ -37,7 +39,9 @@ mrman pr <PR/MR URL>       # ... or by URL, on any supported forge
 	<Card title="Four forges, SaaS and on-premise">
 		GitHub, GitLab, Azure DevOps and Forgejo through their APIs, not by
 		shelling out to `gh` or `glab`. Enterprise hosts, custom API bases and
-		private CAs are first-class.
+		private CAs are first-class. The GitLab and Forgejo drivers are
+		experimental — see [support
+		levels](../docs/reference/forge-capabilities/#support-levels).
 	</Card>
 	<Card title="Typed comments at four scopes">
 		Comment on a line, a visual range, a whole file, or the review itself.

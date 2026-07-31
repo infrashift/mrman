@@ -5,6 +5,13 @@ sidebar:
   order: 5
 ---
 
+:::caution[Experimental]
+The Forgejo/Gitea driver is implemented and unit-tested, but has not yet been
+exercised against a live instance the way the GitHub one has. Everything on
+this page describes what it does; what it has not had is a real server
+disagreeing with it. See [support levels](../../reference/forge-capabilities/#support-levels).
+:::
+
 Forgejo and Gitea share an API, so mrman serves both with one driver. Set
 `forge = "forgejo"` or `forge = "gitea"` — the names are interchangeable.
 
