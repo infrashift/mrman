@@ -1,0 +1,22 @@
+> diff --git a/net/foo.c b/net/foo.c
+> --- a/net/foo.c
+> +++ b/net/foo.c
+> @@ -1,2 +1,2 @@
+>  keep
+> -int n;
+> +int count;
+
+[NOTE] naming nit on the first patch
+
+
+> diff --git a/net/foo.c b/net/foo.c
+> --- a/net/foo.c
+> +++ b/net/foo.c
+> @@ -1,2 +1,3 @@
+>  keep
+>  int count;
+> +count++;
+
+[ISSUE] off-by-one on the second
+
+

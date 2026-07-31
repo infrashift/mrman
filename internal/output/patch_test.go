@@ -431,3 +431,45 @@ func TestSynthesizedLinesStillQuote(t *testing.T) {
 }
 
 func strPtr(s string) *string { return &s }
+
+// TestSeriesQuotesEachPatchSeparately covers the reply half of the same
+// collision. Grouping by path alone kept one entry per path, so a comment
+// written on patch 2 was quoted against patch 1's diff — or orphaned.
+func TestSeriesQuotesEachPatchSeparately(t *testing.T) {
+	first := parseFixture(t, "diff --git a/net/foo.c b/net/foo.c\n"+
+		"--- a/net/foo.c\n+++ b/net/foo.c\n@@ -1,2 +1,2 @@\n keep\n-int n;\n+int count;\n")[0]
+	first.CommitID, first.SourceIndex = "patch-0001", 0
+	second := parseFixture(t, "diff --git a/net/foo.c b/net/foo.c\n"+
+		"--- a/net/foo.c\n+++ b/net/foo.c\n@@ -1,2 +1,3 @@\n keep\n int count;\n+count++;\n")[0]
+	second.CommitID, second.SourceIndex = "patch-0002", 1
+
+	s := patchSession(t, "net/foo.c")
+	one, two := "patch-0001", "patch-0002"
+	side := model.LineSideNew
+	c1 := model.NewComment("naming nit on the first patch", model.CommentTypeFromID("note"), &side)
+	c1.CommitID = &one
+	s.Files["net/foo.c"].AddLineComment(2, c1)
+	c2 := model.NewComment("off-by-one on the second", model.CommentTypeFromID("issue"), &side)
+	c2.CommitID = &two
+	s.Files["net/foo.c"].AddLineComment(3, c2)
+
+	out := render(t, build(t, s, []model.DiffFile{first, second}, PatchOptions{}))
+
+	// Both patches are quoted, in source order.
+	if strings.Count(out, "diff --git a/net/foo.c") != 2 {
+		t.Errorf("expected both patches quoted:\n%s", out)
+	}
+	if strings.Index(out, "int count;") > strings.Index(out, "count++;") {
+		t.Errorf("patches should quote in source order:\n%s", out)
+	}
+	// Each comment appears exactly once, under its own patch.
+	for _, want := range []string{"naming nit on the first patch", "off-by-one on the second"} {
+		if n := strings.Count(out, want); n != 1 {
+			t.Errorf("comment %q appears %d times, want 1:\n%s", want, n, out)
+		}
+	}
+	if strings.Contains(out, "could not be placed") {
+		t.Errorf("both comments are placeable:\n%s", out)
+	}
+	checkGolden(t, "series_two_patches", out)
+}

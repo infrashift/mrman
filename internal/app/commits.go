@@ -334,11 +334,29 @@ func (a *App) SelectedCommitSet() (set map[string]bool, hasSet bool) {
 	return set, true
 }
 
-// CommitIDForNewComment is the single commit SHA to stamp on a new comment
-// when the inline selector shows exactly one commit. Nil otherwise (full
-// range, multi-commit subset, or no selector) — those comments get
-// CommitID nil so they stay visible across selections.
+// CommitIDForNewComment is the commit or patch id to stamp on a new comment.
+//
+// The file under the cursor wins when it carries one. That is what keeps a
+// series honest: two patches touching one path produce two diff entries
+// sharing a display path, and session state is keyed by path, so an unstamped
+// comment would render under both. Stamping from the file — not merely from
+// the selection — means the comment belongs to the patch you were reading.
+//
+// Otherwise it falls back to the selection: a single selected commit stamps
+// its id, and a full range or multi-commit subset stamps nothing, so those
+// comments stay visible across selections.
 func (a *App) CommitIDForNewComment() *string {
+	if idx := a.DiffState.CurrentFileIdx; idx >= 0 && idx < len(a.DiffFiles) {
+		if id := a.DiffFiles[idx].CommitID; id != "" {
+			return &id
+		}
+	}
+	return a.commitIDFromSelection()
+}
+
+// commitIDFromSelection is the pre-existing rule: the single selected commit,
+// or nil.
+func (a *App) commitIDFromSelection() *string {
 	if a.CommitSelectionRange == nil {
 		return nil
 	}

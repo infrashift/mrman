@@ -310,3 +310,66 @@ func (a *App) SetPatchTabViewportHeight(height int) {
 	a.ensurePatchTab().ViewportHeight = height
 	a.clampPatchTabCursor()
 }
+
+// FilePatchLabel is the short identifier of the patch a diff entry came from
+// — "2/5" for a series member — or "" when there is nothing to disambiguate.
+//
+// It is deliberately quiet. The label earns its place only when the diff holds
+// files from more than one patch, which is exactly when two entries can share
+// a display path and the reviewer needs to know which is which. Narrowed to a
+// single patch every row would carry the same tag, which is noise.
+func (a *App) FilePatchLabel(fileIdx int) string {
+	if fileIdx < 0 || fileIdx >= len(a.DiffFiles) {
+		return ""
+	}
+	id := a.DiffFiles[fileIdx].CommitID
+	if id == "" || !a.diffSpansSeveralPatches() {
+		return ""
+	}
+	for i := range a.ReviewCommits {
+		if a.ReviewCommits[i].ID == id {
+			return a.ReviewCommits[i].ShortID
+		}
+	}
+	return ""
+}
+
+// diffSpansSeveralPatches reports whether the loaded diff came from more than
+// one patch.
+func (a *App) diffSpansSeveralPatches() bool {
+	first := ""
+	for i := range a.DiffFiles {
+		id := a.DiffFiles[i].CommitID
+		if id == "" {
+			continue
+		}
+		if first == "" {
+			first = id
+			continue
+		}
+		if id != first {
+			return true
+		}
+	}
+	return false
+}
+
+// FilePathIsAmbiguous reports whether another entry in the diff shares this
+// one's display path — the case the label exists for.
+func (a *App) FilePathIsAmbiguous(fileIdx int) bool {
+	if fileIdx < 0 || fileIdx >= len(a.DiffFiles) {
+		return false
+	}
+	path := a.DiffFiles[fileIdx].DisplayPath()
+	seen := false
+	for i := range a.DiffFiles {
+		if a.DiffFiles[i].DisplayPath() != path {
+			continue
+		}
+		if seen {
+			return true
+		}
+		seen = true
+	}
+	return false
+}

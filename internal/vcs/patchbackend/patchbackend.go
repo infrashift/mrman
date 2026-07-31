@@ -236,6 +236,13 @@ func (b *Backend) FileLineCount(string, model.FileStatus, *string) (uint32, erro
 // diffFor parses the given patches into diff files, tagging every file with
 // the patch it came from so comments can be scoped per patch.
 func (b *Backend) diffFor(patches []patch.Patch, h *syntax.Highlighter) ([]model.DiffFile, error) {
+	// Index the patches by identity once, so a file can be tagged with the
+	// patch it came from without re-deriving the id per file.
+	idFor := make(map[string]string, len(b.series.Patches))
+	for i := range b.series.Patches {
+		idFor[b.series.Patches[i].DiffText] = b.patchID(i)
+	}
+
 	var out []model.DiffFile
 	for _, p := range patches {
 		if strings.TrimSpace(p.DiffText) == "" {
@@ -244,6 +251,15 @@ func (b *Backend) diffFor(patches []patch.Patch, h *syntax.Highlighter) ([]model
 		files, err := diffparser.Parse(p.DiffText, diffparser.GitStyle, h)
 		if err != nil {
 			return nil, err
+		}
+		for i := range files {
+			// Two patches touching one path yield two entries with the same
+			// display path; the patch id is what keeps their comments apart.
+			files[i].CommitID = idFor[p.DiffText]
+			// Parse numbers files from zero per patch, so renumber across the
+			// series — otherwise every patch claims index 0 and anything
+			// ordering by source position has ambiguous keys.
+			files[i].SourceIndex = len(out) + i
 		}
 		out = append(out, files...)
 	}

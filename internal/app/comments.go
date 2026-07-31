@@ -218,6 +218,21 @@ func (a *App) selectedCommitSet() (set map[string]bool, hasSet bool) {
 	return set, true
 }
 
+// commentBelongsToFile reports whether a comment should render under this
+// particular diff entry.
+//
+// It only ever excludes anything when a path appears more than once in the
+// diff, which happens for a patch series: two patches touching one file
+// produce two entries with the same display path, and session state is keyed
+// by path, so both would otherwise show every comment on that path.
+//
+// An unstamped comment shows everywhere. That covers comments written before
+// the file carried an id, and comments on ordinary diffs, where there is
+// nothing to disambiguate and hiding one would lose it.
+func commentBelongsToFile(c *model.Comment, file *model.DiffFile) bool {
+	return file.CommentBelongsTo(c)
+}
+
 // commentVisibleWith is the pure visibility check against a precomputed
 // commit set. hasSet == false means "no selector", so every comment is
 // visible. This is the shared predicate all filtering sites converge on so
