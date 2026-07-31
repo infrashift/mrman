@@ -21,6 +21,8 @@ const (
 	TypeGit     Type = "git"
 	TypeJujutsu Type = "jj"
 	TypeFile    Type = "file"
+	// TypePatch is a standalone patch artifact reviewed without a repository.
+	TypePatch Type = "patch"
 )
 
 // Info describes the repository a backend operates on.

@@ -215,6 +215,18 @@ func (b *Backend) FetchContextLines(path string, _ model.FileStatus, _ *string, 
 	return vcs.SliceContextLines(string(data), start, end), nil
 }
 
+// ChangeStatus reports no staged or unstaged changes, because a --file or
+// pristine review has no index to compare against.
+//
+// Answering plainly matters: when a backend cannot answer, resolveChangeStatus
+// falls back to UnstagedDiff and then to WorkingTreeDiff, which returns this
+// backend's own files and so reports them as "unstaged changes". The target
+// selector then offers an UNSTAGED row that fails with "unsupported operation"
+// the moment it is chosen.
+func (b *Backend) ChangeStatus() (vcs.ChangeStatus, error) {
+	return vcs.ChangeStatus{}, nil
+}
+
 // FileLineCount returns the number of lines in root/path.
 func (b *Backend) FileLineCount(path string, _ model.FileStatus, _ *string) (uint32, error) {
 	data, err := os.ReadFile(filepath.Join(b.info.RootPath, path))

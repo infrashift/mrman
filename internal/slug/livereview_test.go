@@ -101,7 +101,7 @@ func TestIsLiveSourceMatchesKindLiveness(t *testing.T) {
 		model.SourceWorkingTree, model.SourceStaged, model.SourceUnstaged,
 		model.SourceStagedAndUnstaged, model.SourcePristine, model.SourceCommitRange,
 		model.SourceWorkingTreeAndCommits, model.SourceStagedUnstagedAndCommits,
-		model.SourcePullRequest,
+		model.SourcePullRequest, model.SourcePatch,
 	}
 	for _, src := range all {
 		kind, ok := KindForSource(src)
@@ -121,6 +121,9 @@ func TestIsLiveSourceMatchesKindLiveness(t *testing.T) {
 		model.SourceCommitRange:           false,
 		model.SourcePullRequest:           false,
 		model.SourceWorkingTreeAndCommits: false,
+		// A patch is not live: its identity is the artifact's bytes, so there
+		// is no HEAD for carry-forward to move it along.
+		model.SourcePatch: false,
 	}
 	for src, want := range live {
 		if got := IsLiveSource(src); got != want {

@@ -118,6 +118,8 @@ func KindForSource(src model.SessionDiffSource) (SourceKind, bool) {
 		return SourceWorktreeAndCommits, true
 	case model.SourceStagedUnstagedAndCommits:
 		return SourceStagedUnstagedAndCommits, true
+	case model.SourcePatch:
+		return SourcePatch, true
 	}
 	return 0, false
 }
@@ -144,6 +146,11 @@ func sourceForSession(s *model.ReviewSession) (SlugSource, error) {
 		return SlugSource{Kind: kind, Head: liveHeadToken(s.BaseCommit)}, nil
 	case kind == SourcePristine:
 		return SlugSource{Kind: SourcePristine}, nil
+	case kind == SourcePatch:
+		// A patch's BaseCommit is a hash of the artifact, not a commit, so it
+		// is shortened the same way but means something different: the same
+		// bytes resume the same review, edited bytes start a new one.
+		return SlugSource{Kind: SourcePatch, Head: liveHeadToken(s.BaseCommit)}, nil
 	}
 	return rangeSource(s, kind)
 }

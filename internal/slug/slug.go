@@ -123,6 +123,12 @@ const (
 	// SourceStagedUnstagedAndCommits combines staged, unstaged and commits
 	// (staged-and-unstaged-and-commits/<base>..<head>).
 	SourceStagedUnstagedAndCommits
+	// SourcePatch is a standalone patch artifact — a .patch file, a mail
+	// message, or an mbox holding a series (patch/<content-hash>). Its head
+	// token hashes the artifact's bytes rather than a commit, because a patch
+	// has no position in any history: re-send it edited and it is a different
+	// review.
+	SourcePatch
 )
 
 // IsLive reports whether the kind is one of the live working-tree sources,
@@ -132,7 +138,8 @@ func (k SourceKind) IsLive() bool {
 	switch k {
 	case SourceWorktree, SourceStaged, SourceUnstaged, SourceStagedAndUnstaged:
 		return true
-	case SourcePristine, SourceCommits, SourceWorktreeAndCommits, SourceStagedUnstagedAndCommits:
+	case SourcePristine, SourceCommits, SourceWorktreeAndCommits,
+		SourceStagedUnstagedAndCommits, SourcePatch:
 		return false
 	}
 	return false
@@ -164,6 +171,8 @@ func (s SlugSource) String() string {
 		return "staged-and-unstaged/" + s.Head
 	case SourcePristine:
 		return "pristine"
+	case SourcePatch:
+		return "patch/" + s.Head
 	case SourceCommits:
 		return "commits/" + s.Base + ".." + s.Head
 	case SourceWorktreeAndCommits:
@@ -344,23 +353,29 @@ func parseSource(s string) (SlugSource, error) {
 	if s == "pristine" {
 		return SlugSource{Kind: SourcePristine}, nil
 	}
+	if head, ok := strings.CutPrefix(s, "patch/"); ok {
+		return tokenSource(head, s, SourcePatch)
+	}
 	if head, ok := strings.CutPrefix(s, "worktree/"); ok {
-		return liveSource(head, s, SourceWorktree)
+		return tokenSource(head, s, SourceWorktree)
 	}
 	if head, ok := strings.CutPrefix(s, "staged-and-unstaged/"); ok {
-		return liveSource(head, s, SourceStagedAndUnstaged)
+		return tokenSource(head, s, SourceStagedAndUnstaged)
 	}
 	if head, ok := strings.CutPrefix(s, "staged/"); ok {
-		return liveSource(head, s, SourceStaged)
+		return tokenSource(head, s, SourceStaged)
 	}
 	if head, ok := strings.CutPrefix(s, "unstaged/"); ok {
-		return liveSource(head, s, SourceUnstaged)
+		return tokenSource(head, s, SourceUnstaged)
 	}
 	return SlugSource{}, fmt.Errorf("%w: %s", ErrUnknownSource, s)
 }
 
-// liveSource validates the head token of a live diff source.
-func liveSource(head, full string, kind SourceKind) (SlugSource, error) {
+// tokenSource validates the single token of a source segment that carries one
+// — the HEAD SHA of a live source, or the content hash of a patch. It only
+// checks the token is present and does not itself contain a "/", which would
+// make the segment ambiguous.
+func tokenSource(head, full string, kind SourceKind) (SlugSource, error) {
 	if head == "" || strings.Contains(head, "/") {
 		return SlugSource{}, fmt.Errorf("%w: %s", ErrUnknownSource, full)
 	}
