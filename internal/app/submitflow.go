@@ -96,11 +96,7 @@ func (a *App) StartSubmitWith(event forge.SubmitEvent, skipConfirm bool) bool {
 		sort.Slice(lines, func(i, j int) bool { return lines[i] < lines[j] })
 		for _, line := range lines {
 			for _, c := range review.LineComments[line] {
-				side := model.LineSideNew
-				if c.Side != nil {
-					side = *c.Side
-				}
-				anchor := submit.LineAnchor(line, side)
+				anchor := submit.LineAnchor(line, model.SideOf(c))
 				if c.LineRange != nil && !c.LineRange.IsSingle() {
 					anchor = submit.RangeAnchor()
 				}

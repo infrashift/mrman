@@ -18,6 +18,8 @@ const (
 	CmdReload
 	CmdEdit
 	CmdExport
+	// CmdExportPatch writes the review as a quoted-diff mail reply.
+	CmdExportPatch
 	CmdClear
 	CmdClearCommentsOnly
 	CmdHelp
@@ -70,6 +72,7 @@ var commandSpecs = []struct {
 	{"e", CmdReload}, {"reload", CmdReload},
 	{"edit", CmdEdit},
 	{"clip", CmdExport}, {"export", CmdExport},
+	{"patch", CmdExportPatch}, {"reply", CmdExportPatch},
 	{"clear", CmdClear},
 	{"clearc", CmdClearCommentsOnly},
 	{"help", CmdHelp}, {"h", CmdHelp},

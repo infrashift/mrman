@@ -75,6 +75,7 @@ func helpContent(leader rune) []string {
 		"  :e :reload             re-read the diff (refetches a pull request)",
 		"  :edit                  open the focused file in $EDITOR",
 		"  :clip :export          copy the review to the clipboard",
+		"  :patch :reply          copy the review as a quoted-diff mail reply",
 		"  :clear :clearc         clear comments (and reviewed marks)",
 		"  :diff                  unified / side-by-side",
 		"  :wrap :set wrap!       toggle line wrap",

@@ -214,7 +214,7 @@ func lineLocation(path string, line uint32, c *model.Comment) string {
 	if c.LineRange != nil {
 		lineRange = *c.LineRange
 	}
-	old := c.Side != nil && *c.Side == model.LineSideOld
+	old := model.SideOf(c) == model.LineSideOld
 	switch {
 	case old && lineRange.IsSingle():
 		return fmt.Sprintf("%s:~%d", path, lineRange.Start)

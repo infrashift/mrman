@@ -19,6 +19,13 @@ import (
 //go:embed templates/notes.md.tmpl
 var defaultNotesTemplate string
 
+// defaultPatchReplyTemplate is the embedded default for the review-reply
+// export: the diff quoted with "> " and comments interleaved beneath the
+// lines they refer to.
+//
+//go:embed templates/patch_reply.txt.tmpl
+var defaultPatchReplyTemplate string
+
 // LegendEntry is one comment-type definition as it appears in the export
 // legend. Label is uppercased by the template; Definition falls back to ID
 // when the configuration has none.
@@ -50,6 +57,11 @@ type TemplateComment struct {
 	// Number is the comment's continuous 1-based sequence number across the
 	// whole export.
 	Number int
+	// Anchor is a badge for a comment whose anchor moved since it was
+	// written ("moved"), empty when the anchor still checks out. Only the
+	// patch-reply export sets it; the notes template ignores it, which is
+	// why adding it here is backward compatible for existing overrides.
+	Anchor string
 }
 
 // Marker returns the numbered-list marker for this comment, e.g. "3.".
@@ -210,6 +222,37 @@ func RenderNotes(tmpl *template.Template, data *TemplateData) (string, error) {
 	var sb strings.Builder
 	if err := tmpl.Execute(&sb, data); err != nil {
 		return "", fmt.Errorf("render notes template: %w", err)
+	}
+	return sb.String(), nil
+}
+
+// LoadPatchReplyTemplate loads the review-reply template, degrading to the
+// embedded default with a warning exactly as LoadNotesTemplate does.
+func LoadPatchReplyTemplate(overridePath string) (*template.Template, []string) {
+	var warnings []string
+	if overridePath != "" {
+		raw, err := os.ReadFile(overridePath)
+		if err != nil {
+			warnings = append(warnings, fmt.Sprintf(
+				"patch template override %s: %v; using embedded default", overridePath, err))
+		} else {
+			tmpl, parseErr := template.New("patch").Funcs(funcMap()).Parse(string(raw))
+			if parseErr != nil {
+				warnings = append(warnings, fmt.Sprintf(
+					"patch template override %s: %v; using embedded default", overridePath, parseErr))
+			} else {
+				return tmpl, warnings
+			}
+		}
+	}
+	return template.Must(template.New("patch").Funcs(funcMap()).Parse(defaultPatchReplyTemplate)), warnings
+}
+
+// RenderPatchReply executes tmpl against data and returns the reply text.
+func RenderPatchReply(tmpl *template.Template, data *PatchData) (string, error) {
+	var sb strings.Builder
+	if err := tmpl.Execute(&sb, data); err != nil {
+		return "", err
 	}
 	return sb.String(), nil
 }

@@ -118,6 +118,19 @@ func (r LineRange) IsSingle() bool { return r.Start == r.End }
 // Contains reports whether line falls inside the range.
 func (r LineRange) Contains(line uint32) bool { return line >= r.Start && line <= r.End }
 
+// SideOf reports which side of the diff a comment anchors to.
+//
+// A nil Side means the new side. That default is written out at several call
+// sites across the app, submit and export paths, and every one of them has to
+// agree: read it the other way and a comment lands on the deleted line
+// opposite the one it was written about.
+func SideOf(c *Comment) LineSide {
+	if c != nil && c.Side != nil {
+		return *c.Side
+	}
+	return LineSideNew
+}
+
 // LineContext captures the anchored line's numbers and content as of the last
 // time the anchor was known good: comment creation, or the most recent
 // re-anchoring after the diff moved underneath it.

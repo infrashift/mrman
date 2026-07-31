@@ -14,8 +14,16 @@ import (
 type exportOptions struct {
 	TemplatePath           string
 	ReviewBodyTemplatePath string
+	PatchTemplatePath      string
 	ShowLegend             bool
 	ToStdout               bool
+	// PatchContext selects how much of the diff a reply quotes.
+	PatchContext output.PatchContext
+	// ReplyHeaders threads a reply into the conversation its patch was posted
+	// in. Zero when the artifact carried no threading metadata, which is the
+	// common case for a locally produced patch — plain `git format-patch`
+	// writes no Message-Id.
+	ReplyHeaders output.ReplyHeaders
 }
 
 // renderExport builds the notes markdown for the current session.
@@ -35,6 +43,35 @@ func renderExport(a *app.App, opts exportOptions) (string, error) {
 		a.SetWarning(w)
 	}
 	return output.RenderNotes(tmpl, data)
+}
+
+// renderPatchReply builds the quoted-diff mail reply for the current session.
+//
+// Unlike the notes export this needs the diff itself, which renderExport never
+// did — a reply is the diff with comments interleaved, not a list of comments
+// about it.
+func renderPatchReply(a *app.App, opts exportOptions) (string, error) {
+	scope := output.ScopeKind(int(a.DiffSource.Kind))
+	data, err := output.BuildPatchData(a.Session, a.DiffFiles, output.PatchOptions{
+		SessionSlug:     sessionSlugString(a),
+		DiffSourceLabel: scope.Label(),
+		ShowLegend:      opts.ShowLegend,
+		CommentTypes:    legendEntries(a.CommentTypes),
+		Context:         opts.PatchContext,
+		Reply:           opts.ReplyHeaders,
+		// The anchor verdicts live on the app, and output must not import it,
+		// so they cross as functions.
+		Outdated:    a.HasOutdatedAnchor,
+		AnchorLabel: func(id string) string { return a.AnchorVerdictFor(id).Label() },
+	})
+	if err != nil {
+		return "", err
+	}
+	tmpl, warnings := output.LoadPatchReplyTemplate(opts.PatchTemplatePath)
+	for _, w := range warnings {
+		a.SetWarning(w)
+	}
+	return output.RenderPatchReply(tmpl, data)
 }
 
 // legendEntries converts the app's resolved comment types into the export's
@@ -60,12 +97,25 @@ func sessionSlugString(a *app.App) string {
 	return ""
 }
 
-// exportToClipboard renders and copies the review, setting the outcome
-// message. pendingStdout is returned non-empty in --stdout mode: the caller
-// prints it after the TUI exits.
+// exportToClipboard renders and copies the review as markdown notes.
 func (m *Model) exportToClipboard() (pendingStdout string) {
+	return m.deliverExport(renderExport, "Review")
+}
+
+// patchReplyToClipboard renders and copies the review as a mail reply.
+func (m *Model) patchReplyToClipboard() (pendingStdout string) {
+	return m.deliverExport(renderPatchReply, "Reply")
+}
+
+// deliverExport renders with the given renderer and puts the result where the
+// reviewer asked for it, setting the outcome message. pendingStdout is
+// returned non-empty in --stdout mode: the caller prints it after the TUI
+// exits, since Bubble Tea owns the terminal until then.
+func (m *Model) deliverExport(
+	render func(*app.App, exportOptions) (string, error), noun string,
+) (pendingStdout string) {
 	a := m.App
-	text, err := renderExport(a, m.export)
+	text, err := render(a, m.export)
 	if err != nil {
 		if errors.Is(err, errs.ErrNoComments) {
 			a.SetMessage("No comments to export - skipping copy")
@@ -75,7 +125,7 @@ func (m *Model) exportToClipboard() (pendingStdout string) {
 		return ""
 	}
 	if m.export.ToStdout {
-		a.SetMessage("Review will print to stdout on exit")
+		a.SetMessage(noun + " will print to stdout on exit")
 		return text
 	}
 	viaTerminal, err := output.CopyText(text)
@@ -83,9 +133,9 @@ func (m *Model) exportToClipboard() (pendingStdout string) {
 	case err != nil:
 		a.SetError("Clipboard failed: " + err.Error())
 	case viaTerminal:
-		a.SetMessage("Review copied to clipboard (via terminal)")
+		a.SetMessage(noun + " copied to clipboard (via terminal)")
 	default:
-		a.SetMessage("Review copied to clipboard")
+		a.SetMessage(noun + " copied to clipboard")
 	}
 	return ""
 }

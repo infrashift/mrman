@@ -629,6 +629,10 @@ func (m *Model) runCommand(cmd input.Command) bool {
 		if out := m.exportToClipboard(); out != "" {
 			m.PendingStdout = out
 		}
+	case input.CmdExportPatch:
+		if out := m.patchReplyToClipboard(); out != "" {
+			m.PendingStdout = out
+		}
 	case input.CmdClear:
 		cleared, unreviewed := a.Session.ClearComments(model.ClearCommentsAndReviewed)
 		a.Dirty = true

@@ -1,0 +1,14 @@
+> diff --git a/drivers/foo.c b/drivers/foo.c
+> index 1234567..89abcde 100644
+> --- a/drivers/foo.c
+> +++ b/drivers/foo.c
+> @@ -100,4 +100,6 @@ static int foo_probe(struct platform_device *pdev)
+>  	int ret;
+>
+> +	if (!bar)
+> +		return -EINVAL;
+
+[ISSUE] Wrong errno — the caller distinguishes -ENODEV here.
+
+>  	ret = baz(pdev);
+

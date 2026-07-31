@@ -15,6 +15,7 @@ import (
 	"github.com/infrashift/mrman/internal/errs"
 	"github.com/infrashift/mrman/internal/ignore"
 	"github.com/infrashift/mrman/internal/model"
+	"github.com/infrashift/mrman/internal/output"
 	"github.com/infrashift/mrman/internal/patch"
 	"github.com/infrashift/mrman/internal/persistence"
 	"github.com/infrashift/mrman/internal/theme"
@@ -174,6 +175,9 @@ func Run(opts cli.TuiOptions) error {
 	m.session = lifecycle
 	m.store = store
 	m.export = exportOptions{ShowLegend: true, ToStdout: opts.Stdout}
+	if patchBackend != nil {
+		m.export.ReplyHeaders = replyHeadersFor(patchBackend.Series())
+	}
 	// The Pull Requests tab resolves its forge lazily on first use, so a
 	// local review never pays for token resolution it will not need.
 	m.forge = checkoutForgeResolver(cwd, cfg.Forge)
@@ -325,4 +329,49 @@ func hasDirPrefix(path, prefix string) bool {
 		return len(path) >= len(prefix) && path[:len(prefix)] == prefix
 	}
 	return len(path) > len(prefix) && path[:len(prefix)] == prefix && path[len(prefix)] == '/'
+}
+
+// replyHeadersFor derives the mail headers that thread a review reply into the
+// conversation a patch was posted in.
+//
+// It threads against the first patch that carries a Message-Id, which for a
+// series is the cover letter or patch 1 — the message the whole thread hangs
+// off. When nothing carries one it returns the zero value and the exporter
+// emits no header block at all: plain `git format-patch` writes no Message-Id,
+// and a reply threaded to an invented id lands in the wrong conversation,
+// which is worse than one that does not thread.
+func replyHeadersFor(series *patch.Series) output.ReplyHeaders {
+	if series == nil {
+		return output.ReplyHeaders{}
+	}
+	for i := range series.Patches {
+		p := &series.Patches[i]
+		if p.MessageID == "" {
+			continue
+		}
+		h := output.ReplyHeaders{
+			InReplyTo:   p.MessageID,
+			Attribution: attributionFor(p),
+		}
+		if p.RawSubject != "" {
+			h.Subject = "Re: " + p.RawSubject
+		}
+		// Keep the thread's existing References and add the message being
+		// replied to, which is what a mail client would do.
+		h.References = append(append([]string(nil), p.References...), p.MessageID)
+		return h
+	}
+	return output.ReplyHeaders{}
+}
+
+// attributionFor renders the "On <date>, <author> wrote:" line, omitting
+// whichever half the artifact did not carry.
+func attributionFor(p *patch.Patch) string {
+	switch {
+	case p.Author == "":
+		return ""
+	case p.Date.IsZero():
+		return fmt.Sprintf("%s wrote:", p.Author)
+	}
+	return fmt.Sprintf("On %s, %s wrote:", p.Date.Format("Mon, 02 Jan 2006"), p.Author)
 }

@@ -1,0 +1,23 @@
+Subject: Re: [PATCH v3 2/5] drivers/foo: guard the probe
+In-Reply-To: <20260101120000.12345-3-dev@example.org>
+References: <20260101120000.12345-1-dev@example.org>
+
+On Wed, 01 Jan 2026, Dev Eloper wrote:
+
+Looks close. Two things about the probe path.
+
+> diff --git a/drivers/foo.c b/drivers/foo.c
+> index 1234567..89abcde 100644
+> --- a/drivers/foo.c
+> +++ b/drivers/foo.c
+> @@ -100,4 +100,6 @@ static int foo_probe(struct platform_device *pdev)
+>  	int ret;
+>
+> +	if (!bar)
+> +		return -EINVAL;
+
+[ISSUE] Wrong errno — the caller distinguishes -ENODEV here.
+Also: check bar before the lock.
+
+>  	ret = baz(pdev);
+

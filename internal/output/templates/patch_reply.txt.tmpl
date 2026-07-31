@@ -1,0 +1,62 @@
+{{- /*
+The review-reply artifact: the diff quoted with "> " and the reviewer's
+comments interleaved beneath the lines they refer to. Whitespace control is
+deliberate throughout — this output is read as plain text in a mail client,
+so stray blank lines are visible.
+*/ -}}
+{{- with .Reply}}{{if not .Empty}}
+{{- if .Subject}}Subject: {{.Subject}}
+{{end}}
+{{- if .InReplyTo}}In-Reply-To: <{{.InReplyTo}}>
+{{end}}
+{{- if .References}}References:{{range .References}} <{{.}}>{{end}}
+{{end}}
+{{end}}
+{{- if .Attribution}}{{.Attribution}}
+
+{{end}}
+{{- end}}
+{{- if and .ShowLegend .CommentTypes}}Comment types: {{range $i, $t := .CommentTypes}}{{if $i}}, {{end}}{{upper $t.Label}} ({{$t.Definition}}){{end}}
+
+{{end}}
+{{- if .SessionNotes}}{{.SessionNotes}}
+
+{{end}}
+{{- range .ReviewComments}}{{template "note" .}}
+
+{{end}}
+{{- range $i, $f := .Files}}{{if $i}}
+{{end}}
+{{- if .Skipped}}{{.Path}} — not quoted: {{.Skipped}}
+{{range .Comments}}{{template "note" .}}
+
+{{end}}
+{{- else}}
+{{- range .QuotedHeader}}{{.}}
+{{end}}
+{{- range .Comments}}
+{{template "note" .}}
+{{end}}
+{{- range .Hunks}}{{.QuotedHeader}}
+{{range .Lines}}{{.Quoted}}
+{{- if .Comments}}
+
+{{range .Comments}}{{template "note" .}}
+{{end}}
+{{- end}}
+{{end}}
+{{- end}}
+{{- end}}
+{{- end}}
+{{- if .Orphans}}
+--
+These comments could not be placed against the diff above:
+{{range .Orphans}}
+{{.Location}} — {{.Reason}}
+{{- if .Snapshot}}
+  was: {{.Snapshot}}
+{{- end}}
+{{template "note" .}}
+{{- end}}
+{{end}}
+{{- define "note"}}{{if .Type}}[{{.Type}}]{{if .Anchor}} ({{.Anchor}}){{end}} {{else if .Anchor}}({{.Anchor}}) {{end}}{{.Content}}{{end}}

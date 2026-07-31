@@ -410,9 +410,7 @@ func (a *App) pushLineComments(fileIdx int, path string, lineNo *uint32,
 
 	comments := lineComments[*lineNo]
 	for idx, comment := range comments {
-		matchesSide := (comment.Side != nil && *comment.Side == side) ||
-			(side == model.LineSideNew && comment.Side == nil)
-		if !matchesSide {
+		if model.SideOf(comment) != side {
 			continue
 		}
 		// Hide comments scoped to a commit outside the current selection.

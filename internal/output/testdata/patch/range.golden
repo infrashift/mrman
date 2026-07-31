@@ -1,0 +1,12 @@
+> diff --git a/x.c b/x.c
+> --- a/x.c
+> +++ b/x.c
+> @@ -1,1 +1,4 @@
+>  keep
+> +one
+> +two
+> +three
+
+[SUGGESTION] this whole block belongs in a helper
+
+

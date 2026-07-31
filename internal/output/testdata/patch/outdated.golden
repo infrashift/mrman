@@ -1,0 +1,21 @@
+> diff --git a/drivers/foo.c b/drivers/foo.c
+> index 1234567..89abcde 100644
+> --- a/drivers/foo.c
+> +++ b/drivers/foo.c
+> @@ -100,4 +100,6 @@ static int foo_probe(struct platform_device *pdev)
+>  	int ret;
+>
+> +	if (!bar)
+
+[NOTE] this one still fits
+
+> +		return -EINVAL;
+>  	ret = baz(pdev);
+
+--
+These comments could not be placed against the diff above:
+
+drivers/foo.c:103 — anchored line changed since the comment was written
+  was: 		return -ENODEV;
+[ISSUE] this no longer applies where it says
+
