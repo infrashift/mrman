@@ -282,6 +282,10 @@ type App struct {
 	// until ApplyLoadedSelection consumes them to build ReviewCommits.
 	pendingSelectedCommits []vcs.CommitInfo
 
+	// PatchTab is the Patches tab's listing state, nil until the tab is first
+	// visited.
+	PatchTab *PatchTabState
+
 	// AnchorStats summarizes the last anchor validation pass, so the open and
 	// reload paths can tell the reviewer what moved.
 	AnchorStats AnchorStats

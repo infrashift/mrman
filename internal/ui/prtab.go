@@ -228,8 +228,18 @@ func (m *Model) prRow(emitter *render.Emitter, row *forge.PullRequestSummary, is
 // selectorFooterHint returns the per-tab key hint for the selector footer.
 func (m *Model) selectorFooterHint() string {
 	a := m.App
-	if a.TargetTab == app.TargetTabLocal {
-		return "   j/k navigate · space range · ↵ confirm · tab pull requests · q quit"
+	switch a.TargetTab {
+	case app.TargetTabLocal:
+		return "   j/k navigate · space range · ↵ confirm · tab next · q quit"
+	case app.TargetTabPatches:
+		if a.PatchTabFilterEditing() {
+			return "   /" + a.PatchTab.Filter + "▏ ↵ apply · esc clear"
+		}
+		hint := "   j/k navigate · ↵ open · / filter · r rescan · tab next · esc local · q quit"
+		if a.PatchTab != nil && a.PatchTab.Filter != "" {
+			hint += fmt.Sprintf(" · filter:%q", a.PatchTab.Filter)
+		}
+		return hint
 	}
 	if a.PrTabFilterEditing() {
 		return "   /" + a.Pr.TabFilter + "▏ ↵ apply · esc clear"
@@ -238,7 +248,7 @@ func (m *Model) selectorFooterHint() string {
 	if a.Pr != nil {
 		scope = a.Pr.TabScope.Label()
 	}
-	hint := fmt.Sprintf("   j/k navigate · ↵ open · / filter · r scope:%s · tab local · q quit", scope)
+	hint := fmt.Sprintf("   j/k navigate · ↵ open · / filter · r scope:%s · tab next · esc local · q quit", scope)
 	if a.Pr != nil && a.Pr.TabFilter != "" {
 		hint += fmt.Sprintf(" · filter:%q", a.Pr.TabFilter)
 	}

@@ -17,16 +17,42 @@ import (
 // TargetTab is the active tab in the review target selector.
 //
 // The selector internally still goes through input.ModeCommitSelect, but it
-// shows two tabs to the user.
+// shows several tabs to the user.
 type TargetTab int
 
-// Target selector tabs.
+// Target selector tabs, in display order.
 const (
 	TargetTabLocal TargetTab = iota
 	// TargetTabPullRequests lists the forge's open pull requests; its
 	// state machine lives in prtab.go.
 	TargetTabPullRequests
+	// TargetTabPatches lists .patch/.diff/mbox artifacts in a directory —
+	// the inbox a mailing-list reviewer works from. Its state machine lives
+	// in patchtab.go.
+	TargetTabPatches
 )
+
+// targetTabCount is how many tabs the selector shows. Kept beside the
+// constants so adding one cannot leave the cycling behind.
+const targetTabCount = 3
+
+// Label is the tab's chip text.
+func (t TargetTab) Label() string {
+	switch t {
+	case TargetTabLocal:
+		return "Local"
+	case TargetTabPullRequests:
+		return "Pull Requests"
+	case TargetTabPatches:
+		return "Patches"
+	}
+	return ""
+}
+
+// AllTargetTabs lists the tabs in display order.
+func AllTargetTabs() []TargetTab {
+	return []TargetTab{TargetTabLocal, TargetTabPullRequests, TargetTabPatches}
+}
 
 // ExitSelectorAction tells the UI/run layer what follow-up load exiting the
 // target selector requires (the loads need the highlighter and persistence
@@ -98,8 +124,11 @@ func (a *App) InstallReviewCommits(selected []vcs.CommitInfo) {
 // reopening the selector lands where the user chose this review rather than
 // on whichever tab happens to be first.
 func (a *App) SelectorTabForReview() TargetTab {
-	if a.InPrMode() {
+	switch {
+	case a.InPrMode():
 		return TargetTabPullRequests
+	case a.DiffSource.Kind == DiffSourcePatch:
+		return TargetTabPatches
 	}
 	return TargetTabLocal
 }
@@ -117,10 +146,11 @@ func (a *App) EnterTargetSelector(initialTab TargetTab) error {
 
 	status, commits, err := a.loadLocalTargets()
 	if err != nil {
-		// Opening on the Pull Requests tab must not require a usable local
-		// VCS: PR mode runs on the no-op backend, and `:prs` from inside a
-		// PR review is exactly how a reviewer switches pull requests.
-		if initialTab != TargetTabPullRequests {
+		// Only the Local tab needs a usable local VCS. PR mode runs on the
+		// no-op backend, and a patch review may have no repository at all —
+		// which is the entire point of it — so neither may be blocked by a
+		// checkout that cannot answer.
+		if initialTab == TargetTabLocal {
 			return err
 		}
 		status, commits = vcs.ChangeStatus{}, nil
@@ -149,10 +179,7 @@ func (a *App) EnterTargetSelector(initialTab TargetTab) error {
 	a.VisibleCommitCount = len(a.CommitList)
 	a.InputMode = input.ModeCommitSelect
 
-	a.TargetTab = initialTab
-	if initialTab == TargetTabPullRequests {
-		a.onTargetTabEntered()
-	}
+	a.SetTargetTab(initialTab)
 	return nil
 }
 
@@ -202,31 +229,46 @@ func (a *App) ExitCommitSelectMode() ExitSelectorAction {
 	}
 }
 
-// CycleTargetTab switches to the next/previous tab in the review target
-// selector. With only two tabs, forward and reverse are equivalent; the
-// forward arg is kept so callers can pass the natural direction without a
-// cast.
-func (a *App) CycleTargetTab(_ bool) {
-	next := TargetTabLocal
-	if a.TargetTab == TargetTabLocal {
-		next = TargetTabPullRequests
+// CycleTargetTab switches to the next tab, or the previous one when forward
+// is false.
+//
+// The direction argument became meaningful when a third tab arrived: with two
+// it was decorative, and Shift-Tab did the same thing as Tab.
+func (a *App) CycleTargetTab(forward bool) {
+	delta := 1
+	if !forward {
+		delta = targetTabCount - 1 // -1, without going negative under modulo
 	}
-	a.TargetTab = next
-	if next == TargetTabPullRequests {
-		a.onTargetTabEntered()
-	}
+	a.SetTargetTab(TargetTab((int(a.TargetTab) + delta) % targetTabCount))
 }
 
-// onTargetTabEntered is the entry-point hook called when the PR tab becomes
-// visible. It arms the lazy first-page fetch, which the UI layer drains via
-// TakePrTabLoad. Revisiting a tab that already loaded (or is mid-flight)
-// does nothing — refetching is the explicit job of ReloadPrTab.
+// SetTargetTab switches to a specific tab, arming whatever it loads lazily.
+func (a *App) SetTargetTab(tab TargetTab) {
+	a.TargetTab = tab
+	a.onTargetTabEntered()
+}
+
+// onTargetTabEntered arms the lazy first load of whichever tab just became
+// visible. The UI layer drains the request and performs the fetch; revisiting
+// a tab that already loaded (or is mid-flight) does nothing, because
+// refetching is an explicit action.
 func (a *App) onTargetTabEntered() {
-	p := a.ensurePr()
-	if p.TabLoaded || p.TabLoading {
-		return
+	switch a.TargetTab {
+	case TargetTabPullRequests:
+		p := a.ensurePr()
+		if p.TabLoaded || p.TabLoading {
+			return
+		}
+		a.requestPrTabLoad(false)
+	case TargetTabPatches:
+		pt := a.ensurePatchTab()
+		if pt.Loaded || pt.Loading {
+			return
+		}
+		a.requestPatchTabLoad()
+	case TargetTabLocal:
+		// The local list is loaded eagerly by EnterTargetSelector.
 	}
-	a.requestPrTabLoad(false)
 }
 
 // ConfirmCommitSelection resolves the current selector selection (falling

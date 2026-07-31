@@ -40,6 +40,8 @@ const (
 	CmdStage
 	CmdTargetsLocal
 	CmdTargetsPrs
+	// CmdTargetsPatches opens the selector on the Patches tab.
+	CmdTargetsPatches
 	CmdSubmitPicker
 	CmdSubmitComment
 	CmdSubmitApprove
@@ -92,6 +94,7 @@ var commandSpecs = []struct {
 	{"stage", CmdStage},
 	{"commits", CmdTargetsLocal}, {"targets", CmdTargetsLocal},
 	{"prs", CmdTargetsPrs},
+	{"patches", CmdTargetsPatches},
 	{"submit", CmdSubmitPicker},
 	{"submit comment", CmdSubmitComment},
 	{"submit approve", CmdSubmitApprove},

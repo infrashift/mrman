@@ -164,14 +164,25 @@ Normal mode and inserts `comment_tab_width` spaces in Insert mode.
 
 | Key | Action |
 |---|---|
-| `Tab` / `Shift-Tab` | Switch between Local and Pull Requests |
+Three tabs: **Local**, **Pull Requests** and **Patches**.
+
+| Key | Action |
+|---|---|
+| `Tab` / `Shift-Tab` | Next / previous tab |
 | `j` / `k` | Move |
 | `Space` | Toggle a commit (Local tab) |
-| `Enter` | Confirm the range, open the pull request, or load more |
-| `/` | Filter the loaded pull requests |
-| `r` | Toggle all-open vs review-requested |
+| `Enter` | Confirm the range, open the pull request, or open the patch |
+| `/` | Filter the loaded rows (Pull Requests, Patches) |
+| `r` | Toggle all-open vs review-requested (PRs) · rescan (Patches) |
 | `Esc` | Back to Local, or leave the selector |
 | `q` | Quit |
+
+The **Patches** tab is the inbox: it lists the `.patch`, `.diff`, `.mbox` and
+`.eml` files in a directory, one level deep, newest first, showing each one's
+subject, series size and author. A file it cannot read as a patch is still
+listed, with the reason — a patch you expected to see and cannot open is worth
+knowing about. It starts in the review's own directory, which for a patch
+review is where the artifact lives, so its siblings are already there.
 
 ## Mouse
 
@@ -202,6 +213,7 @@ selection while the mouse is enabled.
 | `:e` `:reload` | Re-read the diff; refetches in pull-request mode |
 | `:edit` | Open the focused file in `$EDITOR` |
 | `:clip` `:export` | Copy the review markdown to the clipboard |
+| `:patch` `:reply` | Copy the review as a quoted-diff mail reply |
 | `:clear` | Clear comments and reviewed marks |
 | `:clearc` | Clear comments only |
 | `:diff` | Toggle unified / side-by-side |
@@ -210,6 +222,7 @@ selection while the mouse is enabled.
 | `:stage` | Stage the reviewed files (git) |
 | `:commits` `:targets` | Open the target selector |
 | `:prs` | Open it on the Pull Requests tab |
+| `:patches` | Open it on the Patches tab |
 | `:set commits` `:set nocommits` `:set commits!` | Commit selector visibility |
 | `:comments unresolved\|all\|hide` | Existing forge comments |
 | `:submit` | Submit picker |

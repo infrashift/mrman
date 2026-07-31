@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -22,19 +23,13 @@ func (m *Model) selectorView() []string {
 	emitter := &render.Emitter{}
 	var rows []string
 
-	// Top bar: brand + tab chips.
-	local, prs := " Local ", " Pull Requests "
-	localStyle := render.Style{Fg: t.FgDim, Bg: t.StatusBarBg}
-	prStyle := localStyle
-	if a.TargetTab == app.TargetTabLocal {
-		localStyle = render.Style{Fg: t.FgPrimary, Bg: t.BgHighlight, Bold: true}
-	} else {
-		prStyle = render.Style{Fg: t.FgPrimary, Bg: t.BgHighlight, Bold: true}
-	}
+	// Top bar: brand + one chip per tab.
 	branchInfo := ""
 	switch {
 	case a.TargetTab == app.TargetTabPullRequests:
 		branchInfo = prSelectorTitle(a)
+	case a.TargetTab == app.TargetTabPatches:
+		branchInfo = " " + shortenDir(a.PatchTabDir(), 44) + " "
 	case a.VcsInfo != nil:
 		branch := "detached"
 		if a.VcsInfo.BranchName != nil {
@@ -44,9 +39,16 @@ func (m *Model) selectorView() []string {
 	}
 	topSpans := []render.Span{
 		{Text: " mrman  ", Style: render.Style{Fg: t.FgPrimary, Bg: t.StatusBarBg, Bold: true}},
-		{Text: local, Style: localStyle},
-		{Text: " ", Style: render.Style{Bg: t.StatusBarBg}},
-		{Text: prs, Style: prStyle},
+	}
+	for i, tab := range app.AllTargetTabs() {
+		if i > 0 {
+			topSpans = append(topSpans, render.Span{Text: " ", Style: render.Style{Bg: t.StatusBarBg}})
+		}
+		style := render.Style{Fg: t.FgDim, Bg: t.StatusBarBg}
+		if tab == a.TargetTab {
+			style = render.Style{Fg: t.FgPrimary, Bg: t.BgHighlight, Bold: true}
+		}
+		topSpans = append(topSpans, render.Span{Text: " " + tab.Label() + " ", Style: style})
 	}
 	pad := m.width - render.SpanWidth(topSpans) - render.StringWidth(branchInfo)
 	if pad < 0 {
@@ -60,12 +62,16 @@ func (m *Model) selectorView() []string {
 	// Body rows.
 	bodyH := m.height - 2
 	var body []string
-	if a.TargetTab == app.TargetTabLocal {
-		a.CommitListViewportHeight = bodyH
-		body = m.selectorLocalRows(bodyH)
-	} else {
+	switch a.TargetTab {
+	case app.TargetTabPullRequests:
 		a.EnsurePrState().TabViewportHeight = bodyH
 		body = m.selectorPrRows(bodyH)
+	case app.TargetTabPatches:
+		a.SetPatchTabViewportHeight(bodyH)
+		body = m.selectorPatchRows(bodyH)
+	default:
+		a.CommitListViewportHeight = bodyH
+		body = m.selectorLocalRows(bodyH)
 	}
 	for len(body) < bodyH {
 		body = append(body, "")
@@ -75,12 +81,19 @@ func (m *Model) selectorView() []string {
 	// Footer.
 	hint := m.selectorFooterHint()
 	selected := ""
-	if a.TargetTab == app.TargetTabLocal {
+	switch a.TargetTab {
+	case app.TargetTabPullRequests:
+		if n := len(a.PrTabFilteredRows()); n > 0 {
+			selected = fmt.Sprintf(" %d shown ", n)
+		}
+	case app.TargetTabPatches:
+		if n := a.PatchTabRowCount(); n > 0 {
+			selected = fmt.Sprintf(" %d shown ", n)
+		}
+	default:
 		if r := a.CommitSelectionRange; r != nil {
 			selected = fmt.Sprintf(" %d selected ", r[1]-r[0]+1)
 		}
-	} else if n := len(a.PrTabFilteredRows()); n > 0 {
-		selected = fmt.Sprintf(" %d shown ", n)
 	}
 	footer := []render.Span{
 		{Text: " SELECT ", Style: render.Style{Fg: t.ModeFg, Bg: t.ModeBg, Bold: true}},
@@ -279,4 +292,23 @@ func (m *Model) loadSelection(sel app.ConfirmedSelection) ([]model.DiffFile, app
 		return nil, source, errs.ErrNoChanges
 	}
 	return files, source, nil
+}
+
+// shortenDir fits a directory into the header, keeping the tail — a deep
+// inbox path is identified by its last components, not by the mount point it
+// hangs off, and an untruncated one pushes the tab chips off screen.
+func shortenDir(dir string, maxWidth int) string {
+	if render.StringWidth(dir) <= maxWidth {
+		return dir
+	}
+	parts := strings.Split(dir, string(filepath.Separator))
+	for i := 1; i < len(parts); i++ {
+		candidate := "…" + string(filepath.Separator) +
+			strings.Join(parts[i:], string(filepath.Separator))
+		if render.StringWidth(candidate) <= maxWidth {
+			return candidate
+		}
+	}
+	// Even the last component is too long; clip it rather than overflow.
+	return render.TruncateOrPad(parts[len(parts)-1], maxWidth)
 }

@@ -224,6 +224,8 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.handleSubmitResult(msg)
 	case prListResultMsg:
 		m.handlePrListResult(msg)
+	case patchListResultMsg:
+		m.handlePatchListResult(msg)
 	case prOpenResultMsg:
 		return m, m.handlePrOpenResult(msg)
 	case remoteCommentsResultMsg:
@@ -671,6 +673,8 @@ func (m *Model) runCommand(cmd input.Command) bool {
 		a.SetMessage("Comment vim mode: off")
 	case input.CmdTargetsLocal:
 		m.openTargetSelector(app.TargetTabLocal)
+	case input.CmdTargetsPatches:
+		m.openTargetSelector(app.TargetTabPatches)
 	case input.CmdTargetsPrs:
 		m.openTargetSelector(app.TargetTabPullRequests)
 	case input.CmdCommentsUnresolved:
@@ -708,17 +712,51 @@ func (m *Model) runCommand(cmd input.Command) bool {
 func (m *Model) dispatchSelector(k tea.Key, action input.Action) (bool, tea.Cmd) {
 	a := m.App
 
-	// The "/" filter prompt is a sub-state of the PR tab, not a top-level
-	// input mode, so it needs its own key mapping.
-	if a.PrTabFilterEditing() {
+	// The "/" filter prompt is a sub-state of whichever tab owns one, not a
+	// top-level input mode, so it needs its own key mapping.
+	switch {
+	case a.PrTabFilterEditing():
 		m.dispatchPrTabFilter(input.MapTargetFilter(k))
+		return false, nil
+	case a.PatchTabFilterEditing():
+		m.dispatchPatchTabFilter(input.MapTargetFilter(k))
 		return false, nil
 	}
 
-	if a.TargetTab == app.TargetTabPullRequests {
+	switch a.TargetTab {
+	case app.TargetTabPullRequests:
 		return m.dispatchPrTab(action)
+	case app.TargetTabPatches:
+		quit, cmd := m.dispatchPatchTab(action)
+		if cmd == nil {
+			cmd = m.drainPatchTabLoad()
+		}
+		if !quit {
+			if tabCmd := m.selectorTabSwitch(action); tabCmd != nil {
+				cmd = tea.Batch(cmd, tabCmd)
+			}
+		}
+		return quit, cmd
 	}
-	return m.dispatchLocalTab(action), m.drainPrTabLoad()
+	return m.dispatchLocalTab(action), tea.Batch(m.drainPrTabLoad(), m.drainPatchTabLoad())
+}
+
+// selectorTabSwitch handles the keys that move between tabs, which every tab
+// shares. Esc steps back to Local explicitly rather than cycling: with three
+// tabs "the previous one" is no longer the same thing as "back to the start".
+func (m *Model) selectorTabSwitch(action input.Action) tea.Cmd {
+	a := m.App
+	switch action.Kind {
+	case input.ExitMode:
+		a.SetTargetTab(app.TargetTabLocal)
+	case input.TargetSelectorTabNext:
+		a.CycleTargetTab(true)
+	case input.TargetSelectorTabPrev:
+		a.CycleTargetTab(false)
+	default:
+		return nil
+	}
+	return tea.Batch(m.drainPrTabLoad(), m.drainPatchTabLoad())
 }
 
 // dispatchLocalTab handles the selector's Local (commits) tab.
@@ -784,16 +822,16 @@ func (m *Model) dispatchPrTab(action input.Action) (bool, tea.Cmd) {
 	case input.TogglePrReviewRequestedFilter:
 		a.TogglePrTabScope()
 	case input.ExitMode:
-		// Esc on the PR tab steps back to Local rather than closing the
-		// selector outright: the tabs are peers, and leaving the selector
-		// from here would strand a user who only wanted to switch back.
-		a.CycleTargetTab(false)
+		// Esc steps back to Local rather than closing the selector outright:
+		// the tabs are peers, and leaving from here would strand a user who
+		// only wanted to switch back.
+		a.SetTargetTab(app.TargetTabLocal)
 	case input.TargetSelectorTabNext:
 		a.CycleTargetTab(true)
 	case input.TargetSelectorTabPrev:
 		a.CycleTargetTab(false)
 	}
-	return false, m.drainPrTabLoad()
+	return false, tea.Batch(m.drainPrTabLoad(), m.drainPatchTabLoad())
 }
 
 // dispatchComment handles non-vim comment composition.

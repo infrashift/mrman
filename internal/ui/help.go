@@ -74,6 +74,7 @@ func helpContent(leader rune) []string {
 		"  :q :q! :w :wq          quit / force quit / write / write-quit",
 		"  :e :reload             re-read the diff (refetches a pull request)",
 		"  :edit                  open the focused file in $EDITOR",
+		"  :patches               review target selector, Patches tab",
 		"  :clip :export          copy the review to the clipboard",
 		"  :patch :reply          copy the review as a quoted-diff mail reply",
 		"  :clear :clearc         clear comments (and reviewed marks)",
