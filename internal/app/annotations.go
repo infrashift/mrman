@@ -235,6 +235,9 @@ func (a *App) RebuildAnnotations() {
 				if !commentVisibleWith(comment, ctx.commitSet, ctx.hasCommitSet) {
 					continue
 				}
+				if !commentBelongsToFile(comment, file) {
+					continue
+				}
 				commentLines := CommentDisplayLines(comment, a.DiffState.ViewportWidth)
 				for range commentLines {
 					a.LineAnnotations = append(a.LineAnnotations,
@@ -408,6 +411,11 @@ func (a *App) pushLineComments(fileIdx int, path string, lineNo *uint32,
 		Path: path, Side: side, Line: *lineNo,
 	}])
 
+	var file *model.DiffFile
+	if fileIdx >= 0 && fileIdx < len(a.DiffFiles) {
+		file = &a.DiffFiles[fileIdx]
+	}
+
 	comments := lineComments[*lineNo]
 	for idx, comment := range comments {
 		if model.SideOf(comment) != side {
@@ -416,6 +424,11 @@ func (a *App) pushLineComments(fileIdx int, path string, lineNo *uint32,
 		// Hide comments scoped to a commit outside the current selection.
 		// Uses the shared predicate so height math and rendering agree.
 		if !commentVisibleWith(comment, ctx.commitSet, ctx.hasCommitSet) {
+			continue
+		}
+		// And, within the selection, keep a comment under the patch it was
+		// written on — a series can show one path twice.
+		if !commentBelongsToFile(comment, file) {
 			continue
 		}
 		commentLines := CommentDisplayLines(comment, a.DiffState.ViewportWidth)

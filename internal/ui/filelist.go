@@ -69,6 +69,17 @@ func (p *FileListPane) BuildLines(a *app.App, width, height int) []string {
 				})
 			}
 			spans = append(spans, render.Span{Text: name, Style: render.Style{Fg: t.FgPrimary}})
+			// A series can list one path twice, once per patch that touches
+			// it. The patch label is what tells the two rows apart.
+			if label := a.FilePatchLabel(item.FileIdx); label != "" {
+				style := render.Style{Fg: t.FgDim}
+				if a.FilePathIsAmbiguous(item.FileIdx) {
+					// The rows are otherwise identical, so this is the only
+					// thing distinguishing them — do not let it fade away.
+					style = render.Style{Fg: t.BranchName}
+				}
+				spans = append(spans, render.Span{Text: "  " + label, Style: style})
+			}
 		}
 
 		if selected {

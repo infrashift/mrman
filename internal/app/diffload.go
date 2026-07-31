@@ -135,7 +135,12 @@ func InsertCommitMessageIfSingle(files []model.DiffFile, commits []vcs.CommitInf
 		NewStart: 1,
 		NewCount: lineCount,
 	}}
-	path := fmt.Sprintf("Commit Message (%s)", commit.ShortID)
+	// The file tree splits a display path on "/" to build its directories, so
+	// the pseudo-file's name must not contain one. A commit's ShortID is a
+	// SHA and never does; a patch's is its series position ("3/3"), which
+	// would otherwise render as a directory "Commit Message (3" holding a
+	// file "3)".
+	path := fmt.Sprintf("Commit Message (%s)", strings.ReplaceAll(commit.ShortID, "/", "-"))
 	commitMsgFile := model.DiffFile{
 		SourceIndex:     -1,
 		NewPath:         &path,

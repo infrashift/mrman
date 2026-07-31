@@ -106,14 +106,41 @@ type DiffFile struct {
 	// any index, mode, rename or ---/+++ lines under it. Emitted when quoting
 	// a diff back; empty for synthesized files.
 	RawHeader []string
+	// CommitID names the commit or patch this file's diff belongs to, empty
+	// when the diff is not attributable to one — a working tree, or a commit
+	// range git already squashed into a single diff.
+	//
+	// It exists because a patch series is *not* squashed: two patches touching
+	// one path produce two entries with the same DisplayPath. Session state is
+	// keyed by path, so without this they share one FileReview and a single
+	// comment renders under both. This is what tells them apart.
+	CommitID string
 	// SourceIndex is the file's position in the diff it was read from, or -1
-	// when synthesized.
+	// when synthesized. It is unique across a whole series, not per patch.
 	//
 	// It exists because NewApp sorts DiffFiles by directory for display, which
 	// destroys the order the patch author chose. A review reply quoted out of
 	// that order is hard to follow against the original mail, so the exporter
 	// sorts back by this.
 	SourceIndex int
+}
+
+// CommentBelongsTo reports whether a comment should be shown against this
+// diff entry.
+//
+// It only ever excludes anything when one display path appears more than once,
+// which happens for a patch series: two patches touching one file produce two
+// entries with the same path, and session state is keyed by path, so both
+// would otherwise carry every comment written on either.
+//
+// An unstamped comment belongs everywhere. That covers ordinary diffs, where
+// there is nothing to disambiguate, and comments written before the entry
+// carried an id — hiding those would lose them.
+func (f *DiffFile) CommentBelongsTo(c *Comment) bool {
+	if f == nil || f.CommitID == "" || c == nil || c.CommitID == nil {
+		return true
+	}
+	return *c.CommitID == f.CommitID
 }
 
 // DisplayPath returns the new path, falling back to the old path. A DiffFile

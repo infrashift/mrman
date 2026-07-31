@@ -232,13 +232,12 @@ func BuildPatchData(
 			templateComment(c, reviewLocation, next(), opts.CommentTypes))
 	}
 
-	byPath := diffFilesByPath(files)
-	for _, path := range patchOrderedPaths(session, files) {
-		review := session.Files[path]
+	for _, entry := range patchOrderedEntries(session, files) {
+		review := session.Files[entry.path]
 		if review == nil || review.CommentCount() == 0 {
 			continue
 		}
-		file, orphans := buildPatchFile(path, review, byPath[path], next, opts)
+		file, orphans := buildPatchFile(entry.path, review, entry.diff, next, opts)
 		data.Orphans = append(data.Orphans, orphans...)
 		// A file left with nothing to show is dropped rather than emitted as a
 		// bare header. That happens when every comment on it was orphaned, or
@@ -256,48 +255,45 @@ func BuildPatchData(
 	return data, nil
 }
 
-// diffFilesByPath indexes the diff by display path, keeping the earliest entry
-// when a series touches one path more than once — that is the file the
-// reviewer read first.
-func diffFilesByPath(files []model.DiffFile) map[string]*model.DiffFile {
-	out := make(map[string]*model.DiffFile, len(files))
-	for i := range files {
-		path := files[i].DisplayPath()
-		if existing, ok := out[path]; ok && existing.SourceIndex <= files[i].SourceIndex {
-			continue
-		}
-		out[path] = &files[i]
-	}
-	return out
+// patchEntry pairs a commented path with the diff entry to quote it from.
+type patchEntry struct {
+	path string
+	diff *model.DiffFile
 }
 
-// patchOrderedPaths lists the session's commented paths in the order the diff
-// carried them, with any path not in the diff sorted after, alphabetically.
-func patchOrderedPaths(session *model.ReviewSession, files []model.DiffFile) []string {
-	order := make(map[string]int, len(files))
+// patchOrderedEntries lists what the reply should quote, in the order the diff
+// carried it.
+//
+// A series can touch one path in several patches, and each of those is its own
+// entry: quoting only one would attach comments written on patch 3 to patch
+// 1's diff, or orphan them. Paths the diff does not carry at all come last,
+// alphabetically, with a nil diff so they render as skipped.
+func patchOrderedEntries(session *model.ReviewSession, files []model.DiffFile) []patchEntry {
+	var entries []patchEntry
+	inDiff := map[string]bool{}
 	for i := range files {
 		path := files[i].DisplayPath()
-		if _, seen := order[path]; !seen {
-			order[path] = files[i].SourceIndex
+		inDiff[path] = true
+		if session.Files[path] == nil {
+			continue
 		}
+		entries = append(entries, patchEntry{path: path, diff: &files[i]})
 	}
-
-	paths := make([]string, 0, len(session.Files))
-	for path := range session.Files {
-		paths = append(paths, path)
-	}
-	sort.Slice(paths, func(i, j int) bool {
-		a, aOK := order[paths[i]]
-		b, bOK := order[paths[j]]
-		switch {
-		case aOK && bOK:
-			return a < b
-		case aOK != bOK:
-			return aOK // files present in the diff come first
-		}
-		return paths[i] < paths[j]
+	sort.SliceStable(entries, func(i, j int) bool {
+		return entries[i].diff.SourceIndex < entries[j].diff.SourceIndex
 	})
-	return paths
+
+	var missing []string
+	for path := range session.Files {
+		if !inDiff[path] {
+			missing = append(missing, path)
+		}
+	}
+	sort.Strings(missing)
+	for _, path := range missing {
+		entries = append(entries, patchEntry{path: path})
+	}
+	return entries
 }
 
 // buildPatchFile quotes one file and hangs its comments off the right lines.
@@ -307,6 +303,9 @@ func buildPatchFile(
 ) (PatchFile, []OrphanComment) {
 	file := PatchFile{Path: path, Status: string(review.Status)}
 	for _, c := range review.FileComments {
+		if !diff.CommentBelongsTo(c) {
+			continue
+		}
 		file.Comments = append(file.Comments, templateComment(c, path, next(), opts.CommentTypes))
 	}
 
@@ -362,6 +361,11 @@ func placeComments(
 
 	for _, line := range lines {
 		for _, c := range review.LineComments[line] {
+			// A series can quote one path once per patch; keep each comment
+			// with the patch it was written on.
+			if !diff.CommentBelongsTo(c) {
+				continue
+			}
 			tc := templateComment(c, lineLocation(path, line, c), next(), opts.CommentTypes)
 			if label := opts.anchorLabel(c.ID); label != "" {
 				tc.Anchor = label

@@ -159,6 +159,11 @@ func (p *DiffPane) fileHeaderRow(a *app.App, ann *app.AnnotatedLine, ind render.
 	if !file.IsCommitMessage && !a.IsPristineMode {
 		fmt.Fprintf(&b, " [%c]", file.Status.Char())
 	}
+	// Which patch of the series this entry came from, when the diff spans
+	// more than one and the path alone would not say.
+	if label := a.FilePatchLabel(ann.FileIdx); label != "" {
+		fmt.Fprintf(&b, " · patch %s", label)
+	}
 	b.WriteString(" ")
 	text := b.String()
 	// Fill the rest of the row with ═ to the right edge.

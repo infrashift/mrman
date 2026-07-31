@@ -76,19 +76,39 @@ through the commit strip you already know from `mrman -r`:
 - `(` and `)` walk patch by patch.
 - `Space` on a strip row narrows the diff to that patch alone.
 - With exactly one patch selected, **its changelog appears as a reviewable
-  file** — `Commit Message (1/2)` — and comments you write are scoped to that
-  patch, so they follow it rather than smearing across the series.
+  file** — `Commit Message (1/2)`.
 
-That last point matters more than it sounds. Mailing-list reviewers comment on
-the commit message as often as on the code, and this is where you do it.
+Comments carry the patch they were written on, whether or not you narrowed
+first. Mailing-list reviewers comment on the changelog as often as on the code,
+and this is where you do it.
 
 The `0/N` cover letter is a row like any other, but it carries prose rather
 than a diff. Selecting it alone reports *"that message is prose only — a cover
 letter carries no diff"*; select it together with a patch, or just read it in
 the strip.
 
-Two patches touching the same file do not collide: each patch's diff is parsed
-separately and scoped to its own identity.
+### When two patches touch one file
+
+A series that changes `src/cache.go` twice lists it twice, because those are two
+different diffs. mrman tags the rows so you can tell them apart:
+
+```
+▼ src/                        ═══ src/cache.go [M] · patch 1/3 ═══
+  ▢ M cache.go  1/3
+  ▢ M cache.go  2/3
+  ▢ M config.py  3/3
+```
+
+The tag is highlighted when — and only when — two rows genuinely share a path;
+that is the case where it is the only thing distinguishing them. Narrow to a
+single patch with `Space` and the tags disappear, since every row would then
+carry the same one.
+
+A comment stays with the entry you wrote it on: comment on `cache.go 1/3` and it
+does not appear under `cache.go 2/3`, and the reply quotes it against patch 1's
+hunks. Reviewed marks are the deliberate exception — `r` means "reviewed
+`cache.go` across this series" and applies to both rows. Narrow to one patch when
+you want the finer grain.
 
 ## What is different from a repository review
 
