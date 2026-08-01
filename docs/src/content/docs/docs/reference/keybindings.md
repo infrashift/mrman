@@ -47,7 +47,7 @@ collide, because the focused pane handles its own keys first.
 | `Esc` | Back to the selector when no diff is loaded |
 
 `<leader>t` and `<leader>p` are the way out of a review — the same places
-`:commits` and `:prs` reach. Esc leaves a loaded review alone (it only
+`:commits` and `:mrs` reach. Esc leaves a loaded review alone (it only
 discards a half-typed count); it reopens the selector solely from the empty
 state you land in by escaping the selector at startup, which would otherwise
 have no key that led anywhere.
@@ -221,7 +221,7 @@ selection while the mouse is enabled.
 | `:focus` `:f` | Toggle single-file view |
 | `:stage` | Stage the reviewed files (git) |
 | `:commits` `:targets` | Open the target selector |
-| `:prs` | Open it on the Merge Requests tab |
+| `:mrs` | Open it on the Merge Requests tab |
 | `:patches` | Open it on the Patches tab |
 | `:set commits` `:set nocommits` `:set commits!` | Commit selector visibility |
 | `:comments unresolved\|all\|hide` | Existing forge comments |

@@ -193,7 +193,7 @@ func modeChipText(a *app.App) string {
 // review came from — the answer to "how do I get back to the list".
 func reopenCommand(a *app.App) string {
 	if a.InPrMode() {
-		return ":prs merge requests"
+		return ":mrs merge requests"
 	}
 	return ":commits targets"
 }

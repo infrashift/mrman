@@ -83,7 +83,7 @@ func helpContent(leader rune) []string {
 		"  :focus :f              toggle single-file view",
 		"  :stage                 stage reviewed files (git)",
 		"  :commits :targets      open the target selector",
-		"  :prs                   open the merge-request list",
+		"  :mrs                   open the merge-request list",
 		"  :set commits[!]        show / toggle the commit selector",
 		"  :comments unresolved|all|hide   existing forge comments",
 		"  :submit [comment|approve|request-changes|draft]",
