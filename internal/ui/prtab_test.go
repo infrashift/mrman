@@ -320,7 +320,7 @@ func TestPrTabEscReturnsToLocalTab(t *testing.T) {
 
 func TestPrTabEmptyStatesExplainWhy(t *testing.T) {
 	m := prTabModel(t, newPrTabForge())
-	if out := strings.Join(m.selectorView(), "\n"); !strings.Contains(out, "No open pull requests") {
+	if out := strings.Join(m.selectorView(), "\n"); !strings.Contains(out, "No open merge requests") {
 		t.Errorf("empty listing must say so, got:\n%s", out)
 	}
 

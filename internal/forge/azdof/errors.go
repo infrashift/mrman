@@ -18,7 +18,7 @@ const (
 	hintForbidden = "The PAT was accepted but this operation is forbidden — " +
 		"make sure the PAT carries the Code (Read & Write) scope and has " +
 		"access to this organization and project."
-	hintNotFound = "Pull request, repository, or project not found — check " +
+	hintNotFound = "Merge request, repository, or project not found — check " +
 		"the organization URL, project, and repository names, and that the " +
 		"PAT can see them."
 	hintRateLimited = "Azure DevOps throttled the request. Wait for the " +

@@ -1,11 +1,11 @@
 ---
-title: How PR Review Works
-description: Opening a pull request, reading the forge's existing threads inline, narrowing to one commit, and submitting a review back — the parts that are the same on every forge.
+title: How MR Review Works
+description: Opening a merge request, reading the forge's existing threads inline, narrowing to one commit, and submitting a review back — the parts that are the same on every forge.
 sidebar:
   order: 0
 ---
 
-This page is the forge-agnostic half of pull-request review. Everything here
+This page is the forge-agnostic half of merge-request review. Everything here
 works the same way on all four forges; the per-forge pages cover
 authentication, URL shapes and the specific things a forge cannot do.
 
@@ -24,7 +24,7 @@ mrman pr 125                            # bare number, repo from your checkout
 mrman pr owner/repo#125                 # addressed explicitly
 mrman pr owner/repo!125                 # ! reads better for merge requests
 mrman pr https://github.com/o/r/pull/1  # or by URL, any forge
-mrman                                   # then Tab to the Pull Requests tab
+mrman                                   # then Tab to the Merge Requests tab
 ```
 
 ### Target syntax
@@ -49,14 +49,14 @@ An unrecognized host produces an actionable error containing the
 
 ### Browsing instead
 
-The **Pull Requests** tab of the target selector lists what is open on the
+The **Merge Requests** tab of the target selector lists what is open on the
 forge. `/` filters the loaded list, `r` toggles between everything open and
 what is waiting on your review, `Enter` opens one or loads more. `<leader>p`
 (`;p`) gets you back to the list from inside a review.
 
 ## Reading the forge's side
 
-The pull request's existing review threads and review summaries render
+The merge request's existing review threads and review summaries render
 **inline in the diff, read-only**. mrman never replies to them, resolves them,
 or rewrites them — `dd` on one answers *"Existing forge comments are
 read-only"*.
@@ -73,24 +73,24 @@ Resolved threads are hidden by default:
 
 ## Context and refetching
 
-Pull request diffs arrive with the same hidden context as local ones. `Enter`
+Merge request diffs arrive with the same hidden context as local ones. `Enter`
 or `Space` on an expander fetches the surrounding lines **from the forge** on
 demand, so you are not downloading whole files you will not read.
 
-`:e` (or `:reload`) refetches. If the pull request advanced to a new head
+`:e` (or `:reload`) refetches. If the merge request advanced to a new head
 while you were reading, mrman opens the review **for that head** rather than
 re-anchoring your existing comments onto lines that may have moved — the
 anchors you wrote were about the code you saw.
 
 ## Narrowing to one commit
 
-On a multi-commit pull request, `(` and `)` walk commit by commit, narrowing
+On a multi-commit merge request, `(` and `)` walk commit by commit, narrowing
 the diff to one commit's changes and back out again. mrman marks the commits
 your last review already covered and preselects what landed since, so a
 re-review starts on the new work.
 
 This uses the forge's range-diff endpoint. On a forge without one, the review
-widens back to the whole pull request instead of failing — see [Forge
+widens back to the whole merge request instead of failing — see [Forge
 Capabilities](../../reference/forge-capabilities/).
 
 ## Submitting
@@ -175,7 +175,7 @@ checklist.
 
 ## Agents
 
-An agent can follow a pull-request review as you write it, or contribute
+An agent can follow a merge-request review as you write it, or contribute
 findings of its own, through `mrman review`. Submitting to a forge is gated
 behind a grant only a person at a terminal can issue. See [Agent
 Collaboration](../agents/).

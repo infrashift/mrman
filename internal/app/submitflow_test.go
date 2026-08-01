@@ -113,7 +113,7 @@ func TestStartSubmitRequiresPrMode(t *testing.T) {
 	if a.StartSubmitWith(forge.SubmitComment, false) {
 		t.Fatal("submit must fail outside PR mode")
 	}
-	if a.Message == nil || !strings.Contains(a.Message.Content, "pull request") {
+	if a.Message == nil || !strings.Contains(a.Message.Content, "merge request") {
 		t.Fatal("must explain PR requirement")
 	}
 }

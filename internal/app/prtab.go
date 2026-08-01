@@ -240,7 +240,7 @@ func (a *App) TogglePrTabScope() {
 	p.TabCursor = 0
 	p.TabScrollOffset = 0
 	a.requestPrTabLoad(false)
-	a.SetMessage("Pull requests: " + p.TabScope.Label())
+	a.SetMessage("Merge requests: " + p.TabScope.Label())
 }
 
 // ReloadPrTab refetches the listing from the first page, keeping scope and

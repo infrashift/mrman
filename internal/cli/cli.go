@@ -101,9 +101,9 @@ func addTuiFlags(cmd *cobra.Command, o *TuiOptions) {
 	f.StringVar(&o.Patch, "patch", "", "review a .patch, .diff or mbox file without any repository")
 	f.IntVar(&o.PatchStrip, "patch-strip", 0, "leading path components to strip from a patch (like patch -p, default 1)")
 	f.BoolVar(&o.Stdout, "stdout", false, "export review markdown to stdout instead of the clipboard")
-	f.StringVar(&o.RepoURL, "repo-url", "", "override the forge repository for PR operations")
+	f.StringVar(&o.RepoURL, "repo-url", "", "override the forge repository for MR operations")
 	f.StringVar(&o.Forge, "forge", "", "forge for ambiguous targets: github|gitlab|azuredevops|forgejo")
-	f.BoolVar(&o.JSON, "json", false, "open the pull request headlessly and print its session as JSON")
+	f.BoolVar(&o.JSON, "json", false, "open the merge request headlessly and print its session as JSON")
 	f.String("auto", "", "authorize agent submits for this session: comment,draft,approve,request-changes (default comment,draft)")
 	f.Lookup("auto").NoOptDefVal = " " // bare --auto means "the default set"
 
@@ -140,14 +140,14 @@ func newTuiCmd(args *Args) *cobra.Command {
 }
 
 func newPrCmd(args *Args, name string) *cobra.Command {
-	short := "Review a pull request from a forge"
+	short := "Review a merge request from a forge"
 	if name == "mr" {
 		short = "Review a merge request from a forge (alias of pr)"
 	}
 	return &cobra.Command{
 		Use:   name + " <target>",
 		Short: short,
-		Long:  short + ".\n\nTarget forms: a bare number (125), owner/repo#125, or a full PR/MR URL.",
+		Long:  short + ".\n\nTarget forms: a bare number (125), owner/repo#125, or a full merge-request URL.",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, positional []string) error {
 			args.Command = CommandPr

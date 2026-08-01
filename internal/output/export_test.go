@@ -466,7 +466,7 @@ func TestScopeLinesAndLabels(t *testing.T) {
 		{ScopeStagedUnstagedAndCommits, commits,
 			"Reviewing staged + unstaged + commits: abc1234, def4567",
 			"selected commit range + staged/unstaged changes"},
-		{ScopePullRequest, nil, "", "pull request"},
+		{ScopePullRequest, nil, "", "merge request"},
 		{ScopeKind(99), nil, "", ""},
 	}
 	for _, tc := range cases {

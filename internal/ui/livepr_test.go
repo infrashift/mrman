@@ -174,7 +174,7 @@ func TestLivePullRequestReview(t *testing.T) {
 		allFiles := len(a.DiffFiles)
 		a.CommitSelectionRange = &model.IndexRange{0, 0} // the newest commit only
 		runCmd(t, m, m.reloadInlineSelection())
-		t.Logf("narrowed to the newest commit: %d files (whole PR had %d)",
+		t.Logf("narrowed to the newest commit: %d files (whole MR had %d)",
 			len(a.DiffFiles), allFiles)
 		if len(a.DiffFiles) == 0 {
 			t.Error("narrowing to one commit produced an empty diff")

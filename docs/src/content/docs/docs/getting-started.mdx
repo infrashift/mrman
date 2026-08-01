@@ -116,7 +116,7 @@ color = "red"
 
 Every option is documented in [Configuration](../reference/configuration/).
 
-## Review a pull request
+## Review a merge request
 
 If your checkout has a remote on a supported forge, mrman can open pull
 requests directly:
@@ -124,13 +124,13 @@ requests directly:
 ```sh
 mrman pr 125                    # by number, repo inferred from the checkout
 mrman pr owner/repo#125         # addressed explicitly
-mrman pr <PR/MR URL>            # any supported forge
-mrman                           # then Tab to the Pull Requests tab
+mrman pr <MR URL>               # any supported forge
+mrman                           # then Tab to the Merge Requests tab
 ```
 
 The forge's existing review threads render inline in the diff, read-only, and
-`:submit` posts your review back. Start with [How PR Review
-Works](../guides/pull-requests/), then your forge:
+`:submit` posts your review back. Start with [How MR Review
+Works](../guides/merge-requests/), then your forge:
 [GitHub](../forges/github/) · [GitHub
 Enterprise](../forges/github-enterprise/) · [GitLab](../forges/gitlab/) ⚗️ ·
 [Azure DevOps](../forges/azure-devops/) · [Forgejo &

@@ -21,7 +21,7 @@ var (
 	// ErrMissingCommitRange reports a range diff source with no commit range.
 	ErrMissingCommitRange = errors.New("commit range required for diff source but missing")
 	// ErrMissingPrSessionKey reports a pull-request session without its key.
-	ErrMissingPrSessionKey = errors.New("pull request session has no PR session key")
+	ErrMissingPrSessionKey = errors.New("merge request session has no session key")
 	// ErrUnsupportedDiffSource reports a session diff source with no slug form.
 	ErrUnsupportedDiffSource = errors.New("diff source has no slug form")
 )

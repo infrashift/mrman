@@ -154,7 +154,7 @@ The default:
 ```
 
 `MovedToSummary` is how mrman refuses to drop a comment it could not place —
-see [preflight](../../guides/pull-requests/#preflight) for the reasons a comment
+see [preflight](../../guides/merge-requests/#preflight) for the reasons a comment
 ends up there. **Keep that section in any override**, or you will silently lose
 comments on submit.
 

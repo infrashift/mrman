@@ -100,7 +100,7 @@ func TestSetRemoteCommentsVisibilityOutsidePrModeIsRejected(t *testing.T) {
 	if a.SetRemoteCommentsVisibility(forgetypes.VisibilityAll) {
 		t.Error("no fetch should be requested outside PR mode")
 	}
-	if a.Message == nil || !strings.Contains(a.Message.Content, "pull request") {
+	if a.Message == nil || !strings.Contains(a.Message.Content, "merge request") {
 		t.Errorf("expected an explanatory message, got %+v", a.Message)
 	}
 }

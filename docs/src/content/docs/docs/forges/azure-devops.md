@@ -1,6 +1,6 @@
 ---
 title: Azure DevOps
-description: Review Azure DevOps pull requests from the terminal — PATs, the org/project/repo identity, votes instead of reviews, and the three things Azure DevOps cannot do.
+description: Review Azure DevOps merge requests from the terminal — PATs, the org/project/repo identity, votes instead of reviews, and the three things Azure DevOps cannot do.
 sidebar:
   order: 4
 ---
@@ -52,7 +52,7 @@ ca_file = "/etc/ssl/corp-root.pem"
 `forge = "azuredevops"` is the canonical name; `azure_devops` and `ado` are
 accepted too.
 
-## Open a pull request
+## Open a merge request
 
 Azure DevOps identifies a repository by **organization, project and
 repository** — three parts, not two. That shows up in every target form:
@@ -62,7 +62,7 @@ mrman pr 7                                     # from inside the checkout
 mrman pr project/repo#7                         # org comes from the checkout
 mrman pr dev.azure.com/org/project/repo#7       # fully qualified
 mrman pr https://dev.azure.com/org/project/_git/repo/pullrequest/7
-mrman                                           # then Tab to Pull Requests
+mrman                                           # then Tab to Merge Requests
 ```
 
 Legacy `*.visualstudio.com` URLs work too, including the
@@ -88,7 +88,7 @@ calls — the transport hostname is right for git and wrong for the API.
 | Multi-line comments | ✓ true ranges |
 | Per-commit range diff | **—** `(` / `)` unavailable |
 | Atomic submit | **—** see below |
-| Review-requested filter | ✓ `r` in the PR list |
+| Review-requested filter | ✓ `r` in the MR list |
 
 ### No draft reviews
 
@@ -137,10 +137,10 @@ The commit strip still appears and `(` / `)` are still accepted — but the diff
 does not narrow, and mrman says so rather than showing you a wrong diff:
 
 ```
- NORMAL   This forge cannot diff a commit range — showing the whole pull request
+ NORMAL   This forge cannot diff a commit range — showing the whole merge request
 ```
 
-A review therefore always covers the whole pull request.
+A review therefore always covers the whole merge request.
 
 ### No atomic submit
 
@@ -155,13 +155,13 @@ vote* with no body and no comments and the vote fails, that fails outright,
 because nothing landed to keep.
 
 Because there is no server-side review object, mrman has no review id to report
-back; the submit result carries the pull request URL instead.
+back; the submit result carries the merge request URL instead.
 
 ### Threads track across iterations
 
 When mrman anchors an inline comment it attaches Azure DevOps' iteration
 context and the file's change-tracking id. That is what lets Azure DevOps keep
-your comment attached to the right line as the pull request gets new
+your comment attached to the right line as the merge request gets new
 iterations, instead of stranding it. You do not have to do anything for this —
 it is why the anchors survive a force-push better than a naive line number
 would.
@@ -183,7 +183,7 @@ local-draft comments"* when you have nothing pending. Leave at least a
 review-level comment (`<leader>c`) with a request-changes, which you probably
 want anyway.
 
-## Reading the pull request
+## Reading the merge request
 
 Existing threads render inline, read-only, with real resolution state — Azure
 DevOps tracks that properly, so `:comments unresolved` / `all` / `hide` all
@@ -211,7 +211,7 @@ The header counts unresolved threads, and resolved ones are hidden until
 ```
 
 One asymmetry worth knowing: a thread with **no file context** — the kind the
-web UI shows as a general PR discussion — is not rendered, because Azure DevOps
+web UI shows as a general MR discussion — is not rendered, because Azure DevOps
 has no review-summary concept for mrman to slot it into. Only file-anchored
 threads appear in the diff.
 
@@ -231,7 +231,7 @@ as "fixed":
 ╘═════════════════════════════════════════════════════════════════
 ```
 
-Each row below was verified by setting that disposition on a real pull request
+Each row below was verified by setting that disposition on a real merge request
 and reading the badge mrman drew:
 
 | Azure DevOps status | Web UI label | Badge | Visibility |
@@ -280,10 +280,10 @@ Two things to know:
 Forges that only distinguish resolved from unresolved — GitHub, GitLab,
 Forgejo — carry no disposition and keep the plain `(resolved)` badge.
 
-`r` in the pull-request list toggles between everything open and what is
+`r` in the merge-request list toggles between everything open and what is
 waiting on your review.
 
-## What was verified against a real pull request
+## What was verified against a real merge request
 
 Everything on this page was exercised against a live Azure DevOps Services pull
 request — three commits, two files, three pre-existing threads (one resolved).
@@ -326,7 +326,7 @@ Also confirmed end to end:
 - **Read-only means read-only.** `dd` on a forge thread answers *"Existing forge
   comments are read-only"*; on a comment you already submitted, *"Comment already
   pushed — read only"*.
-- **The pull-request list works**, including `/` filtering and `r` toggling
+- **The merge-request list works**, including `/` filtering and `r` toggling
   between `scope:all` and `scope:requested`.
 - **The agent interlock holds.** Without a grant, `mrman review submit` exits `1`
   with `agent_submit_not_permitted` and the thread count on the forge is
@@ -353,6 +353,6 @@ A second Azure-DevOps-only bug turned up the same way: `mrman review list --repo
 <checkout>` returned nothing. Coordinate derivation took the last two segments
 of the clone URL, and Azure DevOps' URLs are
 `{org}/{project}/_git/{repo}` — so the literal `_git` marker became the owner
-and never matched the `{project}/{repo}` coordinate derived from the repo's PR
+and never matched the `{project}/{repo}` coordinate derived from the repo's MR
 slugs. Agents following the documented `--repo /path/to/repo` path would
 conclude no session existed. Also fixed, with regression tests.

@@ -43,7 +43,7 @@ collide, because the focused pane handles its own keys first.
 | `<leader>s` | Toggle the inline commit selector |
 | `<leader>f` | Toggle single-file view |
 | `<leader>t` | Back to the target selector |
-| `<leader>p` | Back to the pull-request list |
+| `<leader>p` | Back to the merge-request list |
 | `Esc` | Back to the selector when no diff is loaded |
 
 `<leader>t` and `<leader>p` are the way out of a review — the same places
@@ -164,16 +164,16 @@ Normal mode and inserts `comment_tab_width` spaces in Insert mode.
 
 | Key | Action |
 |---|---|
-Three tabs: **Local**, **Pull Requests** and **Patches**.
+Three tabs: **Local**, **Merge Requests** and **Patches**.
 
 | Key | Action |
 |---|---|
 | `Tab` / `Shift-Tab` | Next / previous tab |
 | `j` / `k` | Move |
 | `Space` | Toggle a commit (Local tab) |
-| `Enter` | Confirm the range, open the pull request, or open the patch |
-| `/` | Filter the loaded rows (Pull Requests, Patches) |
-| `r` | Toggle all-open vs review-requested (PRs) · rescan (Patches) |
+| `Enter` | Confirm the range, open the merge request, or open the patch |
+| `/` | Filter the loaded rows (Merge Requests, Patches) |
+| `r` | Toggle all-open vs review-requested (MRs) · rescan (Patches) |
 | `Esc` | Back to Local, or leave the selector |
 | `q` | Quit |
 
@@ -210,7 +210,7 @@ selection while the mouse is enabled.
 | `:q!` `:quit!` | Quit without saving |
 | `:w` `:write` | Save the session |
 | `:x` `:wq` | Save and quit |
-| `:e` `:reload` | Re-read the diff; refetches in pull-request mode |
+| `:e` `:reload` | Re-read the diff; refetches in merge-request mode |
 | `:edit` | Open the focused file in `$EDITOR` |
 | `:clip` `:export` | Copy the review markdown to the clipboard |
 | `:patch` `:reply` | Copy the review as a quoted-diff mail reply |
@@ -221,7 +221,7 @@ selection while the mouse is enabled.
 | `:focus` `:f` | Toggle single-file view |
 | `:stage` | Stage the reviewed files (git) |
 | `:commits` `:targets` | Open the target selector |
-| `:prs` | Open it on the Pull Requests tab |
+| `:prs` | Open it on the Merge Requests tab |
 | `:patches` | Open it on the Patches tab |
 | `:set commits` `:set nocommits` `:set commits!` | Commit selector visibility |
 | `:comments unresolved\|all\|hide` | Existing forge comments |

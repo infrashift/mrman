@@ -53,7 +53,7 @@ func Fetch(
 		files = ignore.Load(localCheckout).FilterDiffFiles(files)
 	}
 	if len(files) == 0 {
-		return app.PullRequestLoad{}, fmt.Errorf("pull request #%d has no file changes", details.Number)
+		return app.PullRequestLoad{}, fmt.Errorf("merge request #%d has no file changes", details.Number)
 	}
 
 	return app.PullRequestLoad{

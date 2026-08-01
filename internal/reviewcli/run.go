@@ -132,7 +132,7 @@ func resolveSessionPath(store *persistence.Store, repo, session string) (string,
 				}
 			}
 			return "", &errs.InvalidInput{Detail: fmt.Sprintf(
-				"no PR session found for '%s'. Run `mrman review list --all` to see available sessions.", session)}
+				"no MR session found for '%s'. Run `mrman review list --all` to see available sessions.", session)}
 		}
 	}
 

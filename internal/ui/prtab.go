@@ -150,14 +150,14 @@ func (m *Model) selectorPrRows(height int) []string {
 	}
 	rows := a.PrTabFilteredRows()
 	if len(rows) == 0 {
-		message := "  No open pull requests."
+		message := "  No open merge requests."
 		switch {
 		case a.Pr != nil && a.Pr.TabLoading:
-			message = "  Loading pull requests…"
+			message = "  Loading merge requests…"
 		case a.Pr != nil && a.Pr.TabFilter != "":
-			message = fmt.Sprintf("  No pull requests match %q.", a.Pr.TabFilter)
+			message = fmt.Sprintf("  No merge requests match %q.", a.Pr.TabFilter)
 		case a.Pr != nil && a.Pr.TabScope == forge.ScopeReviewRequested:
-			message = "  No pull requests are awaiting your review."
+			message = "  No merge requests are awaiting your review."
 		}
 		return []string{"", emitter.Line([]render.Span{
 			{Text: message, Style: render.Style{Fg: t.FgDim}},
@@ -169,7 +169,7 @@ func (m *Model) selectorPrRows(height int) []string {
 		out = append(out, m.prRow(emitter, &rows[i], i == a.Pr.TabCursor))
 	}
 	if a.CanLoadMorePrs() {
-		label := "      … load more pull requests"
+		label := "      … load more merge requests"
 		if a.Pr.TabLoading {
 			label = "      … loading"
 		}

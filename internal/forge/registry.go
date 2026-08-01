@@ -328,7 +328,7 @@ func ResolveRepository(remoteURLs []string, cfg config.ForgeConfig) (*forgetypes
 func ParseTarget(s string, checkoutRepo *forgetypes.Repository, cfg config.ForgeConfig) (*Target, error) {
 	trimmed := strings.TrimSpace(s)
 	if trimmed == "" {
-		return nil, &errs.InvalidInput{Detail: "empty pull request target"}
+		return nil, &errs.InvalidInput{Detail: "empty merge request target"}
 	}
 
 	if isAllDigits(trimmed) {
@@ -338,7 +338,7 @@ func ParseTarget(s string, checkoutRepo *forgetypes.Repository, cfg config.Forge
 		}
 		if checkoutRepo == nil {
 			return nil, &errs.InvalidInput{Detail: fmt.Sprintf(
-				"bare PR number %q requires a repository checkout; run inside a checkout, or pass owner/repo#%s or a full URL (unrecognized hosts fall back to default_forge)",
+				"bare MR number %q requires a repository checkout; run inside a checkout, or pass owner/repo#%s or a full URL (unrecognized hosts fall back to default_forge)",
 				trimmed, trimmed)}
 		}
 		repo := *checkoutRepo
@@ -374,7 +374,7 @@ func ParseTarget(s string, checkoutRepo *forgetypes.Repository, cfg config.Forge
 
 func malformedTarget(input string) error {
 	return &errs.InvalidInput{Detail: fmt.Sprintf(
-		"cannot parse pull request target %q; expected a PR number, owner/repo#N, or a pull request URL", input)}
+		"cannot parse merge request target %q; expected an MR number, owner/repo#N, or a merge request URL", input)}
 }
 
 // finalizeTarget applies the host-over-shape override and preserves the

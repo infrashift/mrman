@@ -62,7 +62,7 @@ Forgejo one. ⚗️ marks an experimental driver, as defined above.
 
 ### Draft reviews
 
-A draft is an unpublished review — comments attached to the pull request but
+A draft is an unpublished review — comments attached to the merge request but
 visible only to you until you submit.
 
 - **GitHub**: a pending review.
@@ -105,7 +105,7 @@ filtering, while `active`, `pending` and a missing status stay open — and the
 thread badge names the actual disposition, so `(won't fix)` is distinguishable
 from `(resolved)`. See [Thread
 dispositions](../../forges/azure-devops/#thread-dispositions), which records
-what was verified against a live pull request.
+what was verified against a live merge request.
 
 The other three forges have nothing richer than resolved/unresolved to report,
 so their threads keep the plain `(resolved)` badge.
@@ -141,10 +141,10 @@ This is what `(` and `)` use to narrow a multi-commit review to one commit.
   remotely, commit scoping is unavailable.
 - **Azure DevOps**: unavailable. The commit strip is still shown, and `(` / `)`
   are still accepted, but the diff does not narrow — mrman warns *"This forge
-  cannot diff a commit range — showing the whole pull request"* and keeps
+  cannot diff a commit range — showing the whole merge request"* and keeps
   showing everything.
 
-Where it is missing, mrman **widens back** to the whole pull request rather than
+Where it is missing, mrman **widens back** to the whole merge request rather than
 failing.
 
 ### Atomic submit
@@ -180,7 +180,7 @@ to the right line across new iterations.
 
 ### Review-requested filter
 
-Every forge supports it. `r` in the pull-request list toggles between everything
+Every forge supports it. `r` in the merge-request list toggles between everything
 open and what is waiting on your review.
 
 ## Where this comes from

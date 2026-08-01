@@ -60,7 +60,7 @@ func selectorModel(t *testing.T) *Model {
 func TestSelectorViewRenders(t *testing.T) {
 	m := selectorModel(t)
 	out := strings.Join(m.selectorView(), "\n")
-	for _, want := range []string{"Local", "Pull Requests", "SELECT", "first", "second", "staged", "unstaged"} {
+	for _, want := range []string{"Local", "Merge Requests", "SELECT", "first", "second", "staged", "unstaged"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("selector missing %q", want)
 		}
@@ -93,7 +93,7 @@ func TestSelectorTabCycle(t *testing.T) {
 	// Entering the tab arms the lazy fetch; with no rows back yet the body
 	// reports the in-flight load rather than "no pull requests".
 	out := strings.Join(m.selectorView(), "\n")
-	if !strings.Contains(out, "Loading pull requests") {
+	if !strings.Contains(out, "Loading merge requests") {
 		t.Errorf("PR tab must show the loading state, got:\n%s", out)
 	}
 	if m.App.Pr == nil || !m.App.Pr.TabLoading {

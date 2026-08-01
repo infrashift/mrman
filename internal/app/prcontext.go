@@ -20,7 +20,7 @@ import (
 
 // ErrContextNotLoaded means the file's snapshot has not been fetched from
 // the forge yet. It is a control-flow signal, not a failure.
-var ErrContextNotLoaded = errors.New("pull request file context not loaded yet")
+var ErrContextNotLoaded = errors.New("merge request file context not loaded yet")
 
 // prContextKey identifies a cached file snapshot: one path per diff side.
 type prContextKey struct {

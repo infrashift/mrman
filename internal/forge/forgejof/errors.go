@@ -17,15 +17,15 @@ const (
 	hintForbidden = "The token was accepted but this operation is forbidden — " +
 		"check that it has the read:repository (and write:repository for " +
 		"reviews) scope for this repository."
-	hintNotFound = "Pull request or repository not found — check the target " +
+	hintNotFound = "Merge request or repository not found — check the target " +
 		"and that the token can see this repository."
 	hintRateLimited = "Forgejo rate limit exceeded. Wait for the limit to " +
 		"reset and try again."
 	hintReviewForbidden = "Cannot submit review: the Forgejo token lacks write " +
 		"access. Grant the write:repository scope and try again."
 	hintReviewRejected = "Forgejo rejected the review payload — a comment may " +
-		"anchor to a line outside the PR diff, or the selected commit is not " +
-		"part of this PR. Reload with :e and try again."
+		"anchor to a line outside the MR diff, or the selected commit is not " +
+		"part of this MR. Reload with :e and try again."
 	hintRangeDiff = "Forgejo has no commit-range diff API; commit-range " +
 		"scoping needs a local checkout that contains both commits."
 )

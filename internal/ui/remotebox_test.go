@@ -170,7 +170,7 @@ func TestCommentsVisibilityCommands(t *testing.T) {
 func TestCommentsCommandOutsidePrModeExplains(t *testing.T) {
 	m := testModel(t)
 	m.runCommand(input.ParseCommand("comments all"))
-	if m.App.Message == nil || !strings.Contains(m.App.Message.Content, "pull request") {
+	if m.App.Message == nil || !strings.Contains(m.App.Message.Content, "merge request") {
 		t.Errorf("expected an explanatory message, got %+v", m.App.Message)
 	}
 }

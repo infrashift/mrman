@@ -17,17 +17,17 @@ const (
 		"(or configure a token for this host) with the `repo` scope."
 	hintForbidden = "The token was accepted but this operation is forbidden — " +
 		"check the token's repository access and scopes."
-	hintNotFound = "Pull request or repository not found — check the target " +
+	hintNotFound = "Merge request or repository not found — check the target " +
 		"and that the token can see this repository."
 	hintRateLimited = "GitHub rate limit exceeded. Wait for the limit to reset " +
 		"and try again."
-	hintReviewForbidden = "Cannot submit review: the GitHub token lacks pull " +
+	hintReviewForbidden = "Cannot submit review: the GitHub token lacks merge " +
 		"request write permission. Grant the `repo` scope (fine-grained: " +
 		"Pull requests: Read & write) and try again."
-	hintPendingReview = "You already have a pending review on this PR. " +
+	hintPendingReview = "You already have a pending review on this MR. " +
 		"Finish or discard it on GitHub, then try again."
 	hintUnknownCommit = "GitHub rejected the review: the selected commit is " +
-		"not part of this PR (it may have been removed by a force-push). " +
+		"not part of this MR (it may have been removed by a force-push). " +
 		"Reload with :e and try again."
 )
 

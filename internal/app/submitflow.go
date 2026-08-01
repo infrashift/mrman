@@ -40,7 +40,7 @@ type SubmitState struct {
 // StartSubmitPicker opens the submit action picker.
 func (a *App) StartSubmitPicker() bool {
 	if !a.InPrMode() {
-		a.SetError("Submitting requires an open pull request (mrman pr <target>)")
+		a.SetError("Submitting requires an open merge request (mrman pr <target>)")
 		return false
 	}
 	a.Submit = &SubmitState{}
@@ -52,11 +52,11 @@ func (a *App) StartSubmitPicker() bool {
 // draft comment. Returns false when preflight fails.
 func (a *App) StartSubmitWith(event forge.SubmitEvent, skipConfirm bool) bool {
 	if !a.InPrMode() {
-		a.SetError("Submitting requires an open pull request (mrman pr <target>)")
+		a.SetError("Submitting requires an open merge request (mrman pr <target>)")
 		return false
 	}
 	if a.Pr.Details.IsReadOnly() {
-		a.SetError("Pull request is " + a.Pr.Details.ReadOnlyReason() + " — read only")
+		a.SetError("Merge request is " + a.Pr.Details.ReadOnlyReason() + " — read only")
 		return false
 	}
 	caps := a.Pr.Backend.Capabilities()

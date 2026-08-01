@@ -106,7 +106,7 @@ from it normally. Two extra conveniences:
 ## Verify it works
 
 ```sh
-mrman pr <some open PR number>
+mrman pr <some open MR number>
 ```
 
 If you get a 404 on a repository you can see in the browser, mrman is

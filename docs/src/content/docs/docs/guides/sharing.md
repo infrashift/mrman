@@ -9,7 +9,7 @@ preference.
 
 | You reviewed | Send it with | They get |
 |---|---|---|
-| A pull request (`mrman pr …`) | **Submit to the forge** | Inline comments on the PR, in their normal review flow |
+| A merge request (`mrman pr …`) | **Submit to the forge** | Inline comments on the MR, in their normal review flow |
 | Local commits or the working tree | **Markdown export** | A document they can read anywhere — chat, email, an issue |
 | A posted patch (`mrman --patch …`) | **A quoted-diff reply** | The diff back with your comments inline, ready to send |
 | Anything, for an AI agent on this machine | **The session slug** | Live JSON access to your comments |
@@ -17,7 +17,7 @@ preference.
 There is no fourth option where you send someone a session file and they open
 it — see [Session files are not a transport](#session-files-are-not-a-transport).
 
-## Pull requests: submit to the forge
+## Merge requests: submit to the forge
 
 This is the path with no seams in it. Review with `mrman pr 125`, run
 `:submit`, pick an action, and your comments land as a native review on GitHub,
@@ -26,8 +26,8 @@ threaded against the right lines, and can reply. `:submit comment`,
 `:submit approve`, `:submit request-changes` and `:submit draft` skip the
 picker.
 
-Everything about it is covered in [How PR Review
-Works](../pull-requests/#submitting). The one thing to carry over here: a
+Everything about it is covered in [How MR Review
+Works](../merge-requests/#submitting). The one thing to carry over here: a
 comment whose anchor no longer checks out is deliberately kept *out* of the
 inline set and put in the review body instead, so a stale note never lands on
 code it was not written about.

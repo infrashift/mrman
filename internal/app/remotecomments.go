@@ -104,7 +104,7 @@ func (a *App) RemoteCommentsVisibility() forgetypes.PrCommentsVisibility {
 // the first time has nothing cached to show.
 func (a *App) SetRemoteCommentsVisibility(v forgetypes.PrCommentsVisibility) bool {
 	if !a.InPrMode() {
-		a.SetMessage("Remote comments are only available while reviewing a pull request")
+		a.SetMessage("Remote comments are only available while reviewing a merge request")
 		return false
 	}
 	a.Session.RemoteCommentsVisibility = v
