@@ -38,39 +38,70 @@ func (p *DiffPane) BuildLines(a *app.App, width, height int) []string {
 	lines := make([]string, 0, height)
 
 	start := a.DiffState.ScrollOffset
-	end := start + height
 	total := a.TotalLines()
-	if end > total {
-		end = total
-	}
 
 	lw := a.LinenoWidth()
-	for i := start; i < end; i++ {
+	// Logical lines fully on screen, reported back through VisibleLineCount
+	// so scrolling and cursor-visibility stay right when one line wraps to
+	// several rows. Counted only when every row of the line fits: a line
+	// half off the bottom is not one the cursor may sit on unseen.
+	fitted := 0
+	for i := start; i < total && len(lines) < height; i++ {
 		if i >= len(a.LineAnnotations) {
 			break
 		}
 		ann := &a.LineAnnotations[i]
 		row := p.buildRow(a, ann, i, lw, width)
 
-		// Overlay order ports tuicr's painter sequence: section tint →
-		// row bg pad → cursor line → horizontal scroll → serialize.
-		switch ann.Kind {
-		case app.AnnHunkHeader, app.AnnExpander, app.AnnHiddenLines:
-			row.Spans = render.FillBg(row.Spans, t.SectionHighlightBg())
-			row.Spans = render.PadToWidth(row.Spans, width, render.Style{Bg: t.SectionHighlightBg()})
+		// One logical line is one row unless wrapping splits it. The row
+		// treatment below runs per visual row so a wrapped continuation
+		// carries the same tint as the row it came from.
+		rows := [][]render.Span{row.Spans}
+		if a.DiffState.WrapLines {
+			rows = render.WrapSpans(row.Spans, width)
 		}
-		if row.BaseBg != nil {
-			row.Spans = render.FillBg(row.Spans, row.BaseBg)
-			row.Spans = render.PadToWidth(row.Spans, width, render.Style{Bg: row.BaseBg})
+		wholeLineFits := true
+		for _, spans := range rows {
+			if len(lines) >= height {
+				wholeLineFits = false
+				break
+			}
+			// Overlay order ports tuicr's painter sequence: section tint →
+			// row bg pad → cursor line → horizontal scroll → serialize.
+			switch ann.Kind {
+			case app.AnnHunkHeader, app.AnnExpander, app.AnnHiddenLines:
+				spans = render.FillBg(spans, t.SectionHighlightBg())
+				spans = render.PadToWidth(spans, width, render.Style{Bg: t.SectionHighlightBg()})
+			}
+			if row.BaseBg != nil {
+				spans = render.FillBg(spans, row.BaseBg)
+				spans = render.PadToWidth(spans, width, render.Style{Bg: row.BaseBg})
+			}
+			if a.CursorLineHighlight && i == a.DiffState.CursorLine && !ann.IsDecoration() {
+				spans = overrideRowBg(spans, width, t.CursorLineBg)
+			}
+			if a.DiffState.ScrollX > 0 && !a.DiffState.WrapLines {
+				spans = render.ApplyHorizontalScroll(spans, a.DiffState.ScrollX)
+			}
+			// Clamp to the pane. Nothing above this guarantees it: PadToWidth
+			// only ever pads, and the unified row builders take no width at
+			// all. An over-wide row escapes the panel, the terminal wraps it,
+			// and the frame grows past the screen — which is what pushes the
+			// status bar and the comment box out of sight.
+			//
+			// Only ever narrows. Padding every short row here would repaint
+			// the gap between the text and the panel edge in the default
+			// background rather than the panel's own.
+			if render.SpanWidth(spans) > width {
+				spans = render.TruncateOrPadSpans(spans, width, render.Style{})
+			}
+			lines = append(lines, emitter.Line(spans))
 		}
-		if a.CursorLineHighlight && i == a.DiffState.CursorLine && !ann.IsDecoration() {
-			row.Spans = overrideRowBg(row.Spans, width, t.CursorLineBg)
+		if wholeLineFits {
+			fitted++
 		}
-		if a.DiffState.ScrollX > 0 && !a.DiffState.WrapLines {
-			row.Spans = render.ApplyHorizontalScroll(row.Spans, a.DiffState.ScrollX)
-		}
-		lines = append(lines, emitter.Line(row.Spans))
 	}
+	a.DiffState.VisibleLineCount = fitted
 	for len(lines) < height {
 		lines = append(lines, "")
 	}
