@@ -93,7 +93,7 @@ var commandSpecs = []struct {
 	{"focus", CmdFocus}, {"f", CmdFocus},
 	{"stage", CmdStage},
 	{"commits", CmdTargetsLocal}, {"targets", CmdTargetsLocal},
-	{"prs", CmdTargetsPrs},
+	{"mrs", CmdTargetsPrs},
 	{"patches", CmdTargetsPatches},
 	{"submit", CmdSubmitPicker},
 	{"submit comment", CmdSubmitComment},

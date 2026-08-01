@@ -362,7 +362,7 @@ func TestNilForgeResolverReportsMissingRemote(t *testing.T) {
 	}
 }
 
-func TestPrsCommandOpensSelectorOnPrTab(t *testing.T) {
+func TestMrsCommandOpensSelectorOnMrTab(t *testing.T) {
 	f := newPrTabForge(testPrSummary(7, "seven", "ana", "a"))
 	m := testModel(t)
 	backend := &selectorBackend{
@@ -372,14 +372,14 @@ func TestPrsCommandOpensSelectorOnPrTab(t *testing.T) {
 	m.App.VCS = backend
 	m.forge = staticForgeResolver(f, testRepo())
 
-	m.runCommand(input.ParseCommand("prs"))
+	m.runCommand(input.ParseCommand("mrs"))
 	runCmd(t, m, m.takeQueued())
 
 	if m.App.InputMode != input.ModeCommitSelect || m.App.TargetTab != app.TargetTabPullRequests {
-		t.Fatal(":prs must open the selector on the Pull Requests tab")
+		t.Fatal(":mrs must open the selector on the Merge Requests tab")
 	}
 	if len(m.App.Pr.TabRows) != 1 {
-		t.Errorf(":prs must load the listing, got %d rows", len(m.App.Pr.TabRows))
+		t.Errorf(":mrs must load the listing, got %d rows", len(m.App.Pr.TabRows))
 	}
 }
 
