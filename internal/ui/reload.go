@@ -89,7 +89,7 @@ func (m *Model) reloadPullRequest() tea.Cmd {
 	target := forge.Target{Repository: &repo, Number: a.Pr.Details.Number}
 	highlighter := m.Theme.Highlighter()
 	localCheckout := m.localCheckout
-	a.SetMessage("Reloading pull request…")
+	a.SetMessage("Reloading merge request…")
 
 	return func() tea.Msg {
 		load, err := fetchPullRequest(context.Background(), backend, &repo,
@@ -124,7 +124,7 @@ func (m *Model) handlePrReloadResult(msg prReloadResultMsg) tea.Cmd {
 		lifecycle, session := openPrSession(m.store, fresh, m.grantedEvents)
 		m.session = lifecycle
 		a.ApplyPullRequest(msg.Load, session)
-		a.SetMessage("Pull request advanced to " + shortSHA(msg.Load.Details.HeadSHA) +
+		a.SetMessage("Merge request advanced to " + shortSHA(msg.Load.Details.HeadSHA) +
 			" — opened a review for the new head")
 		m.syncViewport()
 		return m.loadRemoteCommentsOnOpen()

@@ -1,12 +1,12 @@
 ---
 title: Testing Against a Real Forge
-description: Setting up a throwaway GitHub pull request and exercising mrman's whole stack against it — a transcript of an actual run.
+description: Setting up a throwaway GitHub merge request and exercising mrman's whole stack against it — a transcript of an actual run.
 ---
 
 Every unit test in mrman runs against fakes. Fakes cannot catch a driver
 that builds a request GitHub then rejects, or a pane that renders correctly
 from invented data and wrongly from real data. This walks through setting up
-a throwaway pull request and exercising the whole stack against it.
+a throwaway merge request and exercising the whole stack against it.
 
 It is written as a transcript of an actual run, so every command here has
 been executed and every output is real.
@@ -57,7 +57,7 @@ this":
 $ env PATH=/tmp MRMAN_LIVE_PR=OWNER/REPO#1 go test -count=1 ./internal/forge/githubf/ -run TestLivePullRequest
 ListPullRequests: github: list_pull_requests: not found (HTTP 404) on github.com:
   GET https://api.github.com/repos/OWNER/REPO/pulls?... : 404 Not Found
-  — Pull request or repository not found — check the target and that the
+  — Merge request or repository not found — check the target and that the
   token can see this repository.
 ```
 
@@ -77,7 +77,7 @@ cached; without forcing a re-run the control proves nothing.
 
 ## 1. Give the repo something worth reviewing
 
-A pull request only exercises the interesting paths if it has some shape to
+A merge request only exercises the interesting paths if it has some shape to
 it. Aim for:
 
 - **Two or more files**, so the file tree and navigation matter.
@@ -97,7 +97,7 @@ git add -A && git commit -m "Add a cache and a config parser"
 git push origin main
 ```
 
-## 2. Open a pull request with several commits
+## 2. Open a merge request with several commits
 
 ```sh
 git checkout -b feat/ttl-expiry
@@ -133,7 +133,7 @@ gh pr view 1 --json number,headRefOid,changedFiles,commits \
 ## 3. Put existing review comments on it
 
 mrman renders the forge's own threads and review summaries read-only, and
-filters resolved ones. To test that, the pull request needs some.
+filters resolved ones. To test that, the merge request needs some.
 
 Comments can only anchor to lines that appear in the diff, so read the patch
 first:
@@ -239,7 +239,7 @@ threads: 2
   src/config.py:8 resolved=true  outdated=false — ryancraig: This only strips…
 review summaries: 1
 viewer="ryancraig" reviews=1
-range diff ab0d7db..f137462: 487 bytes vs 1084 for the whole PR
+range diff ab0d7db..f137462: 487 bytes vs 1084 for the whole MR
 ```
 
 ### Read-only: the whole stack, through the renderer
@@ -248,7 +248,7 @@ range diff ab0d7db..f137462: 487 bytes vs 1084 for the whole PR
 MRMAN_LIVE_PR=OWNER/REPO#1 go test ./internal/ui/ -run TestLivePullRequestReview -v
 ```
 
-Builds the real model against the real pull request and asserts on the
+Builds the real model against the real merge request and asserts on the
 rendered frame: the header, the commit strip, threads rendering, resolved
 ones hidden until `:comments all`, gap expansion actually fetching, and
 `( )` narrowing through `GetCommitRangeDiff`.
@@ -261,7 +261,7 @@ files: 2
 threads=2 summaries=1
 visibility: 5 thread rows unresolved-only, 9 with all
 gap expansion: 52 rows -> 72
-narrowed to the newest commit: 2 files (whole PR had 2)
+narrowed to the newest commit: 2 files (whole MR had 2)
 ```
 
 ### Writing: submit
@@ -310,7 +310,7 @@ are visible.
 
 ## 6. Exercise the agent-submit interlock
 
-An agent can read a pull request freely, but submitting a review is gated
+An agent can read a merge request freely, but submitting a review is gated
 behind a grant only a human can issue. Walk it:
 
 **Nothing granted — the refusal must reach the forge not at all.**
@@ -366,7 +366,7 @@ With the TUI open, an agent's `review submit --event comment` succeeds and
 default grant excludes it. Quit the TUI and the grant is gone: it is held
 against that process, so there is no teardown step to skip or crash through.
 
-The whole path is covered by tests, including against a real pull request:
+The whole path is covered by tests, including against a real merge request:
 
 ```sh
 MRMAN_LIVE_PR=OWNER/REPO#1 MRMAN_LIVE_SUBMIT=1 \
@@ -413,7 +413,7 @@ output before concluding anything.
 
 ## Cleaning up
 
-The pull request is more useful kept around than deleted — it is a stable
+The merge request is more useful kept around than deleted — it is a stable
 fixture for the live tests. To reset it between runs:
 
 ```sh

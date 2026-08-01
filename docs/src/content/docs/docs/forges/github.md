@@ -1,6 +1,6 @@
 ---
 title: GitHub
-description: Review and submit GitHub pull requests from the terminal — authentication, target syntax, and the full capability set mrman has on github.com.
+description: Review and submit GitHub merge requests from the terminal — authentication, target syntax, and the full capability set mrman has on github.com.
 sidebar:
   order: 1
 ---
@@ -49,7 +49,7 @@ bug. See [Troubleshooting](../../project/troubleshooting/).
 
 ### Scopes
 
-`repo` covers everything: reading private pull requests, posting review
+`repo` covers everything: reading private merge requests, posting review
 comments, approving. A fine-grained token needs **Pull requests: read &
 write** and **Contents: read**.
 
@@ -57,14 +57,14 @@ If you only ever want to read, a token without write scope is a genuinely
 useful safety measure — mrman surfaces the forge's refusal rather than
 pretending the submit worked.
 
-## Open a pull request
+## Open a merge request
 
 ```sh
 mrman pr 125                                  # from inside the checkout
 mrman pr owner/repo#125                        # addressed explicitly
 mrman pr github.com/owner/repo#125             # host-qualified
 mrman pr https://github.com/owner/repo/pull/125
-mrman                                          # then Tab to Pull Requests
+mrman                                          # then Tab to Merge Requests
 ```
 
 mrman detects the repository from your remotes, so a bare number is usually
@@ -85,7 +85,7 @@ Everything. GitHub is the reference implementation:
 | Multi-line comments | ✓ true ranges, no downgrade |
 | Per-commit range diff | ✓ `(` / `)` narrows to one commit |
 | Atomic submit | ✓ one API call — a review either posts entirely or not at all |
-| Review-requested filter | ✓ `r` in the PR list |
+| Review-requested filter | ✓ `r` in the MR list |
 | Commit-scoped reviews | ✓ mrman knows which commits your last review covered |
 
 **Atomic submit** is worth calling out because the other forges do not have it.
@@ -111,20 +111,20 @@ Submitted comments get a `[TYPE]` prefix from their comment type
 (`[forge] comment_type_prefix = false` turns that off), and the review body is
 rendered from a [template](../../reference/templates/) you can replace.
 
-## Reading the pull request
+## Reading the merge request
 
 The forge's existing review threads and review summaries render inline,
 read-only. Resolved threads are hidden until `:comments all`; `:comments hide`
-removes them entirely. `:e` refetches, and if the pull request advanced to a
+removes them entirely. `:e` refetches, and if the merge request advanced to a
 new head, mrman opens the review for that head rather than moving your anchors.
 
-On a multi-commit pull request, mrman marks the commits your last review
+On a multi-commit merge request, mrman marks the commits your last review
 already covered and preselects what landed since — so re-reviewing after a
 force-push or a follow-up commit starts on the new work.
 
 ## Going deeper
 
 [Testing Against a Real Forge](../../contributing/live-testing/) walks through
-setting up a scratch pull request and exercising every driver method against
+setting up a scratch merge request and exercising every driver method against
 it, with real transcripts. It is written for contributors, but it is also the
 most concrete description of what mrman does over the wire.

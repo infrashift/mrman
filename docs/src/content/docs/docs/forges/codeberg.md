@@ -1,6 +1,6 @@
 ---
 title: Codeberg
-description: Review Codeberg pull requests from the terminal. Codeberg is claimed by default, so a token is the only setup.
+description: Review Codeberg merge requests from the terminal. Codeberg is claimed by default, so a token is the only setup.
 sidebar:
   order: 6
 ---
@@ -38,13 +38,13 @@ token_cmd = "pass show codeberg-token"
 A public repository needs no token at all — you can browse and review one
 unauthenticated, and only need credentials to submit.
 
-## Open a pull request
+## Open a merge request
 
 ```sh
 mrman pr 12                                    # from inside the checkout
 mrman pr owner/repo#12
 mrman pr https://codeberg.org/owner/repo/pulls/12
-mrman                                          # then Tab to Pull Requests
+mrman                                          # then Tab to Merge Requests
 ```
 
 No `[[forge.hosts]]` entry is needed for any of these: `codeberg.org` is one of

@@ -134,7 +134,7 @@ halfway through a submit:
 
 Where a forge cannot do something, mrman degrades and says so: multi-line
 comments collapse to a single line with the span in the body, and a forge
-without range diffs widens back to the whole pull request instead of
+without range diffs widens back to the whole merge request instead of
 failing.
 
 ## Themes
@@ -182,7 +182,7 @@ mrman pr 1 --auto=comment,draft,approve  # explicitly wider
 
 A persistent switch in this file was considered and rejected: it would be
 too easy to enable once and forget, and it would apply to every repository
-and every pull request until noticed. The grant is instead held against the
+and every merge request until noticed. The grant is instead held against the
 running TUI's process, so it lasts exactly as long as you have the review
 open. `:agent` shows it, `:agent off` revokes it.
 

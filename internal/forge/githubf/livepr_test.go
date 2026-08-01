@@ -184,10 +184,10 @@ func TestLivePullRequest(t *testing.T) {
 			t.Fatalf("GetCommitRangeDiff(%.7s..%.7s): %v", startSHA, endSHA, err)
 		}
 		if len(rangePatch) >= len(patch) {
-			t.Errorf("a single-commit range diff (%d bytes) is not smaller than the whole PR (%d)",
+			t.Errorf("a single-commit range diff (%d bytes) is not smaller than the whole MR (%d)",
 				len(rangePatch), len(patch))
 		}
-		t.Logf("range diff %.7s..%.7s: %d bytes vs %d for the whole PR",
+		t.Logf("range diff %.7s..%.7s: %d bytes vs %d for the whole MR",
 			startSHA, endSHA, len(rangePatch), len(patch))
 	}
 }

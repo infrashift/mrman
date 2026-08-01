@@ -20,11 +20,11 @@ func (d *Driver) GetPullRequest(ctx context.Context, target forge.Target) (*forg
 	const op = "get_pull_request"
 	if target.Repository == nil {
 		return nil, d.err(op, forge.ErrorValidation, 0, "",
-			fmt.Errorf("pull request target %q does not include a repository", target.Original))
+			fmt.Errorf("merge request target %q does not include a repository", target.Original))
 	}
 	if target.Number == 0 {
 		return nil, d.err(op, forge.ErrorValidation, 0, "",
-			fmt.Errorf("pull request target %q does not include a valid number", target.Original))
+			fmt.Errorf("merge request target %q does not include a valid number", target.Original))
 	}
 	pr, _, err := d.rest.PullRequests.Get(ctx, target.Repository.Owner, target.Repository.Name,
 		int(target.Number))
@@ -35,7 +35,7 @@ func (d *Driver) GetPullRequest(ctx context.Context, target forge.Target) (*forg
 	baseSHA := pr.GetBase().GetSHA()
 	if headSHA == "" || baseSHA == "" {
 		return nil, d.err(op, forge.ErrorValidation, 0, "",
-			fmt.Errorf("GitHub response did not include head/base SHA for PR #%d", target.Number))
+			fmt.Errorf("GitHub response did not include head/base SHA for MR #%d", target.Number))
 	}
 	state := pr.GetState()
 	return &forge.PullRequestDetails{

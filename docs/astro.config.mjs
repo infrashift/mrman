@@ -6,6 +6,11 @@ import starlight from '@astrojs/starlight';
 export default defineConfig({
 	site: 'https://infrashift.github.io',
 	base: '/mrman',
+	// The page was renamed when the docs moved to merge-request terminology.
+	// The old URL was published, so it redirects rather than 404s.
+	redirects: {
+		'/docs/guides/pull-requests': '/mrman/docs/guides/merge-requests/',
+	},
 	integrations: [
 		starlight({
 			title: 'mrman',
@@ -33,9 +38,9 @@ export default defineConfig({
 					],
 				},
 				{
-					label: 'Pull Requests',
+					label: 'Merge Requests',
 					items: [
-						{ label: 'How PR Review Works', slug: 'docs/guides/pull-requests' },
+						{ label: 'How MR Review Works', slug: 'docs/guides/merge-requests' },
 						{ label: 'GitHub', slug: 'docs/forges/github' },
 						{ label: 'GitHub Enterprise Server', slug: 'docs/forges/github-enterprise' },
 						{ label: 'GitLab', slug: 'docs/forges/gitlab', badge: { text: 'Experimental', variant: 'caution' } },

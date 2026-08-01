@@ -81,7 +81,7 @@ func (m *Model) reloadPrCommitRange() tea.Cmd {
 		return m.reloadPullRequest()
 	}
 	if !a.Pr.Backend.Capabilities().CommitRangeDiff {
-		a.SetWarning("This forge cannot diff a commit range — showing the whole pull request")
+		a.SetWarning("This forge cannot diff a commit range — showing the whole merge request")
 		a.CommitSelectionRange = nil
 		return nil
 	}

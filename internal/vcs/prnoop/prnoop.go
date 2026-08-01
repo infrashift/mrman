@@ -42,7 +42,7 @@ func (b *Backend) Info() *vcs.Info { return &b.info }
 // WorkingTreeDiff always fails: PR mode does not read from the local
 // working tree.
 func (b *Backend) WorkingTreeDiff(*syntax.Highlighter) ([]model.DiffFile, error) {
-	return nil, errs.Unsupportedf("PR mode does not read from the local working tree")
+	return nil, errs.Unsupportedf("MR mode does not read from the local working tree")
 }
 
 // FetchContextLines returns no lines. PR-mode context expansion routes

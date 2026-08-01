@@ -6,7 +6,7 @@ description: Every mrman flag and subcommand — the TUI entry points, the pr/mr
 ```
 mrman [flags]              # the TUI
 mrman tui [flags]          # explicit, identical
-mrman pr <target>          # review a pull request
+mrman pr <target>          # review a merge request
 mrman mr <target>          # alias of pr
 mrman review <subcommand>  # non-interactive JSON surface
 ```
@@ -30,9 +30,9 @@ These are persistent flags on the root command, so they apply to `mrman`,
 | `--patch <file>` | | Review a `.patch`, `.diff` or mbox file with no repository ([guide](../../guides/patches/)) |
 | `--patch-strip <n>` | 1 | Leading path components to strip from a patch, like `patch -p<n>` |
 | `--stdout` | false | Export review markdown to stdout instead of the clipboard |
-| `--repo-url <url>` | — | Override the forge repository for PR operations |
+| `--repo-url <url>` | — | Override the forge repository for MR operations |
 | `--forge <kind>` | — | Forge for ambiguous targets: `github`, `gitlab`, `azuredevops`, `forgejo` |
-| `--json` | false | Open the pull request headlessly and print its session as JSON |
+| `--json` | false | Open the merge request headlessly and print its session as JSON |
 | `--auto[=events]` | — | Authorize agent submission for this session (see below) |
 
 ### Mutually exclusive combinations
@@ -79,15 +79,15 @@ request" is the right word on GitLab.
 | Host-qualified | `github.com/owner/repo#125` |
 | GitLab subgroups | `gitlab.com/group/sub/project!42` |
 | Azure DevOps | `dev.azure.com/org/project/repo#7`, or `project/repo#7` in an ADO checkout |
-| URL | Any supported forge's pull-request or merge-request web URL |
+| URL | Any supported forge's merge-request web URL — `/pull/N`, `/pulls/N`, `/-/merge_requests/N` or `/pullrequest/N` |
 
-See [How PR Review Works](../../guides/pull-requests/#target-syntax) for the
+See [How MR Review Works](../../guides/merge-requests/#target-syntax) for the
 resolution rules.
 
 ## `mrman review`
 
 The agent integration surface. Every subcommand prints JSON. `--repo` is a
-persistent flag: a checkout path (which also surfaces the PR sessions belonging
+persistent flag: a checkout path (which also surfaces the MR sessions belonging
 to that checkout's `origin`) or a forge coordinate.
 
 ### `review list`
@@ -223,7 +223,7 @@ Not part of the CLI, but useful to know they exist:
 
 | Variable | Effect |
 |---|---|
-| `MRMAN_LIVE_PR=owner/repo#N` | Enables the opt-in tests against a real pull request |
+| `MRMAN_LIVE_PR=owner/repo#N` | Enables the opt-in tests against a real merge request |
 | `MRMAN_LIVE_SUBMIT=1` | Additionally allows the tests that post a real review |
 
 See [Testing Against a Real Forge](../../contributing/live-testing/).

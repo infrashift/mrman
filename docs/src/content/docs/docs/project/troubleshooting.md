@@ -85,10 +85,10 @@ api_base = "https://ghe.mycorp.com/api/v3"
 GitLab and Forgejo usually need no `api_base` — mrman derives `/api/v4` and
 `/api/v1` from the host.
 
-## A bare PR number does not work
+## A bare MR number does not work
 
 ```
-bare PR number "125" requires a repository checkout; run inside a checkout,
+bare MR number "125" requires a repository checkout; run inside a checkout,
 or pass owner/repo#125 or a full URL
 ```
 

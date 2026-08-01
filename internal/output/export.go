@@ -80,7 +80,7 @@ func (k ScopeKind) Label() string {
 	case ScopeStagedUnstagedAndCommits:
 		return "selected commit range + staged/unstaged changes"
 	case ScopePullRequest:
-		return "pull request"
+		return "merge request"
 	case ScopePatch:
 		return "patch file"
 	}

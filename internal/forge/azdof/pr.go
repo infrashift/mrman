@@ -55,11 +55,11 @@ func (d *Driver) GetPullRequest(ctx context.Context, target forge.Target) (*forg
 	const op = "get_pull_request"
 	if target.Repository == nil {
 		return nil, d.err(op, forge.ErrorValidation, 0, "",
-			fmt.Errorf("pull request target %q does not include a repository", target.Original))
+			fmt.Errorf("merge request target %q does not include a repository", target.Original))
 	}
 	if target.Number == 0 {
 		return nil, d.err(op, forge.ErrorValidation, 0, "",
-			fmt.Errorf("pull request target %q does not include a valid number", target.Original))
+			fmt.Errorf("merge request target %q does not include a valid number", target.Original))
 	}
 	project, repoName := d.coords(*target.Repository)
 	prID := int(target.Number)
@@ -79,7 +79,7 @@ func (d *Driver) GetPullRequest(ctx context.Context, target forge.Target) (*forg
 	}
 	if headSHA == "" || baseSHA == "" {
 		return nil, d.err(op, forge.ErrorValidation, 0, "",
-			fmt.Errorf("response did not include merge source/target commits for PR #%d", target.Number))
+			fmt.Errorf("response did not include merge source/target commits for MR #%d", target.Number))
 	}
 
 	details := &forge.PullRequestDetails{
@@ -237,7 +237,7 @@ func (d *Driver) GetDiff(ctx context.Context, pr *forge.PullRequestDetails) (str
 	}
 	if iterationID == 0 {
 		return "", d.err(op, forge.ErrorValidation, 0, "",
-			fmt.Errorf("pull request #%d has no iterations to diff", pr.Number))
+			fmt.Errorf("merge request #%d has no iterations to diff", pr.Number))
 	}
 	changes, err := d.iterationChanges(ctx, op, project, repoName, prID, iterationID)
 	if err != nil {

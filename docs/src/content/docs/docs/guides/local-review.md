@@ -5,7 +5,7 @@ sidebar:
   order: 2
 ---
 
-Most of mrman is not about pull requests. It reviews whatever diff you point
+Most of mrman is not about merge requests. It reviews whatever diff you point
 it at — including diffs that exist only on your machine, and files that are
 not in a diff at all.
 
@@ -19,8 +19,8 @@ the selection, `Enter` confirms and loads the diff. Selecting several commits
 reviews them as one continuous diff, with an inline commit strip you can walk
 with `(` and `)`.
 
-`Tab` switches to the **Pull Requests** tab — see [How PR Review
-Works](../pull-requests/). `Esc` goes back to Local, or leaves the selector
+`Tab` switches to the **Merge Requests** tab — see [How MR Review
+Works](../merge-requests/). `Esc` goes back to Local, or leaves the selector
 entirely.
 
 ## Starting directly
@@ -139,7 +139,7 @@ folded.
 Stages every file you marked reviewed. This only works on an **unstaged git
 review** — mrman says *"Staging is only available for unstaged reviews in
 git"* rather than silently doing nothing, because there is no coherent meaning
-for it on a commit range or a pull request.
+for it on a commit range or a merge request.
 
 ## Whitespace
 
@@ -148,7 +148,7 @@ ignore_whitespace = true
 ```
 
 Ignores all whitespace when generating **local** diffs, git and Jujutsu alike.
-It has no effect on pull requests: a PR diff arrives from the forge already
+It has no effect on merge requests: an MR diff arrives from the forge already
 rendered, so there is no flag left to re-run it with.
 
 ## Ignoring files
@@ -186,7 +186,7 @@ infrashift-mrman@github.com-pr-12-a1b2c3d4e5f60718.json
 
 The trailing hash is the session's identity; everything before it is there so
 the directory is legible. The repo comes first and is spelled the same way for
-a repo's local and pull-request sessions, so one pattern reaches all of them:
+a repo's local and merge-request sessions, so one pattern reaches all of them:
 
 ```sh
 ls   ~/.local/share/mrman/reviews/sessions/infrashift-mrman@*

@@ -22,11 +22,11 @@ func (d *Driver) GetPullRequest(ctx context.Context, target forge.Target) (*forg
 	const op = "get_pull_request"
 	if target.Repository == nil {
 		return nil, d.err(op, forge.ErrorValidation, 0, "",
-			fmt.Errorf("pull request target %q does not include a repository", target.Original))
+			fmt.Errorf("merge request target %q does not include a repository", target.Original))
 	}
 	if target.Number == 0 {
 		return nil, d.err(op, forge.ErrorValidation, 0, "",
-			fmt.Errorf("pull request target %q does not include a valid number", target.Original))
+			fmt.Errorf("merge request target %q does not include a valid number", target.Original))
 	}
 	api, err := d.api(ctx)
 	if err != nil {
@@ -47,7 +47,7 @@ func (d *Driver) GetPullRequest(ctx context.Context, target forge.Target) (*forg
 	}
 	if headSHA == "" || baseSHA == "" {
 		return nil, d.err(op, forge.ErrorValidation, 0, "",
-			fmt.Errorf("forgejo response did not include head/merge-base SHA for PR #%d", target.Number))
+			fmt.Errorf("forgejo response did not include head/merge-base SHA for MR #%d", target.Number))
 	}
 	details := &forge.PullRequestDetails{
 		PullRequestSummary: prSummary(*target.Repository, pr),

@@ -204,7 +204,7 @@ func lockedCount(session *model.ReviewSession) int {
 // comments anchor into.
 func prAppForSession(session *model.ReviewSession, opts Options) (*app.App, error) {
 	if session.PrSessionKey == nil {
-		return nil, fmt.Errorf("session %q is a local review, not a pull request", opts.Session)
+		return nil, fmt.Errorf("session %q is a local review, not a merge request", opts.Session)
 	}
 	cfg, _ := config.Load()
 	key := session.PrSessionKey
@@ -220,7 +220,7 @@ func prAppForSession(session *model.ReviewSession, opts Options) (*app.App, erro
 	}
 	if load.Details.HeadSHA != key.HeadSHA {
 		return nil, fmt.Errorf(
-			"the pull request advanced to %.7s since this session was opened (%.7s); "+
+			"the merge request advanced to %.7s since this session was opened (%.7s); "+
 				"ask the user to reload it in mrman before submitting",
 			load.Details.HeadSHA, key.HeadSHA)
 	}

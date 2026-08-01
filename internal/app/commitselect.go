@@ -42,7 +42,7 @@ func (t TargetTab) Label() string {
 	case TargetTabLocal:
 		return "Local"
 	case TargetTabPullRequests:
-		return "Pull Requests"
+		return "Merge Requests"
 	case TargetTabPatches:
 		return "Patches"
 	}

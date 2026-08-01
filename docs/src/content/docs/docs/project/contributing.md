@@ -133,7 +133,7 @@ MRMAN_LIVE_PR=owner/repo#1 MRMAN_LIVE_SUBMIT=1 \
 ```
 
 [Testing Against a Real Forge](../../contributing/live-testing/) walks through
-setting up a scratch pull request to point them at, with real transcripts of what
+setting up a scratch merge request to point them at, with real transcripts of what
 each one prints — including what live testing caught that fakes did not.
 
 ## Documentation
@@ -154,7 +154,7 @@ page, so Starlight's content sits one level down. A page's sidebar slug in
 
 Every page is deployed from `main` by `.github/workflows/docs-release.yml`.
 
-## Filing issues and PRs
+## Filing issues and MRs
 
 - Behavior questions: check whether a ported tuicr test already pins the answer.
 - Forge behavior: include `mrman --version`, the forge and host kind, and the

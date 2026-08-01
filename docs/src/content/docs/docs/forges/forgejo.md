@@ -1,6 +1,6 @@
 ---
 title: Forgejo & Gitea
-description: Review pull requests on self-hosted Forgejo or Gitea — tokens, api_base, and the places where mrman approximates what the API does not report.
+description: Review merge requests on self-hosted Forgejo or Gitea — tokens, api_base, and the places where mrman approximates what the API does not report.
 sidebar:
   order: 5
 ---
@@ -49,14 +49,14 @@ your own instance.
 A host entry may set `token` **or** `token_cmd`, never both — the schema rejects
 that rather than picking one silently.
 
-## Open a pull request
+## Open a merge request
 
 ```sh
 mrman pr 12                                   # from inside the checkout
 mrman pr owner/repo#12
 mrman pr git.mycorp.com/owner/repo#12          # host-qualified
 mrman pr https://git.mycorp.com/owner/repo/pulls/12
-mrman                                         # then Tab to Pull Requests
+mrman                                         # then Tab to Merge Requests
 ```
 
 Note the URL path is `/pulls/N` — plural — which is how mrman tells a Forgejo
@@ -76,7 +76,7 @@ misidentified.
 | Multi-line comments | **—** downgraded, see below |
 | Per-commit range diff | **—** local checkout only |
 | Atomic submit | ✓ one-shot `CreatePullReview` |
-| Review-requested filter | ✓ `r` in the PR list |
+| Review-requested filter | ✓ `r` in the MR list |
 
 ### Threads are synthesized
 
@@ -114,7 +114,7 @@ normally.
 
 Forgejo has no compare-diff API. mrman falls back to running `git diff
 start..end` in your **local checkout** when both SHAs are present there — so
-if you are reviewing a pull request from a clone that has the commits, `(` and
+if you are reviewing a merge request from a clone that has the commits, `(` and
 `)` work. Reviewing purely remotely, they do not, and mrman says so instead of
 producing a wrong diff.
 
@@ -140,11 +140,11 @@ gives, which GitLab and Azure DevOps cannot.
 `:submit draft` creates a `PENDING` review, visible only to you until you
 publish it.
 
-## Reading the pull request
+## Reading the merge request
 
 Existing review comments and review bodies render inline, read-only. Resolved
 threads hide until `:comments all`. `:e` refetches.
 
-`r` in the pull-request list toggles between everything open and what is
+`r` in the merge-request list toggles between everything open and what is
 waiting on your review, using Forgejo's issue search with
 `review_requested=true`.

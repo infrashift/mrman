@@ -12,8 +12,8 @@ this page describes what it does; what it has not had is a real server
 disagreeing with it. See [support levels](../../reference/forge-capabilities/#support-levels).
 :::
 
-mrman reviews GitLab **merge requests** with the same interface it uses for
-pull requests everywhere else. It talks to the GitLab REST API directly, with
+mrman reviews GitLab **merge requests** with the same interface it uses on
+every other forge. It talks to the GitLab REST API directly, with
 one GraphQL call for "request changes" — it does not shell out to `glab`.
 
 ## Authenticate
@@ -61,7 +61,7 @@ mrman pr group/project!42                          # ! reads naturally here
 mrman pr group/project#42                          # # works too
 mrman pr gitlab.mycorp.com/group/sub/project!42    # host-qualified
 mrman pr https://gitlab.com/group/sub/project/-/merge_requests/42
-mrman                                              # then Tab to Pull Requests
+mrman                                              # then Tab to Merge Requests
 ```
 
 **Nested subgroups work at any depth.** `group/sub/subsub/project!42` and the

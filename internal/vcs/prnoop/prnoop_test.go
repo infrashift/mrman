@@ -46,7 +46,7 @@ func TestShouldRejectWorkingTreeDiffOnNoopBackend(t *testing.T) {
 	if !errors.Is(err, errs.ErrUnsupported) {
 		t.Fatalf("expected ErrUnsupported, got %v", err)
 	}
-	if want := "PR mode does not read from the local working tree"; err == nil || !contains(err.Error(), want) {
+	if want := "MR mode does not read from the local working tree"; err == nil || !contains(err.Error(), want) {
 		t.Fatalf("error %v missing %q", err, want)
 	}
 }

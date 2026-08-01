@@ -26,7 +26,7 @@ That slug is the handle for everything below. An agent that missed it can find
 sessions instead:
 
 ```sh
-mrman review list --repo .                # this checkout, plus its PR sessions
+mrman review list --repo .                # this checkout, plus its MR sessions
 mrman review list --repo owner/repo       # every session for a forge repo
 mrman review list --all                   # everything
 ```
@@ -117,7 +117,7 @@ mistakable for yours in the TUI.
 
 ## Opening a session without a terminal
 
-An agent that does not need a human watching can open a pull request
+An agent that does not need a human watching can open a merge request
 headlessly:
 
 ```sh
@@ -190,7 +190,7 @@ is a character device and would otherwise pass. There is a test pinning that.
 
 There is also **no config key** for this, deliberately. A persistent switch
 would be too easy to enable once and forget, and it would apply to every
-repository and every pull request until someone noticed.
+repository and every merge request until someone noticed.
 
 ### What the interlock is, and is not
 
@@ -215,7 +215,7 @@ on the remote, and mrman only displays them.
 
 ## Verifying the whole path
 
-The interlock is covered by tests, including against a real pull request:
+The interlock is covered by tests, including against a real merge request:
 
 ```sh
 MRMAN_LIVE_PR=owner/repo#1 MRMAN_LIVE_SUBMIT=1 \

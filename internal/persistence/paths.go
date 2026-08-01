@@ -343,7 +343,7 @@ func relativePathForSession(sl slug.Slug, sess *model.ReviewSession) (string, er
 		key := sess.PrSessionKey
 		if key == nil {
 			return "", &errs.CorruptedSession{
-				Detail: "PR slug requires session.pr_session_key to be populated",
+				Detail: "MR slug requires session.pr_session_key to be populated",
 			}
 		}
 		_, _ = io.WriteString(h, "pr|")

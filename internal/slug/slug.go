@@ -61,7 +61,7 @@ var (
 	// ErrUnknownSource reports an unrecognized diff-source segment.
 	ErrUnknownSource = errors.New("unknown diff source")
 	// ErrInvalidPrNumber reports a non-numeric PR number segment.
-	ErrInvalidPrNumber = errors.New("invalid PR number")
+	ErrInvalidPrNumber = errors.New("invalid MR number")
 	// ErrUnknownForge reports an unrecognized forge prefix before ":".
 	ErrUnknownForge = errors.New("unknown forge kind")
 	// ErrMissingRange reports a missing or malformed <base>..<head> range.
