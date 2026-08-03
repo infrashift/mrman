@@ -13,6 +13,7 @@ import (
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/git"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/webapi"
 
+	"github.com/infrashift/mrman/internal/diffgen"
 	"github.com/infrashift/mrman/internal/errs"
 	"github.com/infrashift/mrman/internal/forge"
 	"github.com/infrashift/mrman/internal/forge/forgetypes"
@@ -291,7 +292,7 @@ func (d *Driver) synthesizeFileDiff(ctx context.Context, op, project, repoName s
 		}
 		newContent = content
 	}
-	return unifiedFileDiff(oldPath, newPath, oldContent, newContent), nil
+	return diffgen.UnifiedFileDiff(oldPath, newPath, oldContent, newContent, diffgen.Options{}), nil
 }
 
 // GetCommitRangeDiff is unsupported: Azure DevOps serves no text diff for
