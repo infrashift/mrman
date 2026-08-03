@@ -54,6 +54,17 @@ const maxFileBytes = 10 * 1024 * 1024
 // a file as text vs. binary.
 const binarySniffBytes = 8192
 
+// MaxFileBytes is the size above which a file is listed but not rendered.
+// Exported so other VCS-less review sources apply the same ceiling rather
+// than inventing their own.
+const MaxFileBytes = maxFileBytes
+
+// IsProbablyBinary reports whether path looks binary: a NUL byte within its
+// first 8 KiB. Unreadable files classify as binary, so a caller can use one
+// check to skip both. Exported for the same reason as CollectTextFiles —
+// one definition of "reviewable text" across every VCS-less source.
+func IsProbablyBinary(path string) bool { return isProbablyBinary(path) }
+
 // fileEntry pairs an absolute path with the file size recorded at discovery
 // time so buildDiffFileForPath does not need to re-stat each entry.
 type fileEntry struct {

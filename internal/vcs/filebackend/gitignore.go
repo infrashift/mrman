@@ -42,6 +42,38 @@ type ignoreScope struct {
 	rules []ignoreRule
 }
 
+// FileEntry is one file found by CollectTextFiles.
+type FileEntry struct {
+	// Path is absolute.
+	Path string
+	// RelPath is Path relative to the root that was walked, and is what a
+	// caller should show and key state on.
+	RelPath string
+	// Size was recorded at discovery time, so a caller deciding whether a
+	// file is too large to render need not stat it again.
+	Size int64
+}
+
+// CollectTextFiles walks root and returns every non-hidden, non-ignored,
+// non-binary regular file under it, sorted by path.
+//
+// It is exported so review sources outside this package can walk a
+// directory the way `--file <dir>` does. That consistency is the point: a
+// second walker with different ignore semantics would mean one mode
+// silently reviewing a node_modules tree that another correctly skips.
+func CollectTextFiles(root string) []FileEntry {
+	entries := collectTextFiles(root)
+	out := make([]FileEntry, 0, len(entries))
+	for _, e := range entries {
+		out = append(out, FileEntry{
+			Path:    e.path,
+			RelPath: relativeTo(root, e.path),
+			Size:    e.size,
+		})
+	}
+	return out
+}
+
 // collectTextFiles walks root and returns every non-hidden, non-ignored,
 // non-binary regular file with its size, sorted by path.
 func collectTextFiles(root string) []fileEntry {
