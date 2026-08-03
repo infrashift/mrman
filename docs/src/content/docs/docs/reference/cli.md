@@ -8,6 +8,7 @@ mrman [flags]              # the TUI
 mrman tui [flags]          # explicit, identical
 mrman pr <target>          # review a merge request
 mrman mr <target>          # alias of pr
+mrman diff <old> <new>     # review the difference between two paths
 mrman review <subcommand>  # non-interactive JSON surface
 ```
 
@@ -23,7 +24,7 @@ These are persistent flags on the root command, so they apply to `mrman`,
 | `-r`, `--revisions <range>` | — | Commit range or revset to review (backend-specific syntax) |
 | `-w`, `--working-tree` | false | Review working-tree changes, skipping the selector |
 | `-p`, `--path <prefix>` | — | Filter the diff to a file or directory prefix |
-| `--file <path>` | — | Review a file or directory with no VCS involved |
+| `--file <path>` | — | Review a file or directory with no VCS involved (to compare two of them, see [`mrman diff`](#mrman-diff-old-new)) |
 | `-A`, `--all-files` | false | Pristine mode: annotate every tracked file (git only) |
 | `--theme <name>` | — | Bundled theme name, or a file in `themes/` |
 | `--appearance <mode>` | — | `light`, `dark` or `system`, used when no explicit theme |
@@ -41,6 +42,9 @@ mrman rejects these rather than picking a winner:
 
 - `--file` with `--working-tree`, or with `--all-files`
 - `--all-files` with `--path`, `--revisions` or `--working-tree`
+- `mrman diff` with `--file`, `--patch`, `--patch-strip`, `--all-files`,
+  `--path`, `--revisions` or `--working-tree` — a comparison is its own review
+  target, with no repository to filter, revise or compare against
 - **`--json` with `--auto`** — load-bearing, so that a command an agent can run
   can never issue a grant
 
@@ -83,6 +87,28 @@ request" is the right word on GitLab.
 
 See [How MR Review Works](../../guides/merge-requests/#target-syntax) for the
 resolution rules.
+
+## `mrman diff <old> <new>`
+
+Exactly two path arguments, in `diff(1)` order. Both must be files, or both
+directories; mixing the two is an error. Neither needs to be in a repository.
+
+```sh
+mrman diff vendor-1.2.0/ vendor-1.3.0/
+mrman diff staging/config.yaml prod/config.yaml
+```
+
+It is a subcommand rather than a flag because it has to be: no flag can take
+two values, and the root command cannot accept bare positional arguments.
+
+Directories are paired by each file's path relative to its root, walked the
+same way `--file <dir>` walks one, so `.gitignore` is honoured. Whatever is
+left over is matched for renames — exactly first, then by similarity, as
+`git diff` does — and anything still unpaired is an addition or a deletion.
+
+The session is identified by the two paths rather than by their contents, so
+editing either side and reopening resumes the same review. See [Reviewing two
+versions of the same thing](../../guides/local-review/#reviewing-two-versions-of-the-same-thing).
 
 ## `mrman review`
 
