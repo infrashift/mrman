@@ -8,6 +8,8 @@ import (
 	"github.com/infrashift/mrman/internal/app"
 	"github.com/infrashift/mrman/internal/forge"
 	"github.com/infrashift/mrman/internal/input"
+	"github.com/infrashift/mrman/internal/model"
+	"github.com/infrashift/mrman/internal/theme"
 	"github.com/infrashift/mrman/internal/vcs"
 )
 
@@ -275,5 +277,110 @@ func TestSubmitModalsAreBoxed(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+// longLineModel is a review whose diff carries a line far wider than any
+// pane, which is the case TestDiffRowsFitTheirPane's fixture cannot produce:
+// every line in testApp is a few columns long, so the assertion there held
+// no matter what the renderer did.
+func longLineModel(t *testing.T) *Model {
+	t.Helper()
+	path := "src/wide.go"
+	long := "// " + strings.Repeat("x", 400)
+	files := []model.DiffFile{{
+		NewPath: &path,
+		Status:  model.StatusModified,
+		Hunks: []model.DiffHunk{{
+			Header: "@@ -1,2 +1,3 @@ " + strings.Repeat("ctx ", 80),
+			Lines: []model.DiffLine{
+				{Origin: model.OriginContext, Content: long, OldLineno: lineno(1), NewLineno: lineno(1)},
+				{Origin: model.OriginDeletion, Content: long + " old", OldLineno: lineno(2)},
+				{Origin: model.OriginAddition, Content: long + " new", NewLineno: lineno(2)},
+			},
+			OldStart: 1, OldCount: 2, NewStart: 1, NewCount: 3,
+		}},
+	}}
+	files[0].ContentHash = model.ComputeContentHash(files[0].Hunks)
+	session := model.NewReviewSession("/repo", "abc", nil, model.SourceWorkingTree)
+	backend := &stubBackend{info: vcs.Info{RootPath: "/repo", HeadCommit: "abc", Type: vcs.TypeGit}}
+	a := app.NewApp(backend, backend.Info(), files, session,
+		app.DiffSource{Kind: app.DiffSourceWorkingTree})
+	m := NewModel(a, theme.TokyoNightStorm())
+	m.width, m.height = 120, 30
+	m.syncViewport()
+	return m
+}
+
+// TestAnOverWideLineStaysInsideThePane is the regression for a status bar
+// that vanished on files with long lines.
+//
+// Nothing clipped a diff row to its pane: the unified row builders take no
+// width, and PadToWidth only ever pads. An over-wide row therefore escaped
+// the panel, the terminal wrapped it, and the frame grew taller than the
+// screen — pushing the status bar, and the comment box that renders just
+// above it, out of sight until the reader scrolled to shorter lines.
+func TestAnOverWideLineStaysInsideThePane(t *testing.T) {
+	for _, wrap := range []bool{false, true} {
+		for _, mode := range []app.DiffViewMode{app.ViewUnified, app.ViewSideBySide} {
+			m := longLineModel(t)
+			m.App.DiffViewMode = mode
+			m.App.DiffState.WrapLines = wrap
+			m.syncViewport()
+
+			pane := m.diffInnerWidth()
+			rows := m.diffPane.BuildLines(m.App, pane, 20)
+			if len(rows) != 20 {
+				t.Fatalf("wrap=%v mode=%v: got %d rows, asked for 20", wrap, mode, len(rows))
+			}
+			for i, line := range rows {
+				got := render.StringWidth(ansiSequence.ReplaceAllString(line, ""))
+				if got > pane {
+					t.Errorf("wrap=%v mode=%v: row %d is %d wide, pane is %d",
+						wrap, mode, i, got, pane)
+				}
+			}
+		}
+	}
+}
+
+// TestTheWholeFrameSurvivesALongLine is the same bug seen from the outside:
+// what the reader loses is the status bar, so assert on that directly.
+func TestTheWholeFrameSurvivesALongLine(t *testing.T) {
+	for _, wrap := range []bool{false, true} {
+		m := longLineModel(t)
+		m.App.DiffState.WrapLines = wrap
+		m.syncViewport()
+
+		rows := strings.Split(plainView(m), "\n")
+		if len(rows) != m.height {
+			t.Errorf("wrap=%v: frame is %d rows, terminal is %d", wrap, len(rows), m.height)
+		}
+		if last := rows[len(rows)-1]; !strings.Contains(last, "NORMAL") {
+			t.Errorf("wrap=%v: last row is not the status bar: %q", wrap, last)
+		}
+	}
+}
+
+// TestVisibleLineCountIsReported covers the field's only writer. Three call
+// sites read it to decide whether the cursor is on screen, and with no
+// writer they silently fell back to a row count that wrapping makes wrong.
+func TestVisibleLineCountIsReported(t *testing.T) {
+	m := longLineModel(t)
+	m.App.DiffState.WrapLines = true
+	m.syncViewport()
+	m.diffPane.BuildLines(m.App, m.diffInnerWidth(), 20)
+
+	got := m.App.DiffState.VisibleLineCount
+	if got <= 0 {
+		t.Fatalf("VisibleLineCount not set (%d)", got)
+	}
+	if got > 20 {
+		t.Errorf("VisibleLineCount %d exceeds the 20 rows asked for", got)
+	}
+	// Each fixture line wraps to more than one row, so fewer logical lines
+	// fit than rows drawn — that difference is the whole point of the field.
+	if got >= 20 {
+		t.Errorf("wrapped lines should fit fewer than 20 logical lines, got %d", got)
 	}
 }
