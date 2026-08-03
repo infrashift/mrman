@@ -146,6 +146,11 @@ func headerSourceChunk(a *app.App) string {
 			return fmt.Sprintf("patch series · %d patches", n)
 		}
 		return "patch"
+	case app.DiffSourceDiffPaths:
+		if a.ComparisonLabel != "" {
+			return a.ComparisonLabel
+		}
+		return "two paths"
 	}
 	return ""
 }

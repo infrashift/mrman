@@ -21,6 +21,7 @@ import (
 	"github.com/infrashift/mrman/internal/theme"
 	"github.com/infrashift/mrman/internal/vcs"
 	"github.com/infrashift/mrman/internal/vcs/detect"
+	"github.com/infrashift/mrman/internal/vcs/diffbackend"
 	"github.com/infrashift/mrman/internal/vcs/filebackend"
 	"github.com/infrashift/mrman/internal/vcs/patchbackend"
 )
@@ -48,7 +49,16 @@ func Run(opts cli.TuiOptions) error {
 	// patchBackend is non-nil only for a --patch review; it carries the
 	// parsed series for the commit strip and the reply exporter.
 	var patchBackend *patchbackend.Backend
+	// diffBackend is non-nil only for a `mrman diff` review; it names the
+	// two sides for the header and the export scope.
+	var diffBackend *diffbackend.Backend
 	switch {
+	case opts.DiffOld != "":
+		db, dbErr := diffbackend.New(opts.DiffOld, opts.DiffNew, whitespaceMode(cfg))
+		if dbErr != nil {
+			return dbErr
+		}
+		backend, diffBackend = db, db
 	case opts.Patch != "":
 		pb, pbErr := patchbackend.New(opts.Patch, patch.Options{StripLevel: opts.PatchStrip})
 		if pbErr != nil {
@@ -86,7 +96,7 @@ func Run(opts cli.TuiOptions) error {
 	// No explicit target and a real VCS → open the target selector instead
 	// of loading a diff (tuicr's default entry).
 	selectorStart := opts.Revisions == "" && !opts.WorkingTree &&
-		opts.File == "" && !opts.AllFiles && opts.Patch == ""
+		opts.File == "" && !opts.AllFiles && opts.Patch == "" && opts.DiffOld == ""
 
 	highlighter := resolved.Highlighter()
 	var files []model.DiffFile
@@ -114,6 +124,11 @@ func Run(opts cli.TuiOptions) error {
 		// Each patch is a row in the strip, so a series is walked with ( and )
 		// exactly like a multi-commit review.
 		rangeCommits, _ = backend.RecentCommits(0, 0)
+	case diffBackend != nil:
+		// A comparison has no history, so no commit strip: WorkingTreeDiff is
+		// the only diff this backend serves.
+		files, err = backend.WorkingTreeDiff(highlighter)
+		source = app.DiffSource{Kind: app.DiffSourceDiffPaths}
 	default:
 		files, err = backend.WorkingTreeDiff(highlighter)
 	}
@@ -169,6 +184,11 @@ func Run(opts cli.TuiOptions) error {
 		a.IsPristineMode = true
 		a.DiffViewMode = app.ViewUnified
 		a.IsSingleFileView = true
+	}
+	if diffBackend != nil {
+		// Nothing else can tell the reviewer which side is which: OldPath is
+		// never rendered, and every display path is the new side.
+		a.ComparisonLabel = diffBackend.Label()
 	}
 
 	m := NewModel(a, resolved)
@@ -291,6 +311,8 @@ func sessionSource(src app.DiffSource) model.SessionDiffSource {
 		return model.SourceStagedAndUnstaged
 	case app.DiffSourcePatch:
 		return model.SourcePatch
+	case app.DiffSourceDiffPaths:
+		return model.SourceDiffPaths
 	}
 	return model.SourceWorkingTree
 }

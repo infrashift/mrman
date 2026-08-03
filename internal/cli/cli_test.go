@@ -192,3 +192,64 @@ func TestPreprocessArgsStopsAtTerminator(t *testing.T) {
 		}
 	}
 }
+
+func TestParseDiffSubcommand(t *testing.T) {
+	args, err := Parse([]string{"diff", "old.txt", "new.txt"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A comparison is an ordinary review, so it resolves to CommandTui and
+	// reaches ui.Run like every other local target.
+	if args.Command != CommandTui {
+		t.Errorf("Command = %v, want CommandTui", args.Command)
+	}
+	if args.Tui.DiffOld != "old.txt" || args.Tui.DiffNew != "new.txt" {
+		t.Errorf("got (%q, %q), want (old.txt, new.txt)",
+			args.Tui.DiffOld, args.Tui.DiffNew)
+	}
+}
+
+func TestParseDiffRequiresTwoPaths(t *testing.T) {
+	for _, argv := range [][]string{
+		{"diff"},
+		{"diff", "only-one.txt"},
+		{"diff", "a.txt", "b.txt", "c.txt"},
+	} {
+		if _, err := Parse(argv); err == nil {
+			t.Errorf("%v: expected an arity error", argv)
+		}
+	}
+}
+
+// TestParseDiffRejectsTargetFlags covers the guard that
+// MarkFlagsMutuallyExclusive cannot express: the conflicting flags are
+// persistent on the root, so a subcommand has to refuse them itself.
+func TestParseDiffRejectsTargetFlags(t *testing.T) {
+	for _, argv := range [][]string{
+		{"diff", "a", "b", "--file", "x.go"},
+		{"diff", "a", "b", "--patch", "s.mbox"},
+		{"diff", "a", "b", "--patch-strip", "2"},
+		{"diff", "a", "b", "-r", "main..HEAD"},
+		{"diff", "a", "b", "-w"},
+		{"diff", "a", "b", "-A"},
+		{"diff", "a", "b", "-p", "src/"},
+	} {
+		if _, err := Parse(argv); err == nil {
+			t.Errorf("%v: expected a conflict error", argv)
+		}
+	}
+}
+
+// Presentation flags say how to render a review, not which one to open, so
+// they must stay legal alongside a comparison.
+func TestParseDiffAllowsPresentationFlags(t *testing.T) {
+	for _, argv := range [][]string{
+		{"diff", "a", "b", "--theme", "dracula"},
+		{"diff", "a", "b", "--appearance", "dark"},
+		{"diff", "a", "b", "--stdout"},
+	} {
+		if _, err := Parse(argv); err != nil {
+			t.Errorf("%v: unexpected error: %v", argv, err)
+		}
+	}
+}

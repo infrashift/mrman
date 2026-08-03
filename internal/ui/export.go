@@ -26,12 +26,26 @@ type exportOptions struct {
 	ReplyHeaders output.ReplyHeaders
 }
 
+// scopeLabel is the human scope description an export carries, preferring
+// anything the review can say about itself over the generic kind name.
+//
+// A comparison is the case that needs it: "two paths" is true but useless
+// to whoever reads the exported notes, while the pair itself says exactly
+// what was reviewed. Every other source's kind name is already its best
+// description.
+func scopeLabel(a *app.App, scope output.ScopeKind) string {
+	if a.DiffSource.Kind == app.DiffSourceDiffPaths && a.ComparisonLabel != "" {
+		return a.ComparisonLabel
+	}
+	return scope.Label()
+}
+
 // renderExport builds the notes markdown for the current session.
 func renderExport(a *app.App, opts exportOptions) (string, error) {
 	scope := output.ScopeKind(int(a.DiffSource.Kind))
 	data, err := output.BuildTemplateData(a.Session, scope.ScopeLine(a.DiffSource.Commits), output.ExportOptions{
 		SessionSlug:     sessionSlugString(a),
-		DiffSourceLabel: scope.Label(),
+		DiffSourceLabel: scopeLabel(a, scope),
 		ShowLegend:      opts.ShowLegend,
 		CommentTypes:    legendEntries(a.CommentTypes),
 	})
@@ -54,7 +68,7 @@ func renderPatchReply(a *app.App, opts exportOptions) (string, error) {
 	scope := output.ScopeKind(int(a.DiffSource.Kind))
 	data, err := output.BuildPatchData(a.Session, a.DiffFiles, output.PatchOptions{
 		SessionSlug:     sessionSlugString(a),
-		DiffSourceLabel: scope.Label(),
+		DiffSourceLabel: scopeLabel(a, scope),
 		ShowLegend:      opts.ShowLegend,
 		CommentTypes:    legendEntries(a.CommentTypes),
 		Context:         opts.PatchContext,
