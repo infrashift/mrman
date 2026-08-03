@@ -62,13 +62,15 @@ behavioral spec — and adds a few things.
 | **Templatable markdown** | Both the exported notes and the submitted review body are Go templates you can override |
 | **Agent collaboration** | A JSON CLI for reading and writing a live review session, with a human-held submit interlock |
 | **`Space` expands context gaps** | Alongside tuicr's `Enter` |
+| **Compare two arbitrary paths** | `mrman diff <old> <new>` reviews two files or two directory trees that need not be in any repository |
 | **Built-in comment types** | NOTE, ISSUE, SUGGESTION, PRAISE out of the box; tuicr ships only the untyped type, so classification is invisible until configured |
 
 ### Deliberate differences
 
 - **No self-updater.** Use your package manager or `go install`; there is no
   `:update` and no startup version check.
-- **No Mercurial backend.** git, Jujutsu, `--file` and `-A` are supported.
+- **No Mercurial backend.** git, Jujutsu, `--file`, `--patch`, `mrman diff`
+  and `-A` are supported.
 
 Both are choices, not gaps. A TUI that phones home on startup and rewrites its
 own binary is a TUI with opinions about your package manager.

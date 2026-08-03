@@ -120,6 +120,8 @@ func KindForSource(src model.SessionDiffSource) (SourceKind, bool) {
 		return SourceStagedUnstagedAndCommits, true
 	case model.SourcePatch:
 		return SourcePatch, true
+	case model.SourceDiffPaths:
+		return SourceDiffPaths, true
 	}
 	return 0, false
 }
@@ -151,6 +153,11 @@ func sourceForSession(s *model.ReviewSession) (SlugSource, error) {
 		// is shortened the same way but means something different: the same
 		// bytes resume the same review, edited bytes start a new one.
 		return SlugSource{Kind: SourcePatch, Head: liveHeadToken(s.BaseCommit)}, nil
+	case kind == SourceDiffPaths:
+		// Like a patch, BaseCommit here is a hash rather than a commit — but
+		// of the two paths being compared, not of their contents. The same
+		// pair resumes the same review however often either file is edited.
+		return SlugSource{Kind: SourceDiffPaths, Head: liveHeadToken(s.BaseCommit)}, nil
 	}
 	return rangeSource(s, kind)
 }

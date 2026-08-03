@@ -65,6 +65,12 @@ func (m *Model) readCurrentSource() ([]model.DiffFile, error) {
 			vcs.ResolvedRevisionRange{CommitIDs: reversed(a.DiffSource.Commits)}, h)
 	case app.DiffSourceStagedUnstagedAndCommits:
 		files, err = a.VCS.WorkingTreeWithCommitsDiff(reversed(a.DiffSource.Commits), h)
+	case app.DiffSourceDiffPaths:
+		// Re-reads both paths from disk, which is what makes :e the natural
+		// way to work here: edit one side, reload, read the new difference.
+		// The default arm would do the same thing, but relying on that is
+		// how a source silently stops reloading when the default changes.
+		files, err = a.VCS.WorkingTreeDiff(h)
 	default:
 		files, err = a.VCS.WorkingTreeDiff(h)
 	}

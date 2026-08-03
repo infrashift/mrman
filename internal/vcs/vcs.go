@@ -23,6 +23,9 @@ const (
 	TypeFile    Type = "file"
 	// TypePatch is a standalone patch artifact reviewed without a repository.
 	TypePatch Type = "patch"
+	// TypeDiff is a comparison of two arbitrary paths, neither of which
+	// need be in a repository.
+	TypeDiff Type = "diff"
 )
 
 // Info describes the repository a backend operates on.

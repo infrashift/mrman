@@ -47,9 +47,15 @@ type TuiOptions struct {
 	// from the paths it declares (0 means the -p1 convention).
 	Patch      string
 	PatchStrip int
-	Stdout     bool
-	RepoURL    string
-	Forge      string
+	// DiffOld and DiffNew are the two paths of `mrman diff <old> <new>`,
+	// empty unless that subcommand ran. They live here rather than beside
+	// PrTarget so the subcommand can resolve to CommandTui and reuse the
+	// ordinary ui.Run entry point.
+	DiffOld string
+	DiffNew string
+	Stdout  bool
+	RepoURL string
+	Forge   string
 	// JSON opens a pull-request session headlessly and prints it, instead
 	// of launching the TUI.
 	JSON bool

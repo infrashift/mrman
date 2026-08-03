@@ -84,9 +84,69 @@ func newRootCmd(args *Args) *cobra.Command {
 		newTuiCmd(args),
 		newPrCmd(args, "pr"),
 		newPrCmd(args, "mr"),
+		newDiffCmd(args),
 		newReviewCmd(args),
 	)
 	return root
+}
+
+// newDiffCmd defines `mrman diff <old> <new>`: review the difference
+// between two paths, neither of which need be in any repository.
+//
+// It is a subcommand rather than a `--diff old new` flag because it cannot
+// be one. pflag has no two-value flag, and cobra's root rejects bare
+// positionals once it has subcommands, so both spellings of a flag form
+// fail to parse. The <old> <new> order is diff(1)'s.
+//
+// It resolves to CommandTui rather than a command of its own: the result is
+// an ordinary review, and routing it through ui.Run keeps one TUI entry
+// point instead of a parallel one that would drift.
+func newDiffCmd(args *Args) *cobra.Command {
+	return &cobra.Command{
+		Use:   "diff <old> <new>",
+		Short: "Review the difference between two paths, with no repository",
+		Long: "Review the difference between two paths, with no repository.\n\n" +
+			"Both must be files, or both directories. Neither need be in version " +
+			"control, and they need not be related to each other — a vendored " +
+			"dependency before and after an upgrade, a generated artifact from two " +
+			"runs, or the same config in two environments.\n\n" +
+			"Directories are paired by the path of each file relative to its root " +
+			"and walked the way --file does, honouring .gitignore.",
+		Args: cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, positional []string) error {
+			if err := rejectTargetFlags(cmd); err != nil {
+				return err
+			}
+			args.Command = CommandTui
+			args.Tui.DiffOld = positional[0]
+			args.Tui.DiffNew = positional[1]
+			return nil
+		},
+	}
+}
+
+// rejectTargetFlags refuses the review-target flags that `mrman diff`
+// replaces.
+//
+// These are persistent flags on the root command, so
+// MarkFlagsMutuallyExclusive cannot express the conflict from a subcommand
+// and the check has to be made here. Same shape as rejectTuiFlags: a hard
+// error naming the offending flag, rather than a silent precedence rule
+// nobody could predict. Presentation flags (--theme, --appearance,
+// --stdout) are deliberately absent — they say how to render a review, not
+// which one to open.
+func rejectTargetFlags(cmd *cobra.Command) error {
+	targetFlags := []string{
+		"revisions", "working-tree", "file", "all-files", "patch", "patch-strip", "path",
+	}
+	root := cmd.Root()
+	for _, name := range targetFlags {
+		if f := root.PersistentFlags().Lookup(name); f != nil && f.Changed {
+			return fmt.Errorf(
+				"`mrman diff` is its own review target, so it cannot be combined with --%s", name)
+		}
+	}
+	return nil
 }
 
 func addTuiFlags(cmd *cobra.Command, o *TuiOptions) {
@@ -248,6 +308,10 @@ func newReviewCmd(args *Args) *cobra.Command {
 
 // rejectTuiFlags reproduces tuicr's ArgumentConflict: TUI options given
 // alongside review subcommands are a hard error.
+//
+// `mrman diff`'s two paths need no entry here: they are subcommand
+// positionals, not root flags, so they cannot reach a review subcommand in
+// the first place.
 func rejectTuiFlags(cmd *cobra.Command) error {
 	tuiFlags := []string{
 		"revisions", "theme", "appearance", "path", "working-tree",

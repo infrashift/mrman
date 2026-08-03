@@ -1,4 +1,4 @@
-package azdof
+package diffgen
 
 import (
 	"fmt"
@@ -78,7 +78,7 @@ func TestDiffLinesScripts(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := script(diffLines(tt.a, tt.b)); got != tt.want {
+			if got := script(diffLines(tt.a, tt.b, Options{})); got != tt.want {
 				t.Fatalf("script = %q, want %q", got, tt.want)
 			}
 		})
@@ -98,7 +98,7 @@ func TestDiffLinesOptimality(t *testing.T) {
 	}
 	for _, tt := range tests {
 		changes := 0
-		for _, e := range diffLines(tt.a, tt.b) {
+		for _, e := range diffLines(tt.a, tt.b, Options{}) {
 			if e.kind != editEqual {
 				changes++
 			}
@@ -114,7 +114,7 @@ func TestDiffLinesRoundTrip(t *testing.T) {
 	a := lines("one", "two", "three", "four", "five", "six")
 	b := lines("one", "2", "three", "3.5", "five", "seven", "six")
 	var gotA, gotB []string
-	for _, e := range diffLines(a, b) {
+	for _, e := range diffLines(a, b, Options{}) {
 		switch e.kind {
 		case editEqual:
 			gotA = append(gotA, e.text)
@@ -141,7 +141,7 @@ func TestMyersFallback(t *testing.T) {
 		a = append(a, fmt.Sprintf("old-%d\n", i))
 		b = append(b, fmt.Sprintf("new-%d\n", i))
 	}
-	edits := diffLines(a, b)
+	edits := diffLines(a, b, Options{})
 	if len(edits) != 2200 {
 		t.Fatalf("edit count = %d, want 2200", len(edits))
 	}
@@ -234,7 +234,7 @@ func TestFormatHunksContextAndGrouping(t *testing.T) {
 func TestFormatHunksNoNewlineMarkers(t *testing.T) {
 	old := "a\nb"
 	updated := "a\nb\n"
-	got := formatHunks(diffLines(splitLinesKeepEnds(old), splitLinesKeepEnds(updated)), 3)
+	got := formatHunks(diffLines(splitLinesKeepEnds(old), splitLinesKeepEnds(updated), Options{}), 3)
 	want := "@@ -1,2 +1,2 @@\n a\n-b\n\\ No newline at end of file\n+b\n"
 	if got != want {
 		t.Fatalf("got %q, want %q", got, want)
@@ -244,7 +244,7 @@ func TestFormatHunksNoNewlineMarkers(t *testing.T) {
 func TestUnifiedFileDiffModify(t *testing.T) {
 	oldContent := "line1\nline2\nline3\nline4\nline5\nline6\nline7\nline8\nline9\nline10\n"
 	newContent := strings.Replace(oldContent, "line5", "changed5", 1)
-	got := unifiedFileDiff("f.txt", "f.txt", oldContent, newContent)
+	got := UnifiedFileDiff("f.txt", "f.txt", oldContent, newContent, Options{})
 	want := strings.Join([]string{
 		"diff --git a/f.txt b/f.txt",
 		"--- a/f.txt",
@@ -266,7 +266,7 @@ func TestUnifiedFileDiffModify(t *testing.T) {
 }
 
 func TestUnifiedFileDiffAdd(t *testing.T) {
-	got := unifiedFileDiff("", "new.txt", "", "hello\nworld\n")
+	got := UnifiedFileDiff("", "new.txt", "", "hello\nworld\n", Options{})
 	want := strings.Join([]string{
 		"diff --git a/new.txt b/new.txt",
 		"new file mode 100644",
@@ -283,7 +283,7 @@ func TestUnifiedFileDiffAdd(t *testing.T) {
 }
 
 func TestUnifiedFileDiffDelete(t *testing.T) {
-	got := unifiedFileDiff("gone.txt", "", "only\n", "")
+	got := UnifiedFileDiff("gone.txt", "", "only\n", "", Options{})
 	want := strings.Join([]string{
 		"diff --git a/gone.txt b/gone.txt",
 		"deleted file mode 100644",
@@ -299,7 +299,7 @@ func TestUnifiedFileDiffDelete(t *testing.T) {
 }
 
 func TestUnifiedFileDiffEmptyAdd(t *testing.T) {
-	got := unifiedFileDiff("", "empty.txt", "", "")
+	got := UnifiedFileDiff("", "empty.txt", "", "", Options{})
 	want := "diff --git a/empty.txt b/empty.txt\nnew file mode 100644\n"
 	if got != want {
 		t.Fatalf("got %q, want %q", got, want)
@@ -307,7 +307,7 @@ func TestUnifiedFileDiffEmptyAdd(t *testing.T) {
 }
 
 func TestUnifiedFileDiffPureRename(t *testing.T) {
-	got := unifiedFileDiff("old/name.txt", "new/name.txt", "same\n", "same\n")
+	got := UnifiedFileDiff("old/name.txt", "new/name.txt", "same\n", "same\n", Options{})
 	want := strings.Join([]string{
 		"diff --git a/old/name.txt b/new/name.txt",
 		"similarity index 100%",
@@ -321,7 +321,7 @@ func TestUnifiedFileDiffPureRename(t *testing.T) {
 }
 
 func TestUnifiedFileDiffRenameWithEdit(t *testing.T) {
-	got := unifiedFileDiff("a.txt", "b.txt", "one\ntwo\n", "one\n2\n")
+	got := UnifiedFileDiff("a.txt", "b.txt", "one\ntwo\n", "one\n2\n", Options{})
 	want := strings.Join([]string{
 		"diff --git a/a.txt b/b.txt",
 		"rename from a.txt",
@@ -340,7 +340,7 @@ func TestUnifiedFileDiffRenameWithEdit(t *testing.T) {
 }
 
 func TestUnifiedFileDiffIdenticalEdit(t *testing.T) {
-	if got := unifiedFileDiff("same.txt", "same.txt", "x\n", "x\n"); got != "" {
+	if got := UnifiedFileDiff("same.txt", "same.txt", "x\n", "x\n", Options{}); got != "" {
 		t.Fatalf("identical blobs must produce no diff, got %q", got)
 	}
 }
@@ -348,21 +348,21 @@ func TestUnifiedFileDiffIdenticalEdit(t *testing.T) {
 func TestUnifiedFileDiffBinary(t *testing.T) {
 	binary := "PNG\x00\x01\x02"
 	t.Run("modify", func(t *testing.T) {
-		got := unifiedFileDiff("img.png", "img.png", binary, binary+"more")
+		got := UnifiedFileDiff("img.png", "img.png", binary, binary+"more", Options{})
 		want := "diff --git a/img.png b/img.png\nBinary files a/img.png and b/img.png differ\n"
 		if got != want {
 			t.Fatalf("got %q, want %q", got, want)
 		}
 	})
 	t.Run("add", func(t *testing.T) {
-		got := unifiedFileDiff("", "img.png", "", binary)
+		got := UnifiedFileDiff("", "img.png", "", binary, Options{})
 		want := "diff --git a/img.png b/img.png\nnew file mode 100644\nBinary files /dev/null and b/img.png differ\n"
 		if got != want {
 			t.Fatalf("got %q, want %q", got, want)
 		}
 	})
 	t.Run("delete", func(t *testing.T) {
-		got := unifiedFileDiff("img.png", "", binary, "")
+		got := UnifiedFileDiff("img.png", "", binary, "", Options{})
 		want := "diff --git a/img.png b/img.png\ndeleted file mode 100644\nBinary files a/img.png and /dev/null differ\n"
 		if got != want {
 			t.Fatalf("got %q, want %q", got, want)

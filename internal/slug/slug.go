@@ -129,6 +129,11 @@ const (
 	// has no position in any history: re-send it edited and it is a different
 	// review.
 	SourcePatch
+	// SourceDiffPaths compares two arbitrary paths (diff/<path-pair-hash>).
+	// Its head token hashes the two canonical paths, not their contents:
+	// the files are expected to change between sittings, and the review of
+	// "these two things" must survive editing either of them.
+	SourceDiffPaths
 )
 
 // IsLive reports whether the kind is one of the live working-tree sources,
@@ -139,7 +144,7 @@ func (k SourceKind) IsLive() bool {
 	case SourceWorktree, SourceStaged, SourceUnstaged, SourceStagedAndUnstaged:
 		return true
 	case SourcePristine, SourceCommits, SourceWorktreeAndCommits,
-		SourceStagedUnstagedAndCommits, SourcePatch:
+		SourceStagedUnstagedAndCommits, SourcePatch, SourceDiffPaths:
 		return false
 	}
 	return false
@@ -173,6 +178,8 @@ func (s SlugSource) String() string {
 		return "pristine"
 	case SourcePatch:
 		return "patch/" + s.Head
+	case SourceDiffPaths:
+		return "diff/" + s.Head
 	case SourceCommits:
 		return "commits/" + s.Base + ".." + s.Head
 	case SourceWorktreeAndCommits:
@@ -355,6 +362,9 @@ func parseSource(s string) (SlugSource, error) {
 	}
 	if head, ok := strings.CutPrefix(s, "patch/"); ok {
 		return tokenSource(head, s, SourcePatch)
+	}
+	if head, ok := strings.CutPrefix(s, "diff/"); ok {
+		return tokenSource(head, s, SourceDiffPaths)
 	}
 	if head, ok := strings.CutPrefix(s, "worktree/"); ok {
 		return tokenSource(head, s, SourceWorktree)

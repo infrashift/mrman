@@ -34,6 +34,9 @@ const (
 	// mirrors this order and callers convert with a plain int cast, so an
 	// insertion silently relabels every exported review.
 	DiffSourcePatch
+	// DiffSourceDiffPaths compares two arbitrary paths — `mrman diff
+	// <old> <new>` — with no repository behind either of them.
+	DiffSourceDiffPaths
 )
 
 // DiffSource is the runtime diff target. Commits carries the commit ids for
@@ -167,6 +170,14 @@ type App struct {
 	ShowFileList                bool
 	// IsPristineMode is true when the session was opened via --all-files.
 	IsPristineMode bool
+	// ComparisonLabel names the two sides of a `mrman diff` review, as
+	// "<old> → <new>". It is set only for DiffSourceDiffPaths.
+	//
+	// It exists because nothing else can say it. DiffFile.OldPath is never
+	// rendered — the file tree, anchoring and export all go through
+	// DisplayPath, which is the new side — so without this the reviewer has
+	// no way to tell which of the two paths they are looking at.
+	ComparisonLabel string
 	// IsSingleFileView renders only the currently focused file in the diff
 	// panel instead of the continuous-scroll concatenation.
 	IsSingleFileView bool

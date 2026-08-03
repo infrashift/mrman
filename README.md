@@ -40,6 +40,7 @@ mrman -p src/              # limit the diff to a path prefix
 mrman --file notes.md      # review any file, no VCS needed
 mrman -A                   # pristine mode: annotate every tracked file
 mrman --patch series.mbox  # review a .patch, .diff or mbox file, no repo needed
+mrman diff old new         # review the difference between two paths, no repo needed
 mrman pr 125               # review a pull request (repo from your checkout)
 mrman pr owner/repo#125    # ... or addressed explicitly
 mrman pr <PR/MR URL>       # ... or by URL (any supported forge)

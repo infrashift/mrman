@@ -33,6 +33,8 @@ const (
 	ScopePullRequest
 	// ScopePatch reviews a standalone patch artifact.
 	ScopePatch
+	// ScopeDiffPaths compares two arbitrary paths with no repository.
+	ScopeDiffPaths
 )
 
 // ScopeLine returns the "Reviewing ..." header line for the scope, exactly
@@ -53,10 +55,11 @@ func (k ScopeKind) ScopeLine(commits []string) string {
 		return "Reviewing commits: " + strings.Join(shortSHAs(commits), ", ")
 	case ScopeStagedUnstagedAndCommits:
 		return "Reviewing staged + unstaged + commits: " + strings.Join(shortSHAs(commits), ", ")
-	case ScopeWorkingTree, ScopePullRequest, ScopePatch:
-		// A patch review's scope is the artifact's own name, which the caller
-		// supplies through ExportOptions.DiffSourceLabel — this function only
-		// sees commit ids, and a patch has none.
+	case ScopeWorkingTree, ScopePullRequest, ScopePatch, ScopeDiffPaths:
+		// A patch review's scope is the artifact's own name, and a two-path
+		// review's is the pair being compared. Both come from the caller
+		// through ExportOptions.DiffSourceLabel — this function only sees
+		// commit ids, and neither source has any.
 		return ""
 	}
 	return ""
@@ -83,6 +86,8 @@ func (k ScopeKind) Label() string {
 		return "merge request"
 	case ScopePatch:
 		return "patch file"
+	case ScopeDiffPaths:
+		return "two paths"
 	}
 	return ""
 }

@@ -147,6 +147,16 @@ func (p *DiffPane) buildRow(a *app.App, ann *app.AnnotatedLine, idx, lw, width i
 	return render.LogicalLine{Kind: render.RowBlank, Ann: idx, Spans: []render.Span{ind}}
 }
 
+// renamedFrom returns the path a file moved from, or "" when it did not
+// move. It reads the paths rather than the status so a copy — which carries
+// both paths but a different badge — is described too.
+func renamedFrom(file *model.DiffFile) string {
+	if file.OldPath == nil || file.NewPath == nil || *file.OldPath == *file.NewPath {
+		return ""
+	}
+	return *file.OldPath
+}
+
 func (p *DiffPane) fileHeaderRow(a *app.App, ann *app.AnnotatedLine, ind render.Span, width int) render.LogicalLine {
 	t := p.Theme
 	file := &a.DiffFiles[ann.FileIdx]
@@ -158,6 +168,12 @@ func (p *DiffPane) fileHeaderRow(a *app.App, ann *app.AnnotatedLine, ind render.
 	b.WriteString(file.DisplayPath())
 	if !file.IsCommitMessage && !a.IsPristineMode {
 		fmt.Fprintf(&b, " [%c]", file.Status.Char())
+	}
+	// Where a renamed file came from. Without this the move is invisible:
+	// DisplayPath is the new path, OldPath is rendered nowhere else, and an
+	// R badge on its own says a file moved without saying from where.
+	if from := renamedFrom(file); from != "" {
+		fmt.Fprintf(&b, " · renamed from %s", from)
 	}
 	// Which patch of the series this entry came from, when the diff spans
 	// more than one and the path alone would not say.

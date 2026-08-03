@@ -36,6 +36,7 @@ const (
 	SourcePullRequest              SessionDiffSource = "pull_request"
 	SourcePristine                 SessionDiffSource = "pristine"
 	SourcePatch                    SessionDiffSource = "patch"
+	SourceDiffPaths                SessionDiffSource = "diff_paths"
 )
 
 // StringSet is a sorted set of strings that marshals as a sorted JSON array,

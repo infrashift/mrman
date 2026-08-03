@@ -32,6 +32,7 @@ func TestScopeKindMirrorsDiffSourceKind(t *testing.T) {
 		{app.DiffSourceStagedUnstagedAndCommits, output.ScopeStagedUnstagedAndCommits, "combined"},
 		{app.DiffSourcePullRequest, output.ScopePullRequest, "pull request"},
 		{app.DiffSourcePatch, output.ScopePatch, "patch"},
+		{app.DiffSourceDiffPaths, output.ScopeDiffPaths, "two paths"},
 	}
 	for _, p := range pairs {
 		if output.ScopeKind(int(p.diff)) != p.scope {
@@ -41,9 +42,9 @@ func TestScopeKindMirrorsDiffSourceKind(t *testing.T) {
 	}
 	// And the last pair must really be last, so a future variant is appended
 	// rather than inserted.
-	if int(app.DiffSourcePatch) != len(pairs)-1 {
-		t.Errorf("DiffSourcePatch = %d, want %d — new kinds must be appended",
-			app.DiffSourcePatch, len(pairs)-1)
+	if int(app.DiffSourceDiffPaths) != len(pairs)-1 {
+		t.Errorf("DiffSourceDiffPaths = %d, want %d — new kinds must be appended",
+			app.DiffSourceDiffPaths, len(pairs)-1)
 	}
 }
 

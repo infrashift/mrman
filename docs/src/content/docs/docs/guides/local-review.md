@@ -31,6 +31,7 @@ entirely.
 | `mrman -r main..HEAD` | A commit range, with the commit strip |
 | `mrman -p src/` | Any of the above, filtered to a path prefix |
 | `mrman --file notes.md` | One file or directory, no VCS involved |
+| `mrman diff old new` | The difference between two paths, no repository |
 | `mrman -A` | Pristine mode: every tracked file, annotatable |
 
 `-r` takes whatever range syntax the detected backend understands, so it is
@@ -50,6 +51,49 @@ document, a generated report, or a directory someone sent you.
 
 `--patch` takes a `.patch`, `.diff` or mbox file and reviews it with no
 repository at all — see [Reviewing Patches](../patches/).
+
+## Reviewing two versions of the same thing
+
+Sometimes both things you want to compare are just sitting on disk. A vendored
+dependency before and after an upgrade. A generated file from two runs of the
+same tool. The same config in staging and in production. A file someone
+emailed you, against your own copy.
+
+```sh
+mrman diff vendor-1.2.0/ vendor-1.3.0/
+mrman diff staging/config.yaml prod/config.yaml
+```
+
+`mrman diff` takes two paths — either two files or two directories — and
+reviews the difference between them. Neither needs to be in version control,
+and they need not be related to each other. Unlike `--file`, which can only
+show you a file as one long addition, this produces a real two-sided diff, so
+side-by-side view and the old-side gutter both work.
+
+A few things worth knowing:
+
+- **Directories are paired by relative path.** A file at the same path under
+  both roots is one comparison; anything else is an addition or a deletion.
+  The walk honours each root's own `.gitignore` exactly as `--file <dir>`
+  does, so a `node_modules` or `target` directory stays out of your review.
+  `.mrmanignore` is read from the **new** side and applies to the whole
+  comparison, so a path ignored there is absent even if it exists only under
+  the old root.
+- **Moved files are detected as renames**, the way `git diff` does it: an
+  exact content match first, then a similarity match for files that moved
+  *and* changed. A rename shows once, under its new path, with the old one
+  named in the file header — rather than twice, as a whole-file delete plus a
+  whole-file add. Detection falls back to exact matches only on very large
+  reorganisations, mirroring git's `diff.renameLimit`.
+- **The session is keyed on the two paths, not their contents.** Edit either
+  file, reopen the same command or press `:e`, and your comments are still
+  there — mrman revalidates the anchors and tells you which ones moved. This
+  is the opposite of `--patch`, where editing the artifact deliberately starts
+  a new review.
+- **`ignore_whitespace` applies**, so a pure reindentation can be made to
+  disappear from the comparison.
+- Because it is its own review target, `mrman diff` cannot be combined with
+  `--file`, `--patch`, `-A`, `-r`, `-w` or `-p`.
 
 `-A` (**pristine mode**) is the repository-wide version: it collects every
 tracked file and presents all of them as reviewable, so you can annotate code

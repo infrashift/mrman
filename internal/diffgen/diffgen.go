@@ -1,17 +1,25 @@
-package azdof
+// Package diffgen synthesizes git-style unified diff text from a pair of
+// blobs. The line diff is a compact O(ND) greedy Myers algorithm (Myers
+// 1986, "An O(ND) Difference Algorithm and Its Variations") over lines that
+// keep their trailing newline, so a missing final newline diffs naturally
+// and emits git's "\ No newline at end of file" marker.
+//
+// It is a standalone package rather than a detail of one caller because two
+// unrelated parts of mrman need to diff content that git will not diff for
+// them: the Azure DevOps driver, whose API exposes no text-diff endpoint at
+// all, and the two-path review backend, which compares files that need not
+// be in any repository. Neither has a layer in common with the other.
+//
+// The output is text, never model.DiffFile. Callers hand it to
+// internal/vcs/diffparser like any other diff, so this package stays free
+// of mrman's diff model and every consumer shares one parser.
+package diffgen
 
 import (
 	"bytes"
 	"fmt"
 	"strings"
 )
-
-// diffgen synthesizes git-style unified diffs from blob pairs, because
-// Azure DevOps exposes no text-diff endpoint at all. The line diff is a
-// compact O(ND) greedy Myers algorithm (Myers 1986, "An O(ND) Difference
-// Algorithm and Its Variations") over lines that keep their trailing
-// newline, so a missing final newline diffs naturally and emits git's
-// "\ No newline at end of file" marker.
 
 // diffContextLines is the number of unchanged lines kept around each hunk,
 // matching git's default.
@@ -27,6 +35,71 @@ const maxEditDistance = 2048
 // binarySniffLen is how many leading bytes are searched for a NUL byte to
 // classify a blob as binary, mirroring git's heuristic.
 const binarySniffLen = 8000
+
+// Options tunes UnifiedFileDiff. The zero value reproduces the behaviour
+// this code had while it lived inside the Azure DevOps driver, so a caller
+// that wants git's defaults passes Options{} and gets identical bytes.
+type Options struct {
+	// Context is how many unchanged lines to keep around each hunk. Zero
+	// means diffContextLines (3), git's default.
+	Context int
+
+	// MaxEditDistance bounds the Myers search depth; zero means
+	// maxEditDistance.
+	//
+	// Raising it is not free. The backtracking trace holds d+1 ints for
+	// every sweep d, so its memory is O(bound^2/2) — roughly 17 MB at the
+	// default 2048 and 268 MB at 8192. A materially larger bound wants the
+	// linear-space Myers refinement, not a larger constant here.
+	MaxEditDistance int
+
+	// LineKey maps a line to the value equality is decided on, leaving the
+	// text that gets emitted untouched. nil compares lines verbatim.
+	//
+	// It is how a whitespace-insensitive diff is produced without a second
+	// algorithm: key on the line with its whitespace stripped, and the
+	// reviewer still reads the original.
+	LineKey func(string) string
+
+	// NoRenameHeaders suppresses the "rename from"/"rename to" block that
+	// two differing non-empty paths would otherwise imply.
+	//
+	// It exists for comparisons where the two paths are simply the two
+	// things being compared rather than one file's history. Calling
+	// `old.txt` vs `new.txt` a rename makes diffparser report StatusRenamed,
+	// which paints an R badge that means nothing to the reviewer.
+	NoRenameHeaders bool
+}
+
+// context returns the effective context-line count.
+func (o Options) context() int {
+	if o.Context <= 0 {
+		return diffContextLines
+	}
+	return o.Context
+}
+
+// editBound returns the effective Myers search bound.
+func (o Options) editBound() int {
+	if o.MaxEditDistance <= 0 {
+		return maxEditDistance
+	}
+	return o.MaxEditDistance
+}
+
+// keys projects lines through LineKey, or returns lines unchanged when no
+// key is set. The result is index-parallel to lines: the algorithm compares
+// keys and emits the text at the same index.
+func (o Options) keys(lines []string) []string {
+	if o.LineKey == nil {
+		return lines
+	}
+	out := make([]string, len(lines))
+	for i, line := range lines {
+		out[i] = o.LineKey(line)
+	}
+	return out
+}
 
 // editKind classifies one line of an edit script.
 type editKind int8
@@ -71,20 +144,31 @@ func splitLinesKeepEnds(content string) []string {
 
 // diffLines computes the line edit script between a and b: common
 // prefix/suffix trimming around a bounded Myers core.
-func diffLines(a, b []string) []edit {
+//
+// Equality is decided on opts.LineKey's projection of each line while the
+// emitted script carries the original text, so a whitespace-insensitive
+// comparison still shows the reviewer what is really in the file. The key
+// slices stay index-parallel to a and b, and every slice below is cut at
+// the same offsets on both.
+func diffLines(a, b []string, opts Options) []edit {
+	ka, kb := opts.keys(a), opts.keys(b)
+
 	// Trim the common prefix and suffix; most real diffs are tiny islands
 	// of change in a sea of equality, and the Myers core is quadratic in
 	// the edit distance only, so shrinking its input costs nothing.
 	prefix := 0
-	for prefix < len(a) && prefix < len(b) && a[prefix] == b[prefix] {
+	for prefix < len(a) && prefix < len(b) && ka[prefix] == kb[prefix] {
 		prefix++
 	}
 	suffix := 0
 	for suffix < len(a)-prefix && suffix < len(b)-prefix &&
-		a[len(a)-1-suffix] == b[len(b)-1-suffix] {
+		ka[len(a)-1-suffix] == kb[len(b)-1-suffix] {
 		suffix++
 	}
-	middle := myersDiff(a[prefix:len(a)-suffix], b[prefix:len(b)-suffix])
+	middle := myersDiff(
+		a[prefix:len(a)-suffix], b[prefix:len(b)-suffix],
+		ka[prefix:len(ka)-suffix], kb[prefix:len(kb)-suffix],
+		opts.editBound())
 
 	edits := make([]edit, 0, prefix+len(middle)+suffix)
 	for _, line := range a[:prefix] {
@@ -97,10 +181,11 @@ func diffLines(a, b []string) []edit {
 	return edits
 }
 
-// myersDiff runs the greedy O(ND) Myers algorithm on a and b, returning the
-// edit script. When the edit distance exceeds maxEditDistance the result
-// degrades to delete-all/insert-all.
-func myersDiff(a, b []string) []edit {
+// myersDiff runs the greedy O(ND) Myers algorithm over the keys ka and kb,
+// returning an edit script carrying the corresponding text from a and b.
+// ka must be index-parallel to a and kb to b. When the edit distance
+// exceeds maxDistance the result degrades to delete-all/insert-all.
+func myersDiff(a, b, ka, kb []string, maxDistance int) []edit {
 	n, m := len(a), len(b)
 	switch {
 	case n == 0 && m == 0:
@@ -112,8 +197,8 @@ func myersDiff(a, b []string) []edit {
 	}
 
 	bound := n + m
-	if bound > maxEditDistance {
-		bound = maxEditDistance
+	if bound > maxDistance {
+		bound = maxDistance
 	}
 
 	// trace[d] holds the furthest-x frontier after sweep d, compacted to
@@ -141,7 +226,7 @@ func myersDiff(a, b []string) []edit {
 				}
 			}
 			y := x - k
-			for x < n && y < m && a[x] == b[y] {
+			for x < n && y < m && ka[x] == kb[y] {
 				x++
 				y++
 			}
@@ -304,12 +389,13 @@ func formatHunkRange(start, count int) string {
 	return fmt.Sprintf("%d,%d", start, count)
 }
 
-// unifiedFileDiff renders one file's git-style diff from its blob pair.
+// UnifiedFileDiff renders one file's git-style diff from its blob pair.
 // oldPath "" means the file was added; newPath "" means it was deleted;
-// differing non-empty paths mean a rename. Paths are repo-relative without
-// a leading slash. Binary content (either side) produces a binary stub.
-// Returns "" when there is nothing to show (identical non-renamed blobs).
-func unifiedFileDiff(oldPath, newPath, oldContent, newContent string) string {
+// differing non-empty paths mean a rename unless opts.NoRenameHeaders says
+// otherwise. Paths are relative and carry no leading slash. Binary content
+// on either side produces a binary stub. Returns "" when there is nothing
+// to show (identical blobs that are not a rename).
+func UnifiedFileDiff(oldPath, newPath, oldContent, newContent string, opts Options) string {
 	headerOld, headerNew := oldPath, newPath
 	if headerOld == "" {
 		headerOld = newPath
@@ -321,7 +407,7 @@ func unifiedFileDiff(oldPath, newPath, oldContent, newContent string) string {
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "diff --git a/%s b/%s\n", headerOld, headerNew)
 
-	renamed := oldPath != "" && newPath != "" && oldPath != newPath
+	renamed := !opts.NoRenameHeaders && oldPath != "" && newPath != "" && oldPath != newPath
 	if renamed && oldContent == newContent {
 		sb.WriteString("similarity index 100%\n")
 	}
@@ -348,11 +434,15 @@ func unifiedFileDiff(oldPath, newPath, oldContent, newContent string) string {
 		return sb.String()
 	}
 
-	edits := diffLines(splitLinesKeepEnds(oldContent), splitLinesKeepEnds(newContent))
-	hunks := formatHunks(edits, diffContextLines)
+	edits := diffLines(splitLinesKeepEnds(oldContent), splitLinesKeepEnds(newContent), opts)
+	hunks := formatHunks(edits, opts.context())
 	if hunks == "" {
 		if oldPath != "" && newPath != "" && !renamed {
 			// Identical blobs on a plain edit entry: nothing to show.
+			//
+			// With NoRenameHeaders this also covers two differently-named
+			// files whose contents match: there is genuinely no difference
+			// to review, and saying so beats an empty file entry.
 			return ""
 		}
 		// Empty add/delete or pure rename: headers alone carry the change.
