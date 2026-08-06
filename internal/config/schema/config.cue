@@ -65,6 +65,7 @@ package schema
 	review_watch_interval_ms?: int & >=0
 	single_file_view?:         bool
 	username?:                 string
+	show_own_author?:          bool
 	templates?:                #Templates
 	forge?:                    #Forge
 }

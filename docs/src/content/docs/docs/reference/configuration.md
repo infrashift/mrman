@@ -36,6 +36,7 @@ you get a precise warning in the status bar.
 | `export_legend` | `true` | Include the comment-type legend in exported markdown |
 | `export_diff` | `false` | Quote each comment's diff hunk above it in exported markdown |
 | `username` | — | Author stamped on your comments; also distinguishes yours from an agent's |
+| `show_own_author` | `false` | Show the author badge on your own comments too, not just other people's |
 | `review_watch_interval_ms` | `1000` | Poll interval for external session changes; `0` disables |
 | `backend` | — | Accepted for tuicr compatibility and ignored: mrman uses the git CLI by design |
 

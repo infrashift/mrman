@@ -113,7 +113,13 @@ Target types are `review`, `file`, `line` and `line_range`.
 
 mrman colors each author distinctly and marks anything that is not your
 configured `username` as someone else's, so agent findings are never
-mistakable for yours in the TUI.
+mistakable for yours in the TUI. Your own comments are deliberately left
+unbadged — every `@name` you see is someone who is not you. Set
+`show_own_author = true` if you would rather have every comment attributed.
+
+**Always pass `--username` from an agent.** Without it the comment falls back
+to the `username` in the config file it happens to be running under — yours —
+and the finding is attributed to you rather than to the agent that wrote it.
 
 ## Opening a session without a terminal
 

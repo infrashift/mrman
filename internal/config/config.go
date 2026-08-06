@@ -132,6 +132,9 @@ type Config struct {
 	SingleFileView bool
 	// Username is the display name stamped on locally authored comments.
 	Username string
+	// ShowOwnAuthor renders the author badge on your own comments too. Off
+	// by default: the badge marks what someone else wrote.
+	ShowOwnAuthor bool
 	// Templates holds paths to user markdown template overrides.
 	Templates TemplatesConfig
 	// Forge holds the [forge] section.

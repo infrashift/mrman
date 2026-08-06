@@ -237,6 +237,10 @@ type App struct {
 	EditingCommentID *string
 	// Username is stamped as the author on new comments (config).
 	Username string
+	// ShowOwnAuthor renders the author badge on your own comments too
+	// (config). Off by default, because the badge exists to mark comments
+	// that are *not* yours and a column of your own name defeats that.
+	ShowOwnAuthor bool
 
 	// VisualSelection is the active visual-mode selection, nil outside
 	// visual mode.

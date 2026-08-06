@@ -1032,6 +1032,23 @@ func (a *App) usernameOrDefault() string {
 	return model.DefaultAuthor
 }
 
+// ShowsAuthor reports whether a comment by the given author should carry an
+// author badge.
+//
+// Your own comments are unbadged by default: the badge is there to mark what
+// someone else wrote, and repeating your own name on every one of your notes
+// buries the handful that are not yours. show_own_author opts back in, for
+// anyone who would rather see every comment attributed.
+//
+// An empty author is never badged. That is a comment written before mrman
+// stamped authors at all, and inventing one for it would be a guess.
+func (a *App) ShowsAuthor(author string) bool {
+	if author == "" {
+		return false
+	}
+	return a.ShowOwnAuthor || author != a.Username
+}
+
 // findCommentByID returns the comment with the given id, or nil.
 func findCommentByID(comments []*model.Comment, id string) *model.Comment {
 	for _, c := range comments {

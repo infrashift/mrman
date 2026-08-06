@@ -40,6 +40,7 @@ var knownTopLevelKeys = map[string]struct{}{
 	"review_watch_interval_ms": {},
 	"single_file_view":         {},
 	"username":                 {},
+	"show_own_author":          {},
 	"templates":                {},
 	"forge":                    {},
 }
@@ -237,6 +238,9 @@ func apply(raw map[string]any, cfg *Config, warnings *[]string) {
 	}
 	if v, ok := boolAt(raw, "export_diff"); ok {
 		cfg.ExportDiff = v
+	}
+	if v, ok := boolAt(raw, "show_own_author"); ok {
+		cfg.ShowOwnAuthor = v
 	}
 	if v, ok := boolAt(raw, "cursor_line"); ok {
 		cfg.CursorLine = v

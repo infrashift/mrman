@@ -9,15 +9,24 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/infrashift/mrman/internal/config"
 	"github.com/infrashift/mrman/internal/errs"
 	"github.com/infrashift/mrman/internal/model"
 	"github.com/infrashift/mrman/internal/persistence"
 	"github.com/infrashift/mrman/internal/slug"
 )
 
-// configUsername is wired to the config package when it lands (M5); until
-// then CLI-authored comments fall back to the default author.
-var configUsername = func() string { return "" }
+// configUsername is the `username` setting, read lazily so a CLI-authored
+// comment carries the same author the TUI stamps. It stays a variable because
+// the tests drive resolveAuthor's precedence through it.
+//
+// Warnings from a malformed config are dropped rather than printed: this
+// surface writes JSON to stdout for an agent to parse, and the TUI already
+// reports config problems where a human will see them.
+var configUsername = func() string {
+	cfg, _ := config.Load()
+	return cfg.Username
+}
 
 // stdinReader is an injection seam for `--input -` tests.
 var stdinReader io.Reader = os.Stdin

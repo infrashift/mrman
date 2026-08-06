@@ -8,6 +8,7 @@ import (
 // applyConfig wires loaded configuration onto the app state and model,
 // mirroring tuicr's main.rs config-override pass.
 func applyConfig(cfg config.Config, a *app.App, m *Model) {
+	a.ShowOwnAuthor = cfg.ShowOwnAuthor
 	if cfg.Username != "" {
 		a.Username = cfg.Username
 	}

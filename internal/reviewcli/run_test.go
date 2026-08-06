@@ -2,8 +2,12 @@ package reviewcli
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/adrg/xdg"
 
 	"github.com/infrashift/mrman/internal/errs"
 	"github.com/infrashift/mrman/internal/model"
@@ -241,16 +245,58 @@ func TestCollectCommentsOrderingAndLocations(t *testing.T) {
 }
 
 func TestResolveAuthorPrecedence(t *testing.T) {
+	original := configUsername
+	t.Cleanup(func() { configUsername = original })
+
 	if got := resolveAuthor("  Claude  "); got != "Claude" {
 		t.Errorf("explicit = %q", got)
 	}
 	configUsername = func() string { return "cfg-user" }
-	defer func() { configUsername = func() string { return "" } }()
 	if got := resolveAuthor("  "); got != "cfg-user" {
 		t.Errorf("config fallback = %q", got)
 	}
 	configUsername = func() string { return "" }
 	if got := resolveAuthor(""); got != model.DefaultAuthor {
 		t.Errorf("default = %q", got)
+	}
+}
+
+// TestResolveAuthorReadsConfigFile covers the wiring itself rather than the
+// precedence: the seam above will happily report a config username that
+// nothing ever reads from the config, which is exactly what it did while the
+// default was a stub returning "".
+func TestResolveAuthorReadsConfigFile(t *testing.T) {
+	base := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", base)
+	xdg.Reload()
+	t.Cleanup(xdg.Reload)
+
+	dir := filepath.Join(base, "mrman")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "config.toml"),
+		[]byte("username = \"ryan.craig@example.com\"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := resolveAuthor(""); got != "ryan.craig@example.com" {
+		t.Errorf("resolveAuthor = %q, want the configured username", got)
+	}
+	// An explicit --username still wins over the file.
+	if got := resolveAuthor("agent"); got != "agent" {
+		t.Errorf("explicit author = %q, want agent", got)
+	}
+}
+
+// TestResolveAuthorWithoutConfigFile keeps a missing or username-less config
+// on the documented default instead of an empty author.
+func TestResolveAuthorWithoutConfigFile(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	xdg.Reload()
+	t.Cleanup(xdg.Reload)
+
+	if got := resolveAuthor(""); got != model.DefaultAuthor {
+		t.Errorf("resolveAuthor = %q, want %q", got, model.DefaultAuthor)
 	}
 }

@@ -59,6 +59,7 @@ var keyMessages = map[string]string{
 	"review_watch_interval_ms":  "must be a non-negative integer",
 	"single_file_view":          "must be true or false",
 	"username":                  "must be a string",
+	"show_own_author":           "must be true or false",
 	"templates":                 "must be a table",
 	"templates.notes":           "must be a string",
 	"templates.review_body":     "must be a string",
