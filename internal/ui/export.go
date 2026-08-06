@@ -16,7 +16,9 @@ type exportOptions struct {
 	ReviewBodyTemplatePath string
 	PatchTemplatePath      string
 	ShowLegend             bool
-	ToStdout               bool
+	// IncludeDiff quotes each line comment's hunk into the notes export.
+	IncludeDiff bool
+	ToStdout    bool
 	// PatchContext selects how much of the diff a reply quotes.
 	PatchContext output.PatchContext
 	// ReplyHeaders threads a reply into the conversation its patch was posted
@@ -41,13 +43,18 @@ func scopeLabel(a *app.App, scope output.ScopeKind) string {
 }
 
 // renderExport builds the notes markdown for the current session.
+//
+// It passes the diff so export_diff can quote the hunk each comment sits in.
+// With the setting off nothing reads it, which is how the notes export worked
+// for its whole life before.
 func renderExport(a *app.App, opts exportOptions) (string, error) {
 	scope := output.ScopeKind(int(a.DiffSource.Kind))
-	data, err := output.BuildTemplateData(a.Session, scope.ScopeLine(a.DiffSource.Commits), output.ExportOptions{
+	data, err := output.BuildTemplateData(a.Session, a.DiffFiles, scope.ScopeLine(a.DiffSource.Commits), output.ExportOptions{
 		SessionSlug:     sessionSlugString(a),
 		DiffSourceLabel: scopeLabel(a, scope),
 		ShowLegend:      opts.ShowLegend,
 		CommentTypes:    legendEntries(a.CommentTypes),
+		IncludeDiff:     opts.IncludeDiff,
 	})
 	if err != nil {
 		return "", err

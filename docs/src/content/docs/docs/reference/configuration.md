@@ -34,6 +34,7 @@ you get a precise warning in the status bar.
 | `comment_vim` | `false` | Modal editing in the comment box |
 | `comment_tab_width` | `4` | Spaces `Tab` inserts in vim Insert mode |
 | `export_legend` | `true` | Include the comment-type legend in exported markdown |
+| `export_diff` | `false` | Quote each comment's diff hunk above it in exported markdown |
 | `username` | — | Author stamped on your comments; also distinguishes yours from an agent's |
 | `review_watch_interval_ms` | `1000` | Poll interval for external session changes; `0` disables |
 | `backend` | — | Accepted for tuicr compatibility and ignored: mrman uses the git CLI by design |

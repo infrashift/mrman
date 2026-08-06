@@ -286,6 +286,46 @@ func TestExportLegendListsUsedCommentTypes(t *testing.T) {
 	}
 }
 
+// TestExportDiffQuotesTheCommentedHunk covers the export_diff path end to end:
+// the app's own diff has to reach the exporter, which it never had to before
+// — renderExport was the one export that took the session alone.
+func TestExportDiffQuotesTheCommentedHunk(t *testing.T) {
+	_, m := testLifecycle(t)
+	moveToDiffLine(t, m)
+	pressRune(m, 'c')
+	for _, r := range "this hunk needs a test" {
+		pressRune(m, r)
+	}
+	press(m, "", tea.KeyEnter, 0)
+
+	text, err := renderExport(m.App, exportOptions{IncludeDiff: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "```diff\n" +
+		"@@ -1,3 +1,4 @@\n" +
+		" package x\n" +
+		"-var A = 1\n" +
+		"+var A = 10\n" +
+		"+var C = 3\n" +
+		"```"
+	if !strings.Contains(text, want) {
+		t.Errorf("export is missing the quoted hunk:\n%s", text)
+	}
+
+	// Off is the default, and it must leave the notes exactly as they were.
+	plain, err := renderExport(m.App, exportOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(plain, "```") {
+		t.Errorf("IncludeDiff=false must quote nothing:\n%s", plain)
+	}
+	if !strings.Contains(plain, "this hunk needs a test") {
+		t.Errorf("the comment must survive IncludeDiff=false:\n%s", plain)
+	}
+}
+
 // TestCommentBoxTitleAdvertisesTabOnlyWhenCyclable pins the conditional hint.
 // The box used to offer "Tab:type" unconditionally, including when the cycle
 // held a single entry and Tab did nothing — which reads as a broken key rather

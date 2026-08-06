@@ -62,7 +62,7 @@ func renderDefault(t *testing.T, session *model.ReviewSession, kind ScopeKind, c
 	if len(warnings) != 0 {
 		t.Fatalf("unexpected warnings loading default template: %v", warnings)
 	}
-	data, err := BuildTemplateData(session, kind.ScopeLine(commits), ExportOptions{
+	data, err := BuildTemplateData(session, nil, kind.ScopeLine(commits), ExportOptions{
 		SessionSlug:     slug,
 		DiffSourceLabel: kind.Label(),
 		ShowLegend:      showLegend,
@@ -284,7 +284,7 @@ func TestExportOmitsCommitSuffixForUnscopedComments(t *testing.T) {
 }
 
 func TestBuildTemplateDataFailsWhenNoComments(t *testing.T) {
-	_, err := BuildTemplateData(newSession(), "", ExportOptions{CommentTypes: testLegend()})
+	_, err := BuildTemplateData(newSession(), nil, "", ExportOptions{CommentTypes: testLegend()})
 	if !errors.Is(err, errs.ErrNoComments) {
 		t.Fatalf("want ErrNoComments, got %v", err)
 	}
@@ -487,7 +487,7 @@ func TestBuildTemplateDataFieldsAndCounts(t *testing.T) {
 	session.ReviewComments = append(session.ReviewComments, model.NewComment(
 		"overall", model.CommentTypeFromID("note"), nil))
 
-	data, err := BuildTemplateData(session, ScopeStaged.ScopeLine(nil), ExportOptions{
+	data, err := BuildTemplateData(session, nil, ScopeStaged.ScopeLine(nil), ExportOptions{
 		SessionSlug:     "team/repo@main",
 		DiffSourceLabel: ScopeStaged.Label(),
 		ShowLegend:      true,
@@ -533,7 +533,7 @@ func TestBuildTemplateDataLegendDefinitionFallsBackToID(t *testing.T) {
 	session.File("a.go").AddFileComment(model.NewComment(
 		"x", model.CommentTypeFromID("nit"), nil))
 
-	data, err := BuildTemplateData(session, "", ExportOptions{
+	data, err := BuildTemplateData(session, nil, "", ExportOptions{
 		CommentTypes: []LegendEntry{{ID: "nit", Label: "nit"}},
 	})
 	if err != nil {

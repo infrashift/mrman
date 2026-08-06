@@ -54,6 +54,7 @@ package schema
 	ignore_whitespace?:        bool
 	wrap?:                     bool
 	export_legend?:            bool
+	export_diff?:              bool
 	cursor_line?:              bool
 	mouse?:                    bool
 	comment_vim?:              bool

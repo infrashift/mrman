@@ -62,6 +62,14 @@ type TemplateComment struct {
 	// patch-reply export sets it; the notes template ignores it, which is
 	// why adding it here is backward compatible for existing overrides.
 	Anchor string
+	// Diff is the unified-diff text of the hunk this comment is anchored in:
+	// the "@@" header followed by the hunk's lines, prefixes included, no
+	// fence. It is empty unless the export asked for diffs
+	// (ExportOptions.IncludeDiff, from the export_diff setting), and stays
+	// empty for review and file comments, for files the diff does not carry,
+	// and when a run of comments shares one hunk and an earlier one already
+	// carried it.
+	Diff string
 }
 
 // Marker returns the numbered-list marker for this comment, e.g. "3.".
@@ -83,6 +91,21 @@ func (c TemplateComment) Body() string {
 		lines[i] = line
 	}
 	return strings.Join(lines, "\n")
+}
+
+// DiffBlock returns Diff as a fenced code block ready to sit above the
+// comment's list entry, or "" when there is no diff to show.
+//
+// The surrounding blank lines are part of the block rather than the template
+// because they are what makes it render: a fence needs a blank line before it
+// and the preceding entry ends with a single newline, so the block supplies
+// its own separation on both sides. That also keeps the no-diff case emitting
+// nothing at all, byte for byte.
+func (c TemplateComment) DiffBlock() string {
+	if c.Diff == "" {
+		return ""
+	}
+	return "\n" + codefenceFn("diff", c.Diff) + "\n\n"
 }
 
 // TemplateFile is one reviewed file carrying comments, as seen by templates.

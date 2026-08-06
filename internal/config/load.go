@@ -29,6 +29,7 @@ var knownTopLevelKeys = map[string]struct{}{
 	"ignore_whitespace":        {},
 	"wrap":                     {},
 	"export_legend":            {},
+	"export_diff":              {},
 	"cursor_line":              {},
 	"mouse":                    {},
 	"comment_vim":              {},
@@ -233,6 +234,9 @@ func apply(raw map[string]any, cfg *Config, warnings *[]string) {
 	}
 	if v, ok := boolAt(raw, "export_legend"); ok {
 		cfg.ExportLegend = v
+	}
+	if v, ok := boolAt(raw, "export_diff"); ok {
+		cfg.ExportDiff = v
 	}
 	if v, ok := boolAt(raw, "cursor_line"); ok {
 		cfg.CursorLine = v

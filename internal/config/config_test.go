@@ -69,8 +69,8 @@ func TestDefault(t *testing.T) {
 	if cfg.InitialCommitSelection != "all" {
 		t.Errorf("InitialCommitSelection = %q, want all", cfg.InitialCommitSelection)
 	}
-	if cfg.IgnoreWhitespace || cfg.Wrap || cfg.CommentVim || cfg.SingleFileView {
-		t.Error("IgnoreWhitespace, Wrap, CommentVim, SingleFileView should default to false")
+	if cfg.IgnoreWhitespace || cfg.Wrap || cfg.CommentVim || cfg.SingleFileView || cfg.ExportDiff {
+		t.Error("IgnoreWhitespace, Wrap, CommentVim, SingleFileView, ExportDiff should default to false")
 	}
 	if !cfg.ExportLegend || !cfg.CursorLine || !cfg.Mouse || !cfg.TransparentBackground {
 		t.Error("ExportLegend, CursorLine, Mouse, TransparentBackground should default to true")
@@ -684,6 +684,7 @@ initial_commit_selection = "oldest"
 ignore_whitespace = true
 wrap = true
 export_legend = false
+export_diff = true
 cursor_line = false
 mouse = false
 comment_vim = true
@@ -731,6 +732,7 @@ token = "$CODEBERG_TOKEN"
 		IgnoreWhitespace:       true,
 		Wrap:                   true,
 		ExportLegend:           false,
+		ExportDiff:             true,
 		CursorLine:             false,
 		Mouse:                  false,
 		CommentVim:             true,

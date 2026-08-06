@@ -48,6 +48,7 @@ var keyMessages = map[string]string{
 	"ignore_whitespace":         "must be true or false",
 	"wrap":                      "must be true or false",
 	"export_legend":             "must be true or false",
+	"export_diff":               "must be true or false",
 	"cursor_line":               "must be true or false",
 	"mouse":                     "must be true or false",
 	"comment_vim":               "must be true or false",

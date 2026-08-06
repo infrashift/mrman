@@ -104,6 +104,10 @@ type Config struct {
 	Wrap bool
 	// ExportLegend includes the comment-type legend in markdown exports.
 	ExportLegend bool
+	// ExportDiff quotes the hunk each line comment is anchored in above the
+	// comment in markdown exports. Off by default: it makes the notes
+	// substantially longer, which not every reader wants.
+	ExportDiff bool
 	// CursorLine highlights the current cursor line.
 	CursorLine bool
 	// Mouse enables wheel scrolling, clicks, and drag-to-select.
