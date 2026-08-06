@@ -160,6 +160,38 @@ func TestJumpToBottomAndIsCursorVisible(t *testing.T) {
 	assertEq(t, a.IsCursorVisible(), false, "cursor below viewport is invisible")
 }
 
+// TestHunkPositionsCountExpanderRows is a regression test: HunkPositions used
+// to re-derive its indices from render heights and forgot the expander rows a
+// gap in the context inserts, so ] and [ landed short of the hunk header on
+// any diff with hidden context. Every earlier test happened to use a fixture
+// with no gaps — hunks from line 1, or a VCS serving no context at all — so
+// nothing caught it. This one has a gap above each hunk.
+func TestHunkPositionsCountExpanderRows(t *testing.T) {
+	file := makeFileWithHunks("test.rs", []model.DiffHunk{makeHunk(10, 3), makeHunk(50, 3)})
+	a := buildAppWithFiles([]model.DiffFile{file}, 200)
+
+	positions := a.HunkPositions()
+	if len(positions) != 2 {
+		t.Fatalf("expected 2 hunk positions, got %v", positions)
+	}
+	for hunkIdx, pos := range positions {
+		want, ok := a.HunkHeaderLine(0, hunkIdx)
+		if !ok {
+			t.Fatalf("no header annotation for hunk %d", hunkIdx)
+		}
+		assertEq(t, pos, want, "hunk position must be the header's annotation index")
+		assertEq(t, a.LineAnnotations[pos].Kind, AnnHunkHeader, "position must point at a header")
+	}
+
+	// And the navigation built on it lands on a header, not on a diff line or
+	// an expander partway there.
+	a.DiffState.CursorLine = positions[0]
+	a.NextHunk()
+	assertEq(t, a.DiffState.CursorLine, positions[1], "] lands on the next hunk header")
+	a.PrevHunk()
+	assertEq(t, a.DiffState.CursorLine, positions[0], "[ lands back on the first header")
+}
+
 func TestNextPrevFileAndHunkInMultiFileView(t *testing.T) {
 	files := []model.DiffFile{
 		makeFileWithHunks("a.rs", []model.DiffHunk{makeHunk(1, 3), makeHunk(10, 2)}),

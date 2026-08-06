@@ -483,6 +483,10 @@ func mapVisualSelect(k tea.Key) Action {
 			return actN(CursorUp, 1)
 		case 'c':
 			return act(AddRangeComment)
+		case ']':
+			return act(NextHunk)
+		case '[':
+			return act(PrevHunk)
 		case 'y':
 			return act(ExportToClipboard)
 		case 'v', 'V':

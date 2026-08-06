@@ -938,21 +938,31 @@ func (a *App) enterCommentInput() {
 // EnterCommentMode opens the comment input for a new comment: file-level
 // when fileLevel is set, otherwise anchored to the diff line under the
 // cursor (warning and no mode change when the cursor is not on one).
+//
+// On a hunk header the anchor is the whole hunk, which is an ordinary range
+// comment spanning it — the header row was otherwise the one cursor position
+// where c could do nothing at all.
 func (a *App) EnterCommentMode(fileLevel bool) {
 	var line *CommentAnchor
+	var lineRange *CommentRangeAnchor
 	if !fileLevel {
-		lineno, side, ok := a.LineAtCursor()
-		if !ok {
-			a.SetMessage("Move cursor to a diff line to add a line comment")
-			return
+		if rng, side, ok := a.hunkCommentRangeAtCursor(); ok {
+			lineRange = &CommentRangeAnchor{Range: rng, Side: side}
+			line = &CommentAnchor{Line: rng.End, Side: side}
+		} else {
+			lineno, side, ok := a.LineAtCursor()
+			if !ok {
+				a.SetMessage("Move cursor to a diff line to add a line comment")
+				return
+			}
+			line = &CommentAnchor{Line: lineno, Side: side}
 		}
-		line = &CommentAnchor{Line: lineno, Side: side}
 	}
 	a.enterCommentInput()
 	a.CommentIsReviewLevel = false
 	a.CommentIsFileLevel = fileLevel
 	a.CommentLine = line
-	a.CommentLineRange = nil
+	a.CommentLineRange = lineRange
 	a.EditingCommentID = nil
 }
 

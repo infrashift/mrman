@@ -580,48 +580,21 @@ func (a *App) fileIdxToTreeIdx(targetFileIdx int) (int, bool) {
 	return 0, false
 }
 
-// HunkPositions returns the render-line indices of every visible hunk
-// header. Respects single-file view (only the current file's hunks) and the
-// reviewed-collapse behavior in multi-file view (skipped entirely) versus
-// single-file view (body rendered under a banner).
+// HunkPositions returns the annotation index of every visible hunk header, in
+// order. Single-file view and the reviewed-collapse both fall out for free:
+// the annotation stream only holds what is on screen, so a folded file
+// contributes no headers to walk to.
+//
+// This reads the stream rather than recomputing it. The previous version
+// re-derived the indices from render heights and never counted the expander
+// rows a gap in the context inserts, so ] and [ landed short of the header on
+// any diff with hidden context — which is nearly all of them.
 func (a *App) HunkPositions() []int {
-	single := a.IsSingleFileView
-	currentIdx := a.DiffState.CurrentFileIdx
 	var positions []int
-	cumulative := a.reviewCommentsRenderHeight()
-	for fileIdx := range a.DiffFiles {
-		file := &a.DiffFiles[fileIdx]
-		if single && fileIdx != currentIdx {
-			continue
+	for i := range a.LineAnnotations {
+		if a.LineAnnotations[i].Kind == AnnHunkHeader {
+			positions = append(positions, i)
 		}
-		path := file.DisplayPath()
-		isReviewed := a.Session.IsFileReviewed(path)
-
-		if !single {
-			cumulative++ // file header
-		}
-		if !single && isReviewed {
-			// Multi-file collapsed: no body, no trailing spacing.
-			continue
-		}
-		if single && isReviewed {
-			cumulative++ // banner
-		}
-		if review := a.Session.File(path); review != nil {
-			cumulative += len(review.FileComments)
-		}
-		if file.IsBinary || len(file.Hunks) == 0 {
-			cumulative++
-		} else {
-			for hunkIdx := range file.Hunks {
-				positions = append(positions, cumulative)
-				cumulative++
-				if !a.IsHunkReviewed(fileIdx, hunkIdx) {
-					cumulative += len(file.Hunks[hunkIdx].Lines)
-				}
-			}
-		}
-		cumulative++ // trailing spacing or "next file" hint
 	}
 	return positions
 }

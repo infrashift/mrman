@@ -388,6 +388,28 @@ func (a *App) HunkAtCursor() (fileIdx, hunkIdx int, ok bool) {
 	}
 }
 
+// hunkCommentRangeAtCursor returns the range and side a whole-hunk comment
+// would anchor to, but only when the cursor rests on a hunk header. Diff-line
+// rows report false so c goes on meaning "comment on this line" there —
+// HunkAtCursor resolves those too, which is why it cannot be used alone.
+func (a *App) hunkCommentRangeAtCursor() (model.LineRange, model.LineSide, bool) {
+	none := func() (model.LineRange, model.LineSide, bool) {
+		return model.LineRange{}, model.LineSideNew, false
+	}
+	if a.DiffState.CursorLine >= len(a.LineAnnotations) {
+		return none()
+	}
+	ann := &a.LineAnnotations[a.DiffState.CursorLine]
+	if ann.Kind != AnnHunkHeader || ann.FileIdx >= len(a.DiffFiles) {
+		return none()
+	}
+	file := &a.DiffFiles[ann.FileIdx]
+	if ann.HunkIdx >= len(file.Hunks) {
+		return none()
+	}
+	return file.Hunks[ann.HunkIdx].CommentSpan()
+}
+
 // hunkReviewTarget resolves (path, review key) for a hunk.
 func (a *App) hunkReviewTarget(fileIdx, hunkIdx int) (string, string, bool) {
 	if fileIdx >= len(a.DiffFiles) {

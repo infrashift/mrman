@@ -92,6 +92,64 @@ func (h *DiffHunk) reviewContentHash() uint64 {
 	return hasher.Sum64()
 }
 
+// CommentSpan returns the line range a whole-hunk comment anchors to and the
+// side it sits on: the new-side span when the hunk carries any context or
+// addition lines, otherwise the old-side span of a pure-deletion hunk.
+//
+// A hunk spans both sides, but a forge range cannot — GitHub, GitLab and
+// Azure DevOps each anchor a multi-line comment to one side, and submit
+// rejects a range that straddles them. New wins because it is what a
+// reviewer is commenting on in everything but a pure deletion.
+//
+// The span is read off Lines rather than the @@ header's counts so it only
+// ever names lines the diff actually carries; submit requires both endpoints
+// to be present on the side it anchors to.
+func (h *DiffHunk) CommentSpan() (LineRange, LineSide, bool) {
+	if span, ok := lineSpan(h.Lines, LineSideNew); ok {
+		return span, LineSideNew, true
+	}
+	if span, ok := lineSpan(h.Lines, LineSideOld); ok {
+		return span, LineSideOld, true
+	}
+	return LineRange{}, LineSideNew, false
+}
+
+// lineSpan is the lowest and highest line number the lines carry on side,
+// counting only lines that originate there: context and additions on New,
+// deletions on Old. This is the same origin filter submit anchors ranges
+// with, so a span it returns is always mappable.
+func lineSpan(lines []DiffLine, side LineSide) (LineRange, bool) {
+	var lo, hi uint32
+	found := false
+	for i := range lines {
+		var lineno *uint32
+		switch side {
+		case LineSideNew:
+			if lines[i].Origin == OriginContext || lines[i].Origin == OriginAddition {
+				lineno = lines[i].NewLineno
+			}
+		case LineSideOld:
+			if lines[i].Origin == OriginDeletion {
+				lineno = lines[i].OldLineno
+			}
+		}
+		if lineno == nil {
+			continue
+		}
+		if !found || *lineno < lo {
+			lo = *lineno
+		}
+		if !found || *lineno > hi {
+			hi = *lineno
+		}
+		found = true
+	}
+	if !found {
+		return LineRange{}, false
+	}
+	return NewLineRange(lo, hi), true
+}
+
 // DiffFile is one file's parsed diff. In-memory only, never serialized.
 type DiffFile struct {
 	OldPath         *string

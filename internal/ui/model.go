@@ -884,6 +884,10 @@ func (m *Model) dispatchVisual(action input.Action) bool {
 	case input.CursorUp:
 		a.CursorUp(action.N)
 		a.ExtendVisualToCursor()
+	case input.NextHunk:
+		a.ExtendVisualToNextHunk()
+	case input.PrevHunk:
+		a.ExtendVisualToPrevHunk()
 	case input.AddRangeComment:
 		a.EnterCommentFromVisual()
 		m.enterComposeMode()

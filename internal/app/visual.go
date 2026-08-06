@@ -181,6 +181,17 @@ func (a *App) AnnotationContentLen(annIdx int, side model.LineSide) int {
 // EnterVisualModeAtCursor starts visual mode with the whole cursor line
 // selected.
 func (a *App) EnterVisualModeAtCursor() {
+	// A hunk header carries no line number of its own, so a selection
+	// anchored on one cannot project onto source lines at all. Start from the
+	// hunk's first line instead, which is what "select from here" means when
+	// here is the header.
+	if cur := a.DiffState.CursorLine; cur < len(a.LineAnnotations) &&
+		a.LineAnnotations[cur].Kind == AnnHunkHeader {
+		if first, _, ok := a.hunkLineBounds(cur); ok {
+			a.DiffState.CursorLine = first
+			a.ensureCursorVisible()
+		}
+	}
 	idx := a.DiffState.CursorLine
 	side := model.LineSideNew
 	if _, s, ok := a.LineAtCursor(); ok {
@@ -227,6 +238,102 @@ func (a *App) ExtendVisualToCursor() {
 	a.VisualSelection = &VisualSelection{
 		Anchor: SelPoint{AnnotationIdx: anchorIdx, CharOffset: anchorChar, Side: side},
 		Head:   SelPoint{AnnotationIdx: cursorIdx, CharOffset: headChar, Side: side},
+	}
+}
+
+// hunkLineBounds returns the first and last annotation indices of the diff
+// lines belonging to the hunk that annotation annIdx sits in. Reports false
+// when annIdx is not part of a hunk, and for a hunk marked reviewed, which
+// renders its header and no lines at all.
+func (a *App) hunkLineBounds(annIdx int) (first, last int, ok bool) {
+	if annIdx < 0 || annIdx >= len(a.LineAnnotations) {
+		return 0, 0, false
+	}
+	ann := &a.LineAnnotations[annIdx]
+	switch ann.Kind {
+	case AnnHunkHeader, AnnDiffLine, AnnSideBySideLine:
+		return a.hunkLineBoundsAt(ann.FileIdx, ann.HunkIdx)
+	default:
+		return 0, 0, false
+	}
+}
+
+// hunkLineBoundsAt is hunkLineBounds addressed by (file, hunk) index.
+func (a *App) hunkLineBoundsAt(fileIdx, hunkIdx int) (first, last int, ok bool) {
+	for i := range a.LineAnnotations {
+		other := &a.LineAnnotations[i]
+		if other.Kind != AnnDiffLine && other.Kind != AnnSideBySideLine {
+			continue
+		}
+		if other.FileIdx != fileIdx || other.HunkIdx != hunkIdx {
+			continue
+		}
+		if !ok {
+			first, ok = i, true
+		}
+		last = i
+	}
+	return first, last, ok
+}
+
+// moveVisualHeadTo parks the cursor on annotation idx and re-extends the
+// selection to it, the way j and k do.
+func (a *App) moveVisualHeadTo(idx int) {
+	a.DiffState.CursorLine = idx
+	a.ensureCursorVisible()
+	a.updateCurrentFileFromCursor()
+	a.ExtendVisualToCursor()
+}
+
+// ExtendVisualToNextHunk grows the selection to the last line of the hunk
+// under the cursor, and from there to the end of each following hunk — the
+// visual-mode counterpart of ] in normal mode.
+//
+// It stops on diff lines rather than hunk headers because a header cannot
+// project onto a source line, which would leave the selection uncommentable.
+func (a *App) ExtendVisualToNextHunk() {
+	if a.VisualSelection == nil {
+		return
+	}
+	cursor := a.DiffState.CursorLine
+	if _, last, ok := a.hunkLineBounds(cursor); ok && cursor < last {
+		a.moveVisualHeadTo(last)
+		return
+	}
+	// Already at the end of this hunk, or on a collapsed one that renders no
+	// lines: the next hunk with a body is the next stop.
+	for i := cursor + 1; i < len(a.LineAnnotations); i++ {
+		ann := &a.LineAnnotations[i]
+		if ann.Kind != AnnDiffLine && ann.Kind != AnnSideBySideLine {
+			continue
+		}
+		if _, last, ok := a.hunkLineBoundsAt(ann.FileIdx, ann.HunkIdx); ok {
+			a.moveVisualHeadTo(last)
+			return
+		}
+	}
+}
+
+// ExtendVisualToPrevHunk is ExtendVisualToNextHunk backwards: to the first
+// line of the hunk under the cursor, then to each preceding hunk's first line.
+func (a *App) ExtendVisualToPrevHunk() {
+	if a.VisualSelection == nil {
+		return
+	}
+	cursor := a.DiffState.CursorLine
+	if first, _, ok := a.hunkLineBounds(cursor); ok && cursor > first {
+		a.moveVisualHeadTo(first)
+		return
+	}
+	for i := cursor - 1; i >= 0; i-- {
+		ann := &a.LineAnnotations[i]
+		if ann.Kind != AnnDiffLine && ann.Kind != AnnSideBySideLine {
+			continue
+		}
+		if first, _, ok := a.hunkLineBoundsAt(ann.FileIdx, ann.HunkIdx); ok {
+			a.moveVisualHeadTo(first)
+			return
+		}
 	}
 }
 

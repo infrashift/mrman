@@ -104,7 +104,7 @@ thread) and its colour shows the comment type.
 |---|---|
 | `r` | Toggle the file reviewed |
 | `R` | Toggle the hunk reviewed |
-| `c` | Comment on the line at the cursor |
+| `c` | Comment on the line at the cursor, or on the whole hunk when the cursor is on a `@@` header |
 | `C` | Comment on the file |
 | `<leader>c` | Comment on the whole review |
 | `v` / `V` | Visual select |
@@ -120,9 +120,15 @@ existing comments; mrman says so rather than silently doing nothing.
 | Key | Action |
 |---|---|
 | `j` / `k` | Extend the selection |
+| `]` / `[` | Extend the selection by a whole hunk |
 | `c` / `Enter` | Comment on the range |
 | `y` | Copy the selection |
 | `Esc` / `v` / `V` | Cancel |
+
+`]` grows the selection to the end of the hunk you are in, then to the end of
+each hunk after it; `[` does the same backwards. They stop on real diff lines
+rather than `@@` headers, because a header has no line number to anchor a
+comment to. Neither takes a count prefix — nothing in visual mode does.
 
 ## Comment box
 
