@@ -178,6 +178,46 @@ func (a *App) AnnotationContentLen(annIdx int, side model.LineSide) int {
 	return len([]rune(content))
 }
 
+// RowSelection is how much of one annotation row the active selection covers,
+// for the renderer to paint.
+type RowSelection struct {
+	// Lo, Hi are rune offsets into the row's selectable content, ignored when
+	// WholeRow is set.
+	Lo, Hi int
+	// Side is the diff side the selection reads from, which picks the column
+	// to paint in side-by-side mode.
+	Side model.LineSide
+	// WholeRow marks rows copied atomically (hunk and file headers). They have
+	// no content gutter to measure offsets against, so they highlight entire.
+	WholeRow bool
+}
+
+// SelectionForRow reports the part of annotation annIdx the active selection
+// covers. Its branching mirrors CopyVisualSelection exactly, so the highlight
+// always shows what a yank would actually put on the clipboard.
+func (a *App) SelectionForRow(annIdx int) (RowSelection, bool) {
+	sel := a.VisualSelection
+	if sel == nil {
+		return RowSelection{}, false
+	}
+	start, end := sel.Ordered()
+	if annIdx < start.AnnotationIdx || annIdx > end.AnnotationIdx {
+		return RowSelection{}, false
+	}
+	side := sel.Anchor.Side
+	if _, ok := a.ContentForSide(annIdx, side); ok {
+		lo, hi := sel.CharRange(annIdx, a.AnnotationContentLen(annIdx, side))
+		if hi <= lo {
+			return RowSelection{}, false
+		}
+		return RowSelection{Lo: lo, Hi: hi, Side: side}, true
+	}
+	if _, ok := a.atomicTextForAnnotation(annIdx); ok {
+		return RowSelection{Side: side, WholeRow: true}, true
+	}
+	return RowSelection{}, false
+}
+
 // EnterVisualModeAtCursor starts visual mode with the whole cursor line
 // selected.
 func (a *App) EnterVisualModeAtCursor() {

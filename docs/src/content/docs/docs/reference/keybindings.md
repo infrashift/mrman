@@ -203,10 +203,15 @@ alone.
 | Click a diff line | Place the cursor there |
 | Click a commit | Toggle it and reload the diff |
 | Click a navigator row | Jump to that comment |
-| Drag in the diff | Select; `y` then copies it |
+| Drag in the diff | Select; the range highlights as you drag, and `y` copies it |
 
-Hold your terminal's bypass modifier (usually Shift or Option) for native
-selection while the mouse is enabled.
+A drag highlights exactly the text `y` will put on the clipboard — character
+by character, on the side-by-side column you dragged in.
+
+To copy out to another application, use the terminal's own selection instead:
+hold its bypass modifier (usually Shift, or Option on some macOS terminals),
+or run `:set mouse!` to turn tracking off entirely for the rest of the
+session.
 
 ## Commands
 
@@ -224,6 +229,7 @@ selection while the mouse is enabled.
 | `:clearc` | Clear comments only |
 | `:diff` | Toggle unified / side-by-side |
 | `:wrap` `:set wrap` `:set wrap!` | Line wrap |
+| `:mouse` `:set mouse` `:set nomouse` `:set mouse!` | Mouse tracking; off hands the terminal back its own selection |
 | `:focus` `:f` | Toggle single-file view |
 | `:stage` | Stage the reviewed files (git) |
 | `:commits` `:targets` | Open the target selector |

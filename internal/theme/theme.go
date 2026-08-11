@@ -176,6 +176,18 @@ func (t *Theme) SectionHighlightBg() color.Color {
 	return ShiftLightness(t.PanelBg, 18)
 }
 
+// VisualSelectionBg is the background painted behind selected text in the
+// diff, whether the selection came from visual mode or a mouse drag.
+//
+// It shifts away from BgHighlight rather than using it directly: several
+// themes give BgHighlight and CursorLineBg the same value, and the cursor sits
+// on the selection by construction — so painting the selection in BgHighlight
+// would make it invisible on exactly the row it starts from. Returns nil when
+// BgHighlight is nil.
+func (t *Theme) VisualSelectionBg() color.Color {
+	return ShiftLightness(t.BgHighlight, 18)
+}
+
 // Highlighter returns the theme's syntax highlighter, lazily built on first
 // use and cached for the lifetime of the theme.
 func (t *Theme) Highlighter() *syntax.Highlighter {

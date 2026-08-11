@@ -94,6 +94,28 @@ type DiffState struct {
 	// viewport (set during render). When wrapping is enabled this accounts
 	// for lines expanding to multiple visual rows.
 	VisibleLineCount int
+	// RowAnnotations maps each drawn row of the diff pane to the annotation
+	// it came from (set during render). Only the renderer knows how many rows
+	// a line took, so mouse hit-testing reads this rather than assuming one
+	// row per annotation — which is wrong the moment wrapping splits a line.
+	RowAnnotations []int
+}
+
+// AnnotationAtRow maps a zero-based row of the diff pane body to the
+// annotation drawn there, using the map the last render recorded. It falls
+// back to the flat scroll-offset arithmetic before the first render, and
+// reports false when the row is past the drawn content.
+func (d *DiffState) AnnotationAtRow(row int) (int, bool) {
+	if row < 0 {
+		return 0, false
+	}
+	if len(d.RowAnnotations) == 0 {
+		return d.ScrollOffset + row, true
+	}
+	if row >= len(d.RowAnnotations) {
+		return 0, false
+	}
+	return d.RowAnnotations[row], true
 }
 
 // NewDiffState returns the default diff state (wrapping on, everything else

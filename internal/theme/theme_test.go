@@ -362,3 +362,39 @@ func TestAuthorPaletteHashParity(t *testing.T) {
 		}
 	}
 }
+
+// TestSelectionIsVisibleOnTheCursorLine pins the reason VisualSelectionBg
+// shifts away from BgHighlight: the cursor sits on the selection by
+// construction, and several bundled themes give BgHighlight and CursorLineBg
+// the same value. Painting the selection in BgHighlight would hide it on
+// exactly the row it starts from.
+func TestSelectionIsVisibleOnTheCursorLine(t *testing.T) {
+	for _, name := range BuiltinNames() {
+		th, ok := Lookup(name)
+		if !ok {
+			t.Fatalf("%s is not resolvable", name)
+		}
+		sel := th.VisualSelectionBg()
+		if sel == nil {
+			t.Errorf("%s has no selection background", name)
+			continue
+		}
+		for label, other := range map[string]color.Color{
+			"cursor line": th.CursorLineBg,
+			"panel":       th.PanelBg,
+		} {
+			if other == nil {
+				continue
+			}
+			if sameColor(sel, other) {
+				t.Errorf("%s: selection is indistinguishable from the %s background", name, label)
+			}
+		}
+	}
+}
+
+func sameColor(a, b color.Color) bool {
+	ar, ag, ab, _ := a.RGBA()
+	br, bg, bb, _ := b.RGBA()
+	return ar == br && ag == bg && ab == bb
+}

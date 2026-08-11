@@ -46,12 +46,19 @@ func (p *DiffPane) BuildLines(a *app.App, width, height int) []string {
 	// several rows. Counted only when every row of the line fits: a line
 	// half off the bottom is not one the cursor may sit on unseen.
 	fitted := 0
+	// rowAnns records which annotation each drawn row came from, so mouse
+	// hit-testing does not have to guess how many rows a line took.
+	rowAnns := make([]int, 0, height)
 	for i := start; i < total && len(lines) < height; i++ {
 		if i >= len(a.LineAnnotations) {
 			break
 		}
 		ann := &a.LineAnnotations[i]
 		row := p.buildRow(a, ann, i, lw, width)
+
+		// The selected range is measured once against the unwrapped row, then
+		// shifted per visual row below by the columns already consumed.
+		selLo, selHi, hasSel := selectionCols(a, ann, i, lw, width)
 
 		// One logical line is one row unless wrapping splits it. The row
 		// treatment below runs per visual row so a wrapped continuation
@@ -61,11 +68,15 @@ func (p *DiffPane) BuildLines(a *app.App, width, height int) []string {
 			rows = render.WrapSpans(row.Spans, width)
 		}
 		wholeLineFits := true
+		consumed := 0
 		for _, spans := range rows {
 			if len(lines) >= height {
 				wholeLineFits = false
 				break
 			}
+			// Captured before the overlays below pad the row, because the
+			// column math has to follow the wrapped text, not the padding.
+			rowWidth := render.SpanWidth(spans)
 			// Overlay order ports tuicr's painter sequence: section tint →
 			// row bg pad → cursor line → horizontal scroll → serialize.
 			switch ann.Kind {
@@ -80,6 +91,14 @@ func (p *DiffPane) BuildLines(a *app.App, width, height int) []string {
 			if a.CursorLineHighlight && i == a.DiffState.CursorLine && !ann.IsDecoration() {
 				spans = overrideRowBg(spans, width, t.CursorLineBg)
 			}
+			// After the cursor line so a selection stays visible on the row
+			// the cursor sits on, and before horizontal scroll because the
+			// columns above are measured on the unscrolled row.
+			if hasSel {
+				spans = render.OverrideBg(spans, selLo-consumed, selHi-consumed,
+					t.VisualSelectionBg())
+			}
+			consumed += rowWidth
 			if a.DiffState.ScrollX > 0 && !a.DiffState.WrapLines {
 				spans = render.ApplyHorizontalScroll(spans, a.DiffState.ScrollX)
 			}
@@ -96,16 +115,92 @@ func (p *DiffPane) BuildLines(a *app.App, width, height int) []string {
 				spans = render.TruncateOrPadSpans(spans, width, render.Style{})
 			}
 			lines = append(lines, emitter.Line(spans))
+			rowAnns = append(rowAnns, i)
 		}
 		if wholeLineFits {
 			fitted++
 		}
 	}
 	a.DiffState.VisibleLineCount = fitted
+	a.DiffState.RowAnnotations = rowAnns
 	for len(lines) < height {
 		lines = append(lines, "")
 	}
 	return lines
+}
+
+// selectionCols is the display-column range [lo, hi) of row idx that the
+// active selection covers, in unscrolled row coordinates. Reports false when
+// the row carries no selection.
+func selectionCols(a *app.App, ann *app.AnnotatedLine, idx, lw, width int) (int, int, bool) {
+	sel, ok := a.SelectionForRow(idx)
+	if !ok {
+		return 0, 0, false
+	}
+	if sel.WholeRow {
+		return 0, width, true
+	}
+	content, ok := a.ContentForSide(idx, sel.Side)
+	if !ok {
+		return 0, 0, false
+	}
+	gutter := app.UnifiedGutter(lw)
+	if ann.Kind == app.AnnSideBySideLine {
+		// ContentForSide falls back to the other pane when the requested one
+		// is empty, so the highlight has to follow the pane the text actually
+		// came from rather than the side that was asked for.
+		onNew := sel.Side == model.LineSideNew
+		if onNew && ann.AddLineIdx == nil {
+			onNew = ann.DelLineIdx == nil
+		} else if !onNew && ann.DelLineIdx == nil {
+			onNew = true
+		}
+		if onNew {
+			gutter = app.SbsRightGutter(lw, width)
+		} else {
+			gutter = app.SbsLeftGutter(lw)
+		}
+	}
+	lo := gutter + runeOffsetToCol(content, sel.Lo)
+	hi := gutter + runeOffsetToCol(content, sel.Hi)
+	if ann.Kind == app.AnnSideBySideLine {
+		// Content is clipped to its own column, so the highlight must stop at
+		// the divider rather than bleeding into the other side.
+		limit := gutter + app.SbsContentWidth(lw, width)
+		lo, hi = min(lo, limit), min(hi, limit)
+	}
+	return lo, hi, hi > lo
+}
+
+// runeOffsetToCol converts a rune offset into s to a display column. The
+// selection model counts runes, the renderer counts columns, and a tab or a
+// wide rune is more than one column wide.
+func runeOffsetToCol(s string, off int) int {
+	col, n := 0, 0
+	for _, r := range s {
+		if n >= off {
+			break
+		}
+		col += render.StringWidth(string(r))
+		n++
+	}
+	return col
+}
+
+// colToRuneOffset is runeOffsetToCol's inverse: the rune offset into s at
+// display column col, clamped to the end of s. A column landing inside a wide
+// rune resolves to the offset before it.
+func colToRuneOffset(s string, col int) int {
+	cur, n := 0, 0
+	for _, r := range s {
+		w := render.StringWidth(string(r))
+		if cur+w > col {
+			break
+		}
+		cur += w
+		n++
+	}
+	return n
 }
 
 // overrideRowBg replaces every span's background and pads to full width.
@@ -304,10 +399,7 @@ func (p *DiffPane) sbsLineRow(a *app.App, ann *app.AnnotatedLine, ind render.Spa
 	t := p.Theme
 	file := &a.DiffFiles[ann.FileIdx]
 	hunk := &file.Hunks[ann.HunkIdx]
-	contentWidth := (width - app.SbsOverhead(lw)) / 2
-	if contentWidth < 1 {
-		contentWidth = 1
-	}
+	contentWidth := app.SbsContentWidth(lw, width)
 
 	sideSpans := func(lineIdx *int, wantOrigin model.LineOrigin, lineno *uint32) []render.Span {
 		numText := ""

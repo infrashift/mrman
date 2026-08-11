@@ -53,6 +53,18 @@ func SbsOverhead(w int) int {
 	return 2*w + 9
 }
 
+// SbsContentWidth is the width of one side-by-side content column, given the
+// pane's inner width. Mirrors the split sbsLineRow performs.
+func SbsContentWidth(w, paneWidth int) int {
+	return max((paneWidth-SbsOverhead(w))/2, 1)
+}
+
+// SbsRightGutter is the side-by-side leading width before New content: the
+// left gutter, the Old column, and the " │ " divider(3).
+func SbsRightGutter(w, paneWidth int) int {
+	return SbsLeftGutter(w) + SbsContentWidth(w, paneWidth) + 3
+}
+
 // LinenoWidth is the gutter width for the current diff: the widest line
 // number reachable from hunk headers or the file line-count cache.
 func (a *App) LinenoWidth() int {

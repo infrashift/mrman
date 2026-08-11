@@ -94,9 +94,42 @@ func (m *Model) handleMouse(msg tea.MouseMsg) tea.Cmd {
 	case tea.MouseMotionMsg:
 		m.handleDrag(msg)
 	case tea.MouseReleaseMsg:
-		m.dragging = false
+		m.endDrag()
 	}
 	return nil
+}
+
+// dropSelection clears the selection, leaving visual mode with it only when
+// that is the mode we are actually in. Mouse events reach the diff while a
+// comment is being composed too, and those must not disturb the editor.
+func dropSelection(a *app.App) {
+	if a.InputMode == input.ModeVisualSelect {
+		a.ExitVisualMode()
+		return
+	}
+	a.VisualSelection = nil
+}
+
+// endDrag closes a drag without touching the selection it produced, which has
+// to survive so y can copy it.
+func (m *Model) endDrag() {
+	m.dragging = false
+	m.dragAnchor = nil
+}
+
+// setMouseEnabled turns mouse tracking on or off. View re-reads mouseMode
+// every frame, so the terminal picks this up immediately: turning it off
+// hands back native selection, and anything mid-drag is abandoned because no
+// release event is coming.
+func (m *Model) setMouseEnabled(on bool) {
+	m.mouseEnabled = on
+	if !on {
+		m.endDrag()
+		dropSelection(m.App)
+		m.App.SetMessage("Mouse off — the terminal's own selection is back")
+		return
+	}
+	m.App.SetMessage("Mouse on — hold Shift to select with the terminal instead")
 }
 
 // handleWheel scrolls the pane under the pointer without moving its cursor,
@@ -204,9 +237,22 @@ func (m *Model) handleClick(msg tea.MouseClickMsg) tea.Cmd {
 			return m.reloadInlineSelection()
 		}
 	case app.PanelDiff:
-		m.clickDiff(rect, row, mouse.X)
+		if diffRow, ok := diffRowAt(a, rect, mouse.Y); ok {
+			m.clickDiff(rect, diffRow, mouse.X)
+		}
 	}
 	return nil
+}
+
+// diffRowAt maps a screen row to the annotation drawn there, through the map
+// the renderer recorded. Only the renderer knows how many rows a wrapped line
+// took, so the flat offset arithmetic the other panes use is wrong here.
+func diffRowAt(a *app.App, rect paneRect, screenY int) (int, bool) {
+	idx, ok := a.DiffState.AnnotationAtRow(screenY - rect.Y)
+	if !ok || idx < 0 || idx >= len(a.LineAnnotations) {
+		return 0, false
+	}
+	return idx, true
 }
 
 // clickFileList opens a file or toggles a directory, lazygit-style.
@@ -226,7 +272,7 @@ func (m *Model) clickFileList(row int) {
 	a.FocusPanel(app.PanelDiff)
 }
 
-// clickDiff places the cursor and starts a drag selection.
+// clickDiff places the cursor and arms a drag selection.
 func (m *Model) clickDiff(rect paneRect, row, screenX int) {
 	a := m.App
 	if row < 0 || row >= len(a.LineAnnotations) {
@@ -235,22 +281,25 @@ func (m *Model) clickDiff(rect paneRect, row, screenX int) {
 	if a.LineAnnotations[row].IsDecoration() {
 		return // spacing and file headers are not cursor targets
 	}
+	// A click means "start here", so whatever was selected before is gone.
+	// Only visual mode is left along with it — a click while a comment is
+	// being composed must not throw away the buffer.
+	dropSelection(a)
 	a.MoveCursorToAnnotation(row)
 
-	// A press begins a drag: motion extends it, release ends it, and the
-	// selection survives so y can copy it.
+	// The press only arms the drag. The selection is created on the first
+	// motion that lands somewhere else, so a click on its own leaves none —
+	// a zero-width selection would make y report a zero-character yank
+	// instead of exporting the review.
+	offset, side := diffCharOffset(a, rect, row, screenX)
 	m.dragging = true
-	point := app.SelPoint{
-		AnnotationIdx: row,
-		CharOffset:    diffCharOffset(a, rect, row, screenX),
-		Side:          model.LineSideNew,
-	}
-	a.VisualSelection = &app.VisualSelection{Anchor: point, Head: point}
+	m.dragAnchor = &app.SelPoint{AnnotationIdx: row, CharOffset: offset, Side: side}
 }
 
-// handleDrag extends a drag selection to the pointer.
+// handleDrag extends a drag selection to the pointer, creating it on the
+// first motion that leaves the press point.
 func (m *Model) handleDrag(msg tea.MouseMotionMsg) {
-	if !m.dragging || m.App.VisualSelection == nil {
+	if !m.dragging || m.dragAnchor == nil {
 		return
 	}
 	mouse := msg.Mouse()
@@ -269,29 +318,48 @@ func (m *Model) handleDrag(msg tea.MouseMotionMsg) {
 		a.ScrollViewDown(1)
 	}
 
-	row := min(max(rect.rowAt(clampInt(mouse.Y, rect.Y, rect.Y+rect.H-1)), 0),
-		max(len(a.LineAnnotations)-1, 0))
-	a.VisualSelection.Head = app.SelPoint{
-		AnnotationIdx: row,
-		CharOffset:    diffCharOffset(a, rect, row, mouse.X),
-		Side:          model.LineSideNew,
+	row, ok := diffRowAt(a, rect, clampInt(mouse.Y, rect.Y, rect.Y+rect.H-1))
+	if !ok {
+		return
+	}
+	offset, side := diffCharOffset(a, rect, row, mouse.X)
+	head := app.SelPoint{AnnotationIdx: row, CharOffset: offset, Side: side}
+	switch {
+	case a.VisualSelection != nil:
+		a.VisualSelection.Head = head
+	case head == *m.dragAnchor:
+		return // still on the press point: nothing selected yet
+	default:
+		a.VisualSelection = &app.VisualSelection{Anchor: *m.dragAnchor, Head: head}
 	}
 	a.DiffState.CursorLine = row
 }
 
-// diffCharOffset maps a screen column to a character offset in the diff
-// row's content, so a drag selects characters rather than whole lines.
-func diffCharOffset(a *app.App, rect paneRect, row, screenX int) int {
-	gutter := app.UnifiedGutter(a.LinenoWidth())
+// diffCharOffset maps a screen column to a character offset in the diff row's
+// content and to the side that column belongs to, so a drag selects
+// characters rather than whole lines and reads the side-by-side column it
+// actually landed in.
+func diffCharOffset(a *app.App, rect paneRect, row, screenX int) (int, model.LineSide) {
+	lw := a.LinenoWidth()
+	side := model.LineSideNew
+	gutter := app.UnifiedGutter(lw)
 	if a.DiffViewMode == app.ViewSideBySide {
-		gutter = app.SbsLeftGutter(a.LinenoWidth())
+		// The left column is the old side and the right is the new one; the
+		// divider splits them at SbsRightGutter.
+		gutter, side = app.SbsLeftGutter(lw), model.LineSideOld
+		if right := app.SbsRightGutter(lw, rect.W); screenX-rect.X >= right {
+			gutter, side = right, model.LineSideNew
+		}
 	}
-	offset := screenX - rect.X - gutter + a.DiffState.ScrollX
-	if offset < 0 {
-		offset = 0
+	col := screenX - rect.X - gutter + a.DiffState.ScrollX
+	if col < 0 {
+		col = 0
 	}
-	total := a.AnnotationContentLen(row, model.LineSideNew)
-	return min(offset, total)
+	content, ok := a.ContentForSide(row, side)
+	if !ok {
+		return 0, side
+	}
+	return colToRuneOffset(content, col), side
 }
 
 func abs(v int) int {
@@ -340,6 +408,12 @@ func (m *Model) yankMouseSelection() bool {
 	if err != nil {
 		a.SetError("Copy failed: " + err.Error())
 		return true
+	}
+	if text == "" {
+		// The selection covered nothing copyable. Report no yank so y falls
+		// through to exporting the review, which is what it means when
+		// nothing is selected.
+		return false
 	}
 	if _, copyErr := output.CopyText(text); copyErr != nil {
 		a.SetError("Clipboard failed: " + copyErr.Error())
