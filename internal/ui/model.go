@@ -10,13 +10,9 @@ import (
 
 	"github.com/infrashift/mrman/charmkit/keychord"
 	"github.com/infrashift/mrman/internal/app"
-	"github.com/infrashift/mrman/internal/forge"
-	"github.com/infrashift/mrman/internal/forge/forgetypes"
 	"github.com/infrashift/mrman/internal/input"
-	"github.com/infrashift/mrman/internal/model"
 	"github.com/infrashift/mrman/internal/persistence"
 	"github.com/infrashift/mrman/internal/theme"
-	"github.com/infrashift/mrman/internal/version"
 )
 
 // tickMsg drives message expiry and periodic housekeeping (100ms heartbeat).
@@ -589,121 +585,14 @@ func (m *Model) dispatchCommand(action input.Action) bool {
 	return false
 }
 
+// runCommand executes a parsed `:` command; true means quit.
 func (m *Model) runCommand(cmd input.Command) bool {
-	a := m.App
-	switch cmd.Kind {
-	case input.CmdQuit:
-		// tuicr's dirty guard: unsaved comments block :q; reviewed-only
-		// dirt just quits (the session was saved by toggles or discards).
-		if a.Dirty && a.Session.HasComments() {
-			a.SetError("No write since last change (add ! to override)")
-			return false
-		}
-		return true
-	case input.CmdForceQuit:
-		return true
-	case input.CmdWrite:
-		if err := m.saveSession(); err != nil {
-			a.SetError("Save failed: " + err.Error())
-		} else {
-			a.SetMessage("Session saved")
-		}
-	case input.CmdWriteQuit:
-		if err := m.saveSession(); err != nil {
-			a.SetError("Save failed: " + err.Error())
-			return false
-		}
-		return true
-	case input.CmdToggleWrap:
-		a.ToggleDiffWrap()
-	case input.CmdSetWrap:
-		a.SetDiffWrap(true)
-	case input.CmdDiff:
-		a.ToggleDiffViewMode()
-	case input.CmdHelp:
-		a.ToggleHelp()
-	case input.CmdFocus:
-		a.ToggleSingleFileView()
-	case input.CmdGotoLine:
-		a.GoToSourceLine(cmd.N, "new")
-	case input.CmdGotoLineOld:
-		a.GoToSourceLine(cmd.N, "old")
-	case input.CmdExport:
-		if out := m.exportToClipboard(); out != "" {
-			m.PendingStdout = out
-		}
-	case input.CmdExportPatch:
-		if out := m.patchReplyToClipboard(); out != "" {
-			m.PendingStdout = out
-		}
-	case input.CmdClear:
-		cleared, unreviewed := a.Session.ClearComments(model.ClearCommentsAndReviewed)
-		a.Dirty = true
-		a.RebuildAnnotations()
-		a.SetMessage(fmt.Sprintf("Cleared %d comment(s), unreviewed %d file(s)", cleared, unreviewed))
-	case input.CmdClearCommentsOnly:
-		cleared, _ := a.Session.ClearComments(model.ClearCommentsOnly)
-		a.Dirty = true
-		a.RebuildAnnotations()
-		a.SetMessage(fmt.Sprintf("Cleared %d comment(s)", cleared))
-	case input.CmdStage:
-		if !a.CanStage() {
-			a.SetMessage("Staging is only available for unstaged reviews in git")
-			break
-		}
-		staged := a.StageReviewedFiles()
-		a.SetMessage(fmt.Sprintf("Staged %d reviewed file(s)", staged))
-	case input.CmdSubmitPicker:
-		a.StartSubmitPicker()
-	case input.CmdSubmitComment:
-		a.StartSubmitWith(forge.SubmitComment, false)
-	case input.CmdSubmitApprove:
-		a.StartSubmitWith(forge.SubmitApprove, false)
-	case input.CmdSubmitRequestChanges:
-		a.StartSubmitWith(forge.SubmitRequestChanges, false)
-	case input.CmdSubmitDraft:
-		a.StartSubmitWith(forge.SubmitDraft, false)
-	case input.CmdToggleVim:
-		m.CommentVimMode = !m.CommentVimMode
-		a.SetMessage(fmt.Sprintf("Comment vim mode: %v (next comment)", m.CommentVimMode))
-	case input.CmdSetVim:
-		m.CommentVimMode = true
-		a.SetMessage("Comment vim mode: on (next comment)")
-	case input.CmdSetNoVim:
-		m.CommentVimMode = false
-		a.SetMessage("Comment vim mode: off")
-	case input.CmdTargetsLocal:
-		m.openTargetSelector(app.TargetTabLocal)
-	case input.CmdTargetsPatches:
-		m.openTargetSelector(app.TargetTabPatches)
-	case input.CmdTargetsPrs:
-		m.openTargetSelector(app.TargetTabPullRequests)
-	case input.CmdCommentsUnresolved:
-		m.setRemoteCommentsVisibility(forgetypes.VisibilityUnresolved)
-	case input.CmdCommentsAll:
-		m.setRemoteCommentsVisibility(forgetypes.VisibilityAll)
-	case input.CmdCommentsHide:
-		m.setRemoteCommentsVisibility(forgetypes.VisibilityHide)
-	case input.CmdReload:
-		m.queue(m.reloadDiff())
-	case input.CmdSetCommitsVisible:
-		m.setCommitSelectorVisible(true)
-	case input.CmdSetCommitsHidden:
-		m.setCommitSelectorVisible(false)
-	case input.CmdToggleCommits:
-		a.ToggleCommitSelector()
-	case input.CmdEdit:
-		m.queue(m.openInEditor())
-	case input.CmdVersion:
-		a.SetMessage("mrman " + version.String())
-	case input.CmdAgentStatus:
-		m.reportAgentGrant()
-	case input.CmdAgentOff:
-		m.revokeAgentGrant()
-	default:
-		a.SetError("Unknown command: " + cmd.Raw)
+	handler, ok := commandTable[cmd.Kind]
+	if !ok {
+		m.App.SetError("Unknown command: " + cmd.Raw)
+		return false
 	}
-	return false
+	return handler(m, cmd)
 }
 
 // dispatchCommitSelect handles the full-screen target selector.
@@ -1025,118 +914,16 @@ func (m *Model) dispatchCommitStrip(action input.Action) bool {
 	return true
 }
 
+// dispatchNormal runs a normal-mode action; true means quit. Esc with
+// nothing typed and nothing loaded reopens the selector the review came
+// from rather than stranding the user on an empty pane.
 func (m *Model) dispatchNormal(action input.Action) bool {
-	a := m.App
-	switch action.Kind {
-	case input.Quit:
-		return true
-	case input.ExitMode:
-		// Esc discards a half-typed count, as in vim. With nothing typed
-		// and nothing loaded it would otherwise do nothing at all — which
-		// is exactly the state Esc out of the startup selector lands in,
-		// an empty pane with no key that leads anywhere. Reopen the
-		// selector the review came from instead of stranding the user.
-		switch {
-		case a.PendingCount != nil:
-			a.PendingCount = nil
-		case len(a.DiffFiles) == 0:
-			m.openTargetSelector(a.SelectorTabForReview())
-		}
-	case input.CursorDown:
-		a.CursorDown(action.N)
-	case input.CursorUp:
-		a.CursorUp(action.N)
-	case input.HalfPageDown:
-		a.ScrollDown(a.DiffState.EffectiveVisibleLines() / 2)
-	case input.HalfPageUp:
-		a.ScrollUp(a.DiffState.EffectiveVisibleLines() / 2)
-	case input.PageDown:
-		a.ScrollDown(a.DiffState.EffectiveVisibleLines())
-	case input.PageUp:
-		a.ScrollUp(a.DiffState.EffectiveVisibleLines())
-	case input.ScrollViewDown:
-		a.ScrollViewDown(action.N)
-	case input.ScrollViewUp:
-		a.ScrollViewUp(action.N)
-	case input.ScrollLeft:
-		a.ScrollLeft(action.N)
-	case input.ScrollRight:
-		a.ScrollRight(action.N)
-	case input.GoToTop:
-		a.MoveCursorToAnnotation(0)
-		a.DiffState.ScrollOffset = 0
-	case input.GoToBottom:
-		a.JumpToBottom()
-	case input.NextFile:
-		a.NextFile()
-	case input.PrevFile:
-		a.PrevFile()
-	case input.NextHunk:
-		a.NextHunk()
-	case input.PrevHunk:
-		a.PrevHunk()
-	case input.ToggleFocus:
-		m.cycleFocus(1)
-	case input.ToggleFocusReverse:
-		m.cycleFocus(-1)
-	case input.ToggleExpand, input.SelectFile, input.SelectFileFull:
-		// tuicr expands context gaps with Enter; mrman shipped Space.
-		// Both work: Enter for muscle memory, Space because it is already
-		// documented. They never collide — Enter in the file tree is
-		// dispatched by that pane's overlay before reaching here.
-		m.queue(m.expandGapAtCursor())
-	case input.CycleCommitNext:
-		m.queue(m.cycleCommit(true))
-	case input.CycleCommitPrev:
-		m.queue(m.cycleCommit(false))
-	case input.EnterCommandMode:
-		a.EnterCommandMode()
-	case input.EnterSearchMode:
-		a.EnterSearchMode()
-	case input.ToggleHelp:
-		a.ToggleHelp()
-	case input.SearchNext:
-		if !a.SearchNextInDiff() {
-			a.SetWarning("Pattern not found")
-		}
-	case input.SearchPrev:
-		if !a.SearchPrevInDiff() {
-			a.SetWarning("Pattern not found")
-		}
-	case input.ExportToClipboard:
-		// A live mouse drag makes y mean "copy what I highlighted", the
-		// same as in visual mode; with nothing highlighted it exports the
-		// whole review.
-		if m.yankMouseSelection() {
-			break
-		}
-		if out := m.exportToClipboard(); out != "" {
-			m.PendingStdout = out
-		}
-	case input.ToggleReviewed:
-		a.ToggleReviewed()
-		m.autosave()
-	case input.ToggleHunkReviewed:
-		a.ToggleHunkReviewed()
-		m.autosave()
-	case input.AddLineComment:
-		a.EnterCommentMode(false)
-		m.enterComposeMode()
-	case input.AddFileComment:
-		a.EnterCommentMode(true)
-		m.enterComposeMode()
-	case input.EditComment:
-		a.EnterEditMode(false)
-		m.enterComposeMode()
-	case input.EditCommentAtEnd:
-		a.EnterEditMode(true)
-		m.enterComposeMode()
-	case input.EnterVisualMode:
-		a.EnterVisualModeAtCursor()
-	case input.NextComment:
-		a.NextComment()
-	case input.PrevComment:
-		a.PrevComment()
+	if action.Kind == input.ExitMode && m.App.PendingCount == nil && len(m.App.DiffFiles) == 0 {
+		m.openTargetSelector(m.App.SelectorTabForReview())
+		return false
+	}
+	if handler, ok := normalActions[action.Kind]; ok {
+		return handler(m, action)
 	}
 	return false
 }
