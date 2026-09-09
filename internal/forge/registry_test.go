@@ -290,8 +290,7 @@ func TestParseTargetBareNumber(t *testing.T) {
 func TestParseTargetBareNumberWithoutCheckoutErrors(t *testing.T) {
 	withEmptyRegistry(t)
 	_, err := ParseTarget("125", nil, defaultForgeConfig())
-	var invalid *errs.InvalidInput
-	if !errors.As(err, &invalid) {
+	if _, ok := errors.AsType[*errs.InvalidInput](err); !ok {
 		t.Fatalf("err = %v", err)
 	}
 	if !strings.Contains(err.Error(), "default_forge") {

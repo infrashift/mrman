@@ -56,7 +56,7 @@ func TestLegacyCommentWithNoCommitIDIsAlwaysVisible(t *testing.T) {
 func TestCommentScopedToSelectedCommitIsVisible(t *testing.T) {
 	a := buildAppWithReviewCommits(commit("aaa"), commit("bbb"))
 	a.CommitSelectionRange = selection(0, 0) // only "aaa" selected
-	if !a.CommentVisible(lineComment("on aaa", strPtr("aaa"))) {
+	if !a.CommentVisible(lineComment("on aaa", new("aaa"))) {
 		t.Fatal("comment scoped to the selected commit must be visible")
 	}
 }
@@ -64,7 +64,7 @@ func TestCommentScopedToSelectedCommitIsVisible(t *testing.T) {
 func TestCommentScopedToUnselectedCommitIsHidden(t *testing.T) {
 	a := buildAppWithReviewCommits(commit("aaa"), commit("bbb"))
 	a.CommitSelectionRange = selection(0, 0) // only "aaa" selected
-	if a.CommentVisible(lineComment("on bbb", strPtr("bbb"))) {
+	if a.CommentVisible(lineComment("on bbb", new("bbb"))) {
 		t.Fatal("comment scoped to a commit outside the selection must be hidden")
 	}
 }
@@ -72,10 +72,10 @@ func TestCommentScopedToUnselectedCommitIsHidden(t *testing.T) {
 func TestFullRangeShowsAllCommitScopedComments(t *testing.T) {
 	a := buildAppWithReviewCommits(commit("aaa"), commit("bbb"))
 	a.CommitSelectionRange = selection(0, 1) // full range
-	if !a.CommentVisible(lineComment("on aaa", strPtr("aaa"))) {
+	if !a.CommentVisible(lineComment("on aaa", new("aaa"))) {
 		t.Fatal("full range includes commit aaa")
 	}
-	if !a.CommentVisible(lineComment("on bbb", strPtr("bbb"))) {
+	if !a.CommentVisible(lineComment("on bbb", new("bbb"))) {
 		t.Fatal("full range includes commit bbb")
 	}
 }
@@ -83,10 +83,10 @@ func TestFullRangeShowsAllCommitScopedComments(t *testing.T) {
 func TestNoSelectorShowsAllComments(t *testing.T) {
 	a := buildAppWithReviewCommits(commit("aaa"), commit("bbb"))
 	// CommitSelectionRange is nil by default.
-	if !a.CommentVisible(lineComment("on aaa", strPtr("aaa"))) {
+	if !a.CommentVisible(lineComment("on aaa", new("aaa"))) {
 		t.Fatal("no selector => all comments visible")
 	}
-	if !a.CommentVisible(lineComment("on bbb", strPtr("bbb"))) {
+	if !a.CommentVisible(lineComment("on bbb", new("bbb"))) {
 		t.Fatal("no selector => all comments visible")
 	}
 }
@@ -130,13 +130,13 @@ func TestSpecialCommitsNeverStampOrMatch(t *testing.T) {
 	if a.CommitIDForNewComment() != nil {
 		t.Fatal("synthetic staged row must not stamp a commit id")
 	}
-	if a.CommentVisible(lineComment("on aaa", strPtr("aaa"))) {
+	if a.CommentVisible(lineComment("on aaa", new("aaa"))) {
 		t.Fatal("selection of only the synthetic row hides commit-scoped comments")
 	}
 }
 
 func TestAddCommentToSessionStampsCommitIDWhenProvided(t *testing.T) {
-	session := model.NewReviewSession("/repo", "head", strPtr("main"), model.SourceWorkingTree)
+	session := model.NewReviewSession("/repo", "head", new("main"), model.SourceWorkingTree)
 	session.AddFile("src/lib.rs", model.StatusModified, 0)
 
 	comment, err := reviewcli.AddCommentToSession(session, reviewcli.AddCommentRequest{
@@ -147,7 +147,7 @@ func TestAddCommentToSessionStampsCommitIDWhenProvided(t *testing.T) {
 		Content:     "scoped note",
 		CommentType: model.CommentTypeFromID("note"),
 		Author:      "user",
-		CommitID:    strPtr("abc123"),
+		CommitID:    new("abc123"),
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -162,7 +162,7 @@ func TestAddCommentToSessionStampsCommitIDWhenProvided(t *testing.T) {
 }
 
 func TestAddCommentToSessionLeavesCommitIDNilWhenNotProvided(t *testing.T) {
-	session := model.NewReviewSession("/repo", "head", strPtr("main"), model.SourceWorkingTree)
+	session := model.NewReviewSession("/repo", "head", new("main"), model.SourceWorkingTree)
 	session.AddFile("src/lib.rs", model.StatusModified, 0)
 
 	comment, err := reviewcli.AddCommentToSession(session, reviewcli.AddCommentRequest{
@@ -210,7 +210,7 @@ func TestCommitScopedCommentHiddenFromAnnotations(t *testing.T) {
 	a := buildAppWithFiles([]model.DiffFile{file}, 20)
 	a.ReviewCommits = []vcs.CommitInfo{commit("aaa"), commit("bbb")}
 	review := a.Session.File("test.rs")
-	review.AddLineComment(2, lineComment("on bbb", strPtr("bbb")))
+	review.AddLineComment(2, lineComment("on bbb", new("bbb")))
 	a.RebuildAnnotations()
 
 	if !anyAnnotation(a, func(ann *AnnotatedLine) bool { return ann.Kind == AnnLineComment }) {

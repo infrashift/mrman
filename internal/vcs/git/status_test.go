@@ -153,8 +153,7 @@ func TestSparsePathspecsSpawnFailure(t *testing.T) {
 
 	_, err := backend.sparseCheckoutUntrackedPathspecs()
 
-	var vcsErr *errs.VcsCommand
-	if !errors.As(err, &vcsErr) {
+	if _, ok := errors.AsType[*errs.VcsCommand](err); !ok {
 		t.Fatalf("err = %v, want *errs.VcsCommand", err)
 	}
 }

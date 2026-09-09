@@ -2,6 +2,7 @@
 // engine. A gap is the run of unchanged lines between hunks (or before the
 // first hunk / after the last one); expanding fetches those lines through a
 // ContextProvider and stores them keyed by GapID.
+
 package app
 
 import (
@@ -200,8 +201,8 @@ func (a *App) findGapContainingLineno(fileIdx int, targetLineno uint32, side mod
 			} else {
 				delta := int64(last.NewStart+last.NewCount) - int64(last.OldStart+last.OldCount)
 				newStart := last.NewStart + last.NewCount
-				start = uint32(int64(newStart) - delta)
-				end = uint32(int64(total) - delta)
+				start = uint32(int64(newStart) - delta) //nolint:gosec // G115: the old side lags the new by delta, so the result is non-negative
+				end = uint32(int64(total) - delta)      //nolint:gosec // G115: total lags the new side by delta, so the result is non-negative
 			}
 			if start <= end && targetLineno >= start && targetLineno <= end {
 				return GapID{FileIdx: fileIdx, HunkIdx: len(file.Hunks)}, true
@@ -361,8 +362,8 @@ func (a *App) ExpandGap(gapID GapID, direction ExpandDirection, limit *int) erro
 	newPath := file.NewPath
 	fileStatus := file.Status
 
-	topLen := uint32(len(a.ExpandedTop[gapID]))
-	botLen := uint32(len(a.ExpandedBottom[gapID]))
+	topLen := uint32(len(a.ExpandedTop[gapID]))    //nolint:gosec // G115: line numbers fit uint32
+	botLen := uint32(len(a.ExpandedBottom[gapID])) //nolint:gosec // G115: line numbers fit uint32
 
 	// The unexpanded region runs from gapStart+topLen to gapEnd-botLen.
 	innerStart := gapStart + topLen
@@ -391,7 +392,7 @@ func (a *App) ExpandGap(gapID GapID, direction ExpandDirection, limit *int) erro
 		}
 		for i := range lines {
 			if lines[i].NewLineno != nil {
-				old := uint32(int64(*lines[i].NewLineno) - delta)
+				old := uint32(int64(*lines[i].NewLineno) - delta) //nolint:gosec // G115: line numbers fit uint32
 				lines[i].OldLineno = &old
 			}
 		}
@@ -402,7 +403,7 @@ func (a *App) ExpandGap(gapID GapID, direction ExpandDirection, limit *int) erro
 	case ExpandDown:
 		fetchEnd := innerEnd
 		if limit != nil {
-			fetchEnd = min(innerStart+satSubU32(uint32(*limit), 1), innerEnd)
+			fetchEnd = min(innerStart+satSubU32(uint32(*limit), 1), innerEnd) //nolint:gosec // G115: line numbers fit uint32
 		}
 		newLines, err := fetch(innerStart, fetchEnd)
 		if err != nil {
@@ -412,7 +413,7 @@ func (a *App) ExpandGap(gapID GapID, direction ExpandDirection, limit *int) erro
 	case ExpandUp:
 		fetchStart := innerStart
 		if limit != nil {
-			fetchStart = max(satSubU32(innerEnd, uint32(*limit)-1), innerStart)
+			fetchStart = max(satSubU32(innerEnd, uint32(*limit)-1), innerStart) //nolint:gosec // G115: line numbers fit uint32
 		}
 		newLines, err := fetch(fetchStart, innerEnd)
 		if err != nil {

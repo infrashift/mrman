@@ -294,9 +294,9 @@ func longLineModel(t *testing.T) *Model {
 		Hunks: []model.DiffHunk{{
 			Header: "@@ -1,2 +1,3 @@ " + strings.Repeat("ctx ", 80),
 			Lines: []model.DiffLine{
-				{Origin: model.OriginContext, Content: long, OldLineno: lineno(1), NewLineno: lineno(1)},
-				{Origin: model.OriginDeletion, Content: long + " old", OldLineno: lineno(2)},
-				{Origin: model.OriginAddition, Content: long + " new", NewLineno: lineno(2)},
+				{Origin: model.OriginContext, Content: long, OldLineno: new(uint32(1)), NewLineno: new(uint32(1))},
+				{Origin: model.OriginDeletion, Content: long + " old", OldLineno: new(uint32(2))},
+				{Origin: model.OriginAddition, Content: long + " new", NewLineno: new(uint32(2))},
 			},
 			OldStart: 1, OldCount: 2, NewStart: 1, NewCount: 3,
 		}},

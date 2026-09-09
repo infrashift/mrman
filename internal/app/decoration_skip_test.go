@@ -6,7 +6,7 @@ package app
 import "testing"
 
 func decoDiffLine(fileIdx int, newLineno uint32) AnnotatedLine {
-	return AnnotatedLine{Kind: AnnDiffLine, FileIdx: fileIdx, NewLineno: u32(newLineno)}
+	return AnnotatedLine{Kind: AnnDiffLine, FileIdx: fileIdx, NewLineno: new(newLineno)}
 }
 
 // decoFixture is two files: header, content, spacing, header, content.

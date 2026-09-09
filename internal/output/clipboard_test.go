@@ -221,8 +221,7 @@ func TestCopyTextTTYOpenFailureIsClipboardError(t *testing.T) {
 	openTTY = func() (io.WriteCloser, error) { return nil, errors.New("no tty") }
 
 	_, err := CopyText("hello")
-	var clipErr *errs.Clipboard
-	if !errors.As(err, &clipErr) {
+	if _, ok := errors.AsType[*errs.Clipboard](err); !ok {
 		t.Fatalf("want *errs.Clipboard, got %v", err)
 	}
 }
@@ -238,8 +237,7 @@ func TestCopyTextTTYWriteFailureIsClipboardError(t *testing.T) {
 	openTTY = func() (io.WriteCloser, error) { return failingWriter{}, nil }
 
 	_, err := CopyText("hello")
-	var clipErr *errs.Clipboard
-	if !errors.As(err, &clipErr) {
+	if _, ok := errors.AsType[*errs.Clipboard](err); !ok {
 		t.Fatalf("want *errs.Clipboard, got %v", err)
 	}
 }

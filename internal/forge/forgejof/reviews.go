@@ -21,7 +21,7 @@ func (d *Driver) listReviews(api *forgejo.Client, op string, pr *forge.PullReque
 	page := 1
 	for range maxReviewPages {
 		rows, resp, err := api.ListPullReviews(pr.Repository.Owner, pr.Repository.Name,
-			int64(pr.Number), forgejo.ListPullReviewsOptions{
+			int64(pr.Number), forgejo.ListPullReviewsOptions{ //nolint:gosec // G115: pull request numbers are small forge-assigned integers
 				ListOptions: forgejo.ListOptions{Page: page, PageSize: 100},
 			})
 		if err != nil {
@@ -58,7 +58,7 @@ func (d *Driver) ListReviewThreads(ctx context.Context, pr *forge.PullRequestDet
 			continue
 		}
 		comments, resp, err := api.ListPullReviewComments(pr.Repository.Owner, pr.Repository.Name,
-			int64(pr.Number), review.ID)
+			int64(pr.Number), review.ID) //nolint:gosec // G115: pull request numbers are small forge-assigned integers
 		if err != nil {
 			return nil, d.wrap(op, resp, err)
 		}
@@ -101,10 +101,10 @@ func synthesizeThread(group []*forgejo.PullReviewComment) forge.RemoteReviewThre
 	case root.OldLineNum != 0:
 		// Old-side comments report original_position only.
 		side = forge.SideOld
-		anchor := uint32(root.OldLineNum)
+		anchor := uint32(root.OldLineNum) //nolint:gosec // G115: line numbers fit uint32
 		line = &anchor
 	case root.LineNum != 0:
-		anchor := uint32(root.LineNum)
+		anchor := uint32(root.LineNum) //nolint:gosec // G115: line numbers fit uint32
 		line = &anchor
 	}
 	thread := forge.RemoteReviewThread{

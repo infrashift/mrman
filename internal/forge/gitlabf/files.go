@@ -46,7 +46,7 @@ func (d *Driver) fileContent(ctx context.Context, op string, req forge.FileLines
 		return content, nil
 	}
 	raw, _, err := d.client.RepositoryFiles.GetRawFile(projectID(req.Repository), req.Path,
-		&gitlab.GetRawFileOptions{Ref: gitlab.Ptr(sha)}, gitlab.WithContext(ctx))
+		&gitlab.GetRawFileOptions{Ref: new(sha)}, gitlab.WithContext(ctx))
 	if err != nil {
 		return "", d.wrap(op, err)
 	}

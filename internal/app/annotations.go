@@ -2,6 +2,7 @@
 // stream describing what each rendered line represents, rebuilt whenever the
 // diff, expansion state, or view mode changes. It is the single source of
 // truth for O(1) cursor queries and all scroll math.
+
 package app
 
 import (

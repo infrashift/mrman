@@ -16,10 +16,12 @@
 // Flagging is the point of the exercise. A stale comment that announces
 // itself is safe to carry across a rewrite; one that quietly keeps its old
 // line number is criticism pointing at code it was not written about.
+
 package app
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 
 	"github.com/infrashift/mrman/internal/model"
@@ -152,7 +154,7 @@ func (a *App) ValidateCommentAnchors() AnchorStats {
 		for line := range review.LineComments {
 			lines = append(lines, line)
 		}
-		sort.Slice(lines, func(i, j int) bool { return lines[i] < lines[j] })
+		slices.Sort(lines)
 
 		// Re-anchoring rekeys LineComments, so the moves are collected first
 		// and applied after the walk rather than mutating the map under it.

@@ -5,6 +5,7 @@
 // It lives here rather than in the UI because the TUI is no longer the only
 // caller. What stays in the UI is the bubbletea plumbing — the generation
 // guard, the spinner, the status message — none of which a CLI has.
+
 package app
 
 import (

@@ -6,6 +6,7 @@
 // should be loaded and the UI layer performs the scan off the render loop,
 // with a generation counter so a result for a directory the user has since
 // navigated away from is discarded rather than shown.
+
 package app
 
 import (

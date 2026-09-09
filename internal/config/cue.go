@@ -94,7 +94,7 @@ func vetConfig(raw map[string]any, warnings *[]string) {
 		return
 	}
 	ctx := cuecontext.New()
-	for pass := 0; pass < maxVetPasses; pass++ {
+	for range maxVetPasses {
 		data := ctx.Encode(raw)
 		if err := data.Err(); err != nil {
 			clearMap(raw)

@@ -121,7 +121,7 @@ func TestFocusPanelFallsBackToTheDiffWhenHidden(t *testing.T) {
 
 func TestCommentNavCursorMovesAndClamps(t *testing.T) {
 	a := newTestApp(t)
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		a.Session.ReviewComments = append(a.Session.ReviewComments,
 			model.NewComment("c", model.CommentTypeFromID("note"), nil))
 	}
@@ -138,7 +138,7 @@ func TestCommentNavCursorMovesAndClamps(t *testing.T) {
 	}
 
 	// Walking past the end stops.
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		a.CommentNavDown()
 	}
 	if a.CommentNav.Cursor != 2 {
@@ -153,7 +153,7 @@ func TestCommentNavCursorMovesAndClamps(t *testing.T) {
 		t.Errorf("cursor must clamp when items disappear, got %d", a.CommentNav.Cursor)
 	}
 
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		a.CommentNavUp()
 	}
 	if a.CommentNav.Cursor != 0 || a.CommentNav.Offset != 0 {

@@ -2,10 +2,12 @@
 // expandable/collapsible, files ordered commit-message-first then by sorted
 // directory), the list selection state, and the view toggles that live with
 // the file list.
+
 package app
 
 import (
 	"path"
+	"slices"
 	"sort"
 
 	"github.com/infrashift/mrman/internal/model"
@@ -93,10 +95,7 @@ func (a *App) scrollFileListToSelection(total int) {
 		return
 	}
 	selected := a.FileListState.Selected()
-	offset := a.FileListState.Offset()
-	if selected < offset {
-		offset = selected
-	}
+	offset := min(selected, a.FileListState.Offset())
 	if selected >= offset+viewport {
 		offset = selected - viewport + 1
 	}
@@ -311,9 +310,9 @@ func (a *App) ensureValidTreeSelection() {
 	if currentFileIdx < len(a.DiffFiles) {
 		ancestors := pathAncestors(a.DiffFiles[currentFileIdx].DisplayPath())
 		// Walk innermost-first, matching tuicr's parent() loop.
-		for i := len(ancestors) - 1; i >= 0; i-- {
+		for _, ancestor := range slices.Backward(ancestors) {
 			for treeIdx, item := range visibleItems {
-				if item.IsDir && item.Path == ancestors[i] {
+				if item.IsDir && item.Path == ancestor {
 					a.FileListState.Select(treeIdx)
 					return
 				}

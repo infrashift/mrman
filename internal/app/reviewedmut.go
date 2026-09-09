@@ -1,6 +1,7 @@
 // reviewedmut.go ports the mutation half of tuicr's src/app/reviewed.rs:
 // toggling file/hunk reviewed state, staging reviewed files, and queueing
 // external-editor targets. The read-only reviewed helpers live in app.go.
+
 package app
 
 import (

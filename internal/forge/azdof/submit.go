@@ -34,7 +34,7 @@ func (d *Driver) CreateReview(ctx context.Context, pr *forge.PullRequestDetails,
 	}
 
 	project, repoName := d.coords(pr.Repository)
-	prID := int(pr.Number)
+	prID := int(pr.Number) //nolint:gosec // G115: pull request numbers are small forge-assigned integers
 	payload := decodePayload(pr)
 	result := &forge.SubmitResult{
 		URL:   pr.URL,

@@ -6,6 +6,7 @@
 // take focus depends on state the UI does not own — whether the file list
 // is shown, whether the review has more than one commit, whether any
 // comment exists to navigate.
+
 package app
 
 // Panel layout constants, matching tuicr's src/ui/app_layout.rs.

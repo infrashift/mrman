@@ -63,7 +63,7 @@ func (d *Driver) GetPullRequest(ctx context.Context, target forge.Target) (*forg
 			fmt.Errorf("merge request target %q does not include a valid number", target.Original))
 	}
 	project, repoName := d.coords(*target.Repository)
-	prID := int(target.Number)
+	prID := int(target.Number) //nolint:gosec // G115: pull request numbers are small forge-assigned integers
 	pr, err := d.gitClient.GetPullRequestById(ctx, git.GetPullRequestByIdArgs{
 		PullRequestId: &prID,
 		Project:       &project,
@@ -201,7 +201,7 @@ func digestChange(change *git.GitPullRequestChange) iterationChange {
 	if change.ChangeTrackingId != nil {
 		out.changeTrackingID = *change.ChangeTrackingId
 	}
-	if item, ok := change.Item.(map[string]interface{}); ok {
+	if item, ok := change.Item.(map[string]any); ok {
 		if path, ok := item["path"].(string); ok {
 			out.path = path
 		}
@@ -226,7 +226,7 @@ func (d *Driver) GetDiff(ctx context.Context, pr *forge.PullRequestDetails) (str
 		return diff, nil
 	}
 	project, repoName := d.coords(pr.Repository)
-	prID := int(pr.Number)
+	prID := int(pr.Number) //nolint:gosec // G115: pull request numbers are small forge-assigned integers
 
 	iterationID := decodePayload(pr).IterationID
 	if iterationID == 0 {
@@ -329,7 +329,7 @@ func (d *Driver) localRangeDiff(startSHA, endSHA string) (string, bool) {
 func (d *Driver) ListCommits(ctx context.Context, pr *forge.PullRequestDetails) ([]forge.Commit, error) {
 	const op = "list_commits"
 	project, repoName := d.coords(pr.Repository)
-	prID := int(pr.Number)
+	prID := int(pr.Number) //nolint:gosec // G115: pull request numbers are small forge-assigned integers
 	page, err := d.gitClient.GetPullRequestCommits(ctx, git.GetPullRequestCommitsArgs{
 		RepositoryId:  &repoName,
 		Project:       &project,
@@ -369,7 +369,7 @@ func (d *Driver) rawCommitPage(ctx context.Context, op, project, repoName string
 	if err != nil {
 		return nil, "", d.wrap(op, err)
 	}
-	resp, err := d.core.SendRequest(req)
+	resp, err := d.core.SendRequest(req) //nolint:bodyclose // closed by d.core.UnmarshalCollectionBody
 	if err != nil {
 		return nil, "", d.wrap(op, err)
 	}
@@ -417,7 +417,7 @@ func convertCommit(row *git.GitCommitRef) forge.Commit {
 func (d *Driver) summary(repo forgetypes.Repository, project, repoName string, pr *git.GitPullRequest) forge.PullRequestSummary {
 	number := uint64(0)
 	if pr.PullRequestId != nil {
-		number = uint64(*pr.PullRequestId)
+		number = uint64(*pr.PullRequestId) //nolint:gosec // G115: the forge never returns a negative id
 	}
 	updated := timeOf(pr.CreationDate)
 	if t := timeOf(pr.ClosedDate); t != nil {

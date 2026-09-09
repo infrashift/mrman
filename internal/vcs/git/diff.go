@@ -250,7 +250,7 @@ func (b *Backend) buildUntrackedDiffFile(path string, h *syntax.Highlighter) *mo
 		}
 	}
 
-	newCount := uint32(len(diffLines))
+	newCount := uint32(len(diffLines)) //nolint:gosec // G115: line numbers fit uint32
 	hunks := []model.DiffHunk{{
 		Header:   fmt.Sprintf("@@ -0,0 +1,%d @@", newCount),
 		Lines:    diffLines,

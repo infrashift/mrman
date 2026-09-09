@@ -51,7 +51,7 @@ func (d *Driver) CreateReview(ctx context.Context, pr *forge.PullRequestDetails,
 		return nil, d.wrap(op, nil, err)
 	}
 	review, resp, err := api.CreatePullReview(pr.Repository.Owner, pr.Repository.Name,
-		int64(pr.Number), opt)
+		int64(pr.Number), opt) //nolint:gosec // G115: pull request numbers are small forge-assigned integers
 	if err != nil {
 		return nil, d.wrapCreateReview(resp, err)
 	}
@@ -107,8 +107,7 @@ func encodeComment(c *submit.InlineComment) (forgejo.CreatePullReviewComment, er
 // rejections point at stale anchors.
 func (d *Driver) wrapCreateReview(resp *forgejo.Response, err error) error {
 	const op = "create_review"
-	var fe *forge.Error
-	if errors.As(err, &fe) {
+	if _, ok := errors.AsType[*forge.Error](err); ok {
 		return err
 	}
 	switch status := responseStatus(resp); status {

@@ -54,7 +54,7 @@ func hashedNameStore(t *testing.T, sessions ...*model.ReviewSession) (*Store, []
 // reviews. Unlike the pre-sessions/ migration, nothing is moved aside.
 func TestMigrateRenamesHashedSessionsKeepingThem(t *testing.T) {
 	repo := makeRepo(t)
-	sess := makeLocalSession(t, repo, "abc1234", strp("main"), model.SourceWorkingTree, nil)
+	sess := makeLocalSession(t, repo, "abc1234", new("main"), model.SourceWorkingTree, nil)
 	side := model.LineSideNew
 	sess.Files["src/main.go"].AddLineComment(4,
 		model.NewComment("keep me", model.CommentTypeFromID("issue"), &side))
@@ -72,7 +72,7 @@ func TestMigrateRenamesHashedSessionsKeepingThem(t *testing.T) {
 
 	// The session still resolves, with its comment.
 	_, loaded, found, err := store.LoadLatestSessionForContext(
-		repo, strp("main"), "abc1234", model.SourceWorkingTree, nil)
+		repo, new("main"), "abc1234", model.SourceWorkingTree, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -103,7 +103,7 @@ func TestMigrateRenamesHashedSessionsKeepingThem(t *testing.T) {
 // every store operation.
 func TestMigrateStampsVersionAndIsIdempotent(t *testing.T) {
 	store, _ := hashedNameStore(t,
-		makeLocalSession(t, makeRepo(t), "abc1234", strp("main"), model.SourceWorkingTree, nil))
+		makeLocalSession(t, makeRepo(t), "abc1234", new("main"), model.SourceWorkingTree, nil))
 
 	if err := store.maybeMigrate(); err != nil {
 		t.Fatal(err)
@@ -136,7 +136,7 @@ func TestMigrateStampsVersionAndIsIdempotent(t *testing.T) {
 // every session unreachable: renaming files without updating the manifest.
 func TestMigrateRewritesManifestPaths(t *testing.T) {
 	store, _ := hashedNameStore(t,
-		makeLocalSession(t, makeRepo(t), "abc1234", strp("main"), model.SourceWorkingTree, nil))
+		makeLocalSession(t, makeRepo(t), "abc1234", new("main"), model.SourceWorkingTree, nil))
 
 	if err := store.maybeMigrate(); err != nil {
 		t.Fatal(err)
@@ -162,8 +162,8 @@ func TestMigrateRewritesManifestPaths(t *testing.T) {
 func TestMigrateHandlesMultipleSessions(t *testing.T) {
 	repoA, repoB := makeRepo(t), makeRepo(t)
 	store, _ := hashedNameStore(t,
-		makeLocalSession(t, repoA, "abc1234", strp("main"), model.SourceWorkingTree, nil),
-		makeLocalSession(t, repoB, "def5678", strp("feature"), model.SourceStaged, nil),
+		makeLocalSession(t, repoA, "abc1234", new("main"), model.SourceWorkingTree, nil),
+		makeLocalSession(t, repoB, "def5678", new("feature"), model.SourceStaged, nil),
 		makePrSession(makePrKey(125, "abcdef0123456789")),
 	)
 
@@ -191,7 +191,7 @@ func TestMigrateHandlesMultipleSessions(t *testing.T) {
 // TestMigrateSkipsUnreadableFiles keeps one bad file from stranding the rest.
 func TestMigrateSkipsUnreadableFiles(t *testing.T) {
 	store, _ := hashedNameStore(t,
-		makeLocalSession(t, makeRepo(t), "abc1234", strp("main"), model.SourceWorkingTree, nil))
+		makeLocalSession(t, makeRepo(t), "abc1234", new("main"), model.SourceWorkingTree, nil))
 	junk := filepath.Join(store.ReviewsDir, SessionsDirname, "0000000000000000.json")
 	writeTestFile(t, junk, "not json at all")
 
@@ -211,7 +211,7 @@ func TestMigrateSkipsUnreadableFiles(t *testing.T) {
 func TestFreshStoreNeedsNoMigration(t *testing.T) {
 	store := newTestStore(t)
 	path := mustSave(t, store,
-		makeLocalSession(t, makeRepo(t), "abc1234", strp("main"), model.SourceWorkingTree, nil))
+		makeLocalSession(t, makeRepo(t), "abc1234", new("main"), model.SourceWorkingTree, nil))
 
 	manifest := loadManifestOrDefault(store.ReviewsDir)
 	if manifest.Version != ManifestVersion {
@@ -277,9 +277,9 @@ func TestLongBranchNameStillProducesUsableFilename(t *testing.T) {
 func TestDistinctSessionsWithIdenticalLabels(t *testing.T) {
 	store := newTestStore(t)
 	a := mustSave(t, store,
-		makeLocalSession(t, makeRepo(t), "abc1234", strp("main"), model.SourceWorkingTree, nil))
+		makeLocalSession(t, makeRepo(t), "abc1234", new("main"), model.SourceWorkingTree, nil))
 	b := mustSave(t, store,
-		makeLocalSession(t, makeRepo(t), "abc1234", strp("main"), model.SourceWorkingTree, nil))
+		makeLocalSession(t, makeRepo(t), "abc1234", new("main"), model.SourceWorkingTree, nil))
 
 	if a == b {
 		t.Fatal("two checkouts of the same repo must not share a session file")

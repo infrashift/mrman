@@ -42,10 +42,9 @@ func TestManifestAnchorForUnknownSlugIsEmpty(t *testing.T) {
 }
 
 func TestRelativePathRejectsUnknownSlugKind(t *testing.T) {
-	sess := makeLocalSession(t, makeRepo(t), "abc", strp("main"), model.SourceWorkingTree, nil)
+	sess := makeLocalSession(t, makeRepo(t), "abc", new("main"), model.SourceWorkingTree, nil)
 	_, err := relativePathForSession(fakeSlug{}, sess)
-	var corrupted *errs.CorruptedSession
-	if !errors.As(err, &corrupted) {
+	if _, ok := errors.AsType[*errs.CorruptedSession](err); !ok {
 		t.Fatalf("err = %v, want *errs.CorruptedSession", err)
 	}
 }
@@ -54,8 +53,7 @@ func TestRelativePathRequiresPrSessionKey(t *testing.T) {
 	sess := makePrSession(makePrKey(125, "abcdef"))
 	sess.PrSessionKey = nil
 	_, err := relativePathForSession(slug.PrSlug{Number: 125}, sess)
-	var corrupted *errs.CorruptedSession
-	if !errors.As(err, &corrupted) {
+	if _, ok := errors.AsType[*errs.CorruptedSession](err); !ok {
 		t.Fatalf("err = %v, want *errs.CorruptedSession", err)
 	}
 }
@@ -66,8 +64,7 @@ func TestSessionPathWrapsSlugDeriveError(t *testing.T) {
 	sess.PrSessionKey = nil // PullRequest source with no key cannot derive a slug
 
 	_, err := store.SessionPath(sess)
-	var corrupted *errs.CorruptedSession
-	if !errors.As(err, &corrupted) {
+	if _, ok := errors.AsType[*errs.CorruptedSession](err); !ok {
 		t.Fatalf("err = %v, want *errs.CorruptedSession", err)
 	}
 }
@@ -78,8 +75,7 @@ func TestMarkSessionActiveWrapsSlugDeriveError(t *testing.T) {
 	sess.PrSessionKey = nil
 
 	err := store.MarkSessionActive(sess, filepath.Join(store.ReviewsDir, "x.json"))
-	var corrupted *errs.CorruptedSession
-	if !errors.As(err, &corrupted) {
+	if _, ok := errors.AsType[*errs.CorruptedSession](err); !ok {
 		t.Fatalf("err = %v, want *errs.CorruptedSession", err)
 	}
 }
@@ -91,7 +87,7 @@ func TestSaveRecoversFromCorruptManifest(t *testing.T) {
 	}
 	writeTestFile(t, filepath.Join(store.ReviewsDir, ManifestFilename), "not json {")
 
-	sess := makeLocalSession(t, makeRepo(t), "abc1234", strp("main"), model.SourceWorkingTree, nil)
+	sess := makeLocalSession(t, makeRepo(t), "abc1234", new("main"), model.SourceWorkingTree, nil)
 	path := mustSave(t, store, sess)
 
 	if !fileExists(t, path) {
@@ -188,7 +184,7 @@ func TestUpdateSessionMissingFileErrors(t *testing.T) {
 
 func TestDeleteSessionCorruptFileErrors(t *testing.T) {
 	store := newTestStore(t)
-	sess := makeLocalSession(t, makeRepo(t), "abc1234", strp("main"), model.SourceWorkingTree, nil)
+	sess := makeLocalSession(t, makeRepo(t), "abc1234", new("main"), model.SourceWorkingTree, nil)
 	path := mustSave(t, store, sess)
 	writeTestFile(t, path, "not json {")
 
@@ -214,11 +210,11 @@ func TestLoadPrSessionCorruptFileErrors(t *testing.T) {
 func TestLoadLatestSessionForContextCorruptFileErrors(t *testing.T) {
 	store := newTestStore(t)
 	repo := makeRepo(t)
-	path := mustSave(t, store, makeLocalSession(t, repo, "abc1234", strp("main"), model.SourceWorkingTree, nil))
+	path := mustSave(t, store, makeLocalSession(t, repo, "abc1234", new("main"), model.SourceWorkingTree, nil))
 	writeTestFile(t, path, "not json {")
 
 	_, _, _, err := store.LoadLatestSessionForContext(
-		repo, strp("main"), "abc1234", model.SourceWorkingTree, nil)
+		repo, new("main"), "abc1234", model.SourceWorkingTree, nil)
 	if err == nil {
 		t.Fatal("a corrupt local session must surface the corruption")
 	}

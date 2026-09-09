@@ -41,7 +41,7 @@ func open(t *testing.T, name string) *Backend {
 
 // TestSatisfiesBackend is the compile-time contract, restated as a test so a
 // missing method is a test failure rather than a build error elsewhere.
-func TestSatisfiesBackend(t *testing.T) {
+func TestSatisfiesBackend(_ *testing.T) {
 	var _ vcs.Backend = (*Backend)(nil)
 }
 

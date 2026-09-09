@@ -204,7 +204,7 @@ func TestExportIndentsMultilineUnderDoubleDigitMarker(t *testing.T) {
 	session := newSession()
 	session.AddFile("src/main.rs", model.StatusModified, 0)
 	review := session.File("src/main.rs")
-	for i := 0; i < 9; i++ {
+	for i := range 9 {
 		review.AddFileComment(model.NewComment(
 			fmt.Sprintf("comment %d", i), model.CommentTypeFromID("note"), nil))
 	}

@@ -71,7 +71,7 @@ func newRootCmd(args *Args) *cobra.Command {
 		Version:       version.String(),
 		SilenceUsage:  true,
 		SilenceErrors: true,
-		RunE: func(cmd *cobra.Command, positional []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			args.Command = CommandTui
 			return nil
 		},
@@ -190,7 +190,7 @@ func newTuiCmd(args *Args) *cobra.Command {
 	tui := &cobra.Command{
 		Use:   "tui",
 		Short: "Open the review TUI (same as running mrman with no subcommand)",
-		RunE: func(cmd *cobra.Command, positional []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			args.Command = CommandTui
 			return nil
 		},
@@ -209,7 +209,7 @@ func newPrCmd(args *Args, name string) *cobra.Command {
 		Short: short,
 		Long:  short + ".\n\nTarget forms: a bare number (125), owner/repo#125, or a full merge-request URL.",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, positional []string) error {
+		RunE: func(_ *cobra.Command, positional []string) error {
 			args.Command = CommandPr
 			args.PrTarget = positional[0]
 			return nil
@@ -230,7 +230,7 @@ func newReviewCmd(args *Args) *cobra.Command {
 	list := &cobra.Command{
 		Use:   "list",
 		Short: "List review sessions as JSON",
-		RunE: func(cmd *cobra.Command, _ []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			args.Command = CommandReviewList
 			return nil
 		},
@@ -241,7 +241,7 @@ func newReviewCmd(args *Args) *cobra.Command {
 		Use:   "add [comment]",
 		Short: "Add a comment to a session",
 		Args:  cobra.MaximumNArgs(1),
-		RunE: func(cmd *cobra.Command, positional []string) error {
+		RunE: func(_ *cobra.Command, positional []string) error {
 			args.Command = CommandReviewAdd
 			if len(positional) == 1 {
 				args.Review.Comment = positional[0]
@@ -267,7 +267,7 @@ func newReviewCmd(args *Args) *cobra.Command {
 		Use:     "comments",
 		Aliases: []string{"get"},
 		Short:   "Print a session's comments as JSON",
-		RunE: func(cmd *cobra.Command, _ []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			args.Command = CommandReviewComments
 			return nil
 		},
@@ -278,7 +278,7 @@ func newReviewCmd(args *Args) *cobra.Command {
 	watch := &cobra.Command{
 		Use:   "watch",
 		Short: "Stream session changes as newline-delimited JSON until it closes",
-		RunE: func(cmd *cobra.Command, _ []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			args.Command = CommandReviewWatch
 			return nil
 		},
@@ -292,7 +292,7 @@ func newReviewCmd(args *Args) *cobra.Command {
 	submit := &cobra.Command{
 		Use:   "submit",
 		Short: "Submit a review to the forge (requires the session's agent-submit grant)",
-		RunE: func(cmd *cobra.Command, _ []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			args.Command = CommandReviewSubmit
 			return nil
 		},

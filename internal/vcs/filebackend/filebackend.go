@@ -19,6 +19,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -208,15 +209,15 @@ func (b *Backend) FetchContextLines(path string, _ model.FileStatus, _ *string, 
 	joined := filepath.Join(b.info.RootPath, path)
 	canonical, err := filepath.EvalSymlinks(joined)
 	if err != nil {
-		return nil, nil
+		return nil, nil //nolint:nilerr // a path that does not resolve reads as nothing
 	}
 	rel, err := filepath.Rel(b.info.RootPath, canonical)
 	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-		return nil, nil
+		return nil, nil //nolint:nilerr // a path outside the root reads as nothing
 	}
 	st, err := os.Stat(canonical)
 	if err != nil || !st.Mode().IsRegular() {
-		return nil, nil
+		return nil, nil //nolint:nilerr // not a regular file: nothing to read
 	}
 
 	data, err := os.ReadFile(canonical)
@@ -330,7 +331,7 @@ func (b *Backend) buildDiffFileForPath(h *syntax.Highlighter, absPath string, si
 		})
 	}
 
-	totalLines := uint32(len(lines))
+	totalLines := uint32(len(lines)) //nolint:gosec // G115: line numbers fit uint32
 	var (
 		hunkHeader string
 		oldStart   uint32
@@ -408,7 +409,7 @@ func splitLines(content string) []string {
 
 // countLines counts lines with str::lines semantics.
 func countLines(content string) uint32 {
-	return uint32(len(splitLines(content)))
+	return uint32(len(splitLines(content))) //nolint:gosec // G115: line numbers fit uint32
 }
 
 // isProbablyBinary reports whether the first binarySniffBytes bytes of the
@@ -425,10 +426,5 @@ func isProbablyBinary(path string) bool {
 	if err != nil && !errors.Is(err, io.EOF) {
 		return true
 	}
-	for _, b := range buf[:n] {
-		if b == 0 {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(buf[:n], 0)
 }

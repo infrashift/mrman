@@ -176,7 +176,7 @@ func parseRuntimeFlags(output string) (untrackedCache, fsmonitor bool) {
 // pairs; the value is everything after the first whitespace run.
 func configLines(output string) func(yield func(string, string) bool) {
 	return func(yield func(string, string) bool) {
-		for _, line := range strings.Split(output, "\n") {
+		for line := range strings.SplitSeq(output, "\n") {
 			if line == "" {
 				continue
 			}

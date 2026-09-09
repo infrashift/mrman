@@ -43,8 +43,7 @@ func (d *Driver) wrap(op string, err error) error {
 	if err == nil {
 		return nil
 	}
-	var fe *forge.Error
-	if errors.As(err, &fe) {
+	if _, ok := errors.AsType[*forge.Error](err); ok {
 		return err
 	}
 	if wrapped, ok := wrappedError(err); ok {
@@ -61,12 +60,10 @@ func (d *Driver) wrap(op string, err error) error {
 // wrappedError extracts an azuredevops.WrappedError from err, whether it
 // was returned by value or by pointer.
 func wrappedError(err error) (azuredevops.WrappedError, bool) {
-	var ptr *azuredevops.WrappedError
-	if errors.As(err, &ptr) {
+	if ptr, ok := errors.AsType[*azuredevops.WrappedError](err); ok {
 		return *ptr, true
 	}
-	var val azuredevops.WrappedError
-	if errors.As(err, &val) {
+	if val, ok := errors.AsType[azuredevops.WrappedError](err); ok {
 		return val, true
 	}
 	return azuredevops.WrappedError{}, false

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"hash/fnv"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -229,7 +230,7 @@ func Run(opts cli.TuiOptions) error {
 		m.shutdown(a)
 	}
 	if m.PendingStdout != "" {
-		fmt.Print(m.PendingStdout)
+		_, _ = io.WriteString(os.Stdout, m.PendingStdout)
 	}
 	return err
 }

@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"time"
 
 	"github.com/infrashift/mrman/internal/model"
@@ -139,13 +140,14 @@ func (s *Store) MarkSessionActiveWithGrant(
 				kept = append(kept, e)
 			}
 		}
-		active.Sessions = append(kept, activeSessionEntry{
+		kept = append(kept, activeSessionEntry{
 			Pid:           pid,
 			Slug:          sl.String(),
 			Path:          normalized,
 			LastSeenAt:    nowFn(),
 			GrantedEvents: append([]string(nil), grantedEvents...),
 		})
+		active.Sessions = kept
 		return s.saveActiveSessionsUnlocked(&active)
 	})
 }
@@ -237,10 +239,8 @@ func (s *Store) AgentSubmitGrant(path, event string) (granted []string, reason G
 		if len(e.GrantedEvents) == 0 {
 			continue
 		}
-		for _, allowed := range e.GrantedEvents {
-			if allowed == event {
-				return e.GrantedEvents, GrantOK, nil
-			}
+		if slices.Contains(e.GrantedEvents, event) {
+			return e.GrantedEvents, GrantOK, nil
 		}
 		return e.GrantedEvents, GrantEventNotAllowed, nil
 	}

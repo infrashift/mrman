@@ -15,8 +15,6 @@ import (
 	"github.com/infrashift/mrman/internal/vcs"
 )
 
-func lineno(n uint32) *uint32 { return &n }
-
 // stubBackend satisfies vcs.Backend with fixed context data.
 type stubBackend struct {
 	vcs.UnsupportedBase
@@ -43,10 +41,10 @@ func testApp(t *testing.T) *app.App {
 		Hunks: []model.DiffHunk{{
 			Header: "@@ -1,3 +1,4 @@",
 			Lines: []model.DiffLine{
-				{Origin: model.OriginContext, Content: "package x", OldLineno: lineno(1), NewLineno: lineno(1)},
-				{Origin: model.OriginDeletion, Content: "var A = 1", OldLineno: lineno(2)},
-				{Origin: model.OriginAddition, Content: "var A = 10", NewLineno: lineno(2)},
-				{Origin: model.OriginAddition, Content: "var C = 3", NewLineno: lineno(3)},
+				{Origin: model.OriginContext, Content: "package x", OldLineno: new(uint32(1)), NewLineno: new(uint32(1))},
+				{Origin: model.OriginDeletion, Content: "var A = 1", OldLineno: new(uint32(2))},
+				{Origin: model.OriginAddition, Content: "var A = 10", NewLineno: new(uint32(2))},
+				{Origin: model.OriginAddition, Content: "var C = 3", NewLineno: new(uint32(3))},
 			},
 			OldStart: 1, OldCount: 3, NewStart: 1, NewCount: 4,
 		}},

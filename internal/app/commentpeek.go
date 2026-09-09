@@ -1,6 +1,7 @@
 // commentpeek.go backs the read-only comment peek panel: the way to read a
 // comment whose file you already marked reviewed, without toggling r off and
 // losing your place.
+
 package app
 
 import (

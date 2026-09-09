@@ -10,10 +10,7 @@ func TruncateStr(s string, maxLen int) string {
 	if len(s) <= maxLen {
 		return s
 	}
-	truncateAt := maxLen - 3
-	if truncateAt < 0 {
-		truncateAt = 0
-	}
+	truncateAt := max(maxLen-3, 0)
 	end := 0
 	for i := range s { // i visits rune-start byte offsets
 		if i > truncateAt {
@@ -30,10 +27,7 @@ func TruncateStr(s string, maxLen int) string {
 func TruncateOrPad(s string, width int) string {
 	runes := []rune(s)
 	if len(runes) > width {
-		keep := width - 3
-		if keep < 0 {
-			keep = 0
-		}
+		keep := max(width-3, 0)
 		return string(runes[:keep]) + "..."
 	}
 	return s + strings.Repeat(" ", width-len(runes))
@@ -50,10 +44,7 @@ func TruncateOrPadSpans(spans []Span, width int, base Style) []Span {
 	switch {
 	case total > width:
 		var result []Span
-		remaining := width - 3
-		if remaining < 0 {
-			remaining = 0
-		}
+		remaining := max(width-3, 0)
 		for _, sp := range spans {
 			if remaining == 0 {
 				break
@@ -126,10 +117,7 @@ func (st *wrapState) flushUnit(unit []wrapItem, unitW int) {
 	// Unit is wider than a full row: hard-split it.
 	pos := 0
 	for pos < len(unit) {
-		remaining := st.width - st.currentW
-		if remaining < 0 {
-			remaining = 0
-		}
+		remaining := max(st.width-st.currentW, 0)
 		consumed, consumedW := 0, 0
 		for _, it := range unit[pos:] {
 			if consumedW+it.w > remaining {

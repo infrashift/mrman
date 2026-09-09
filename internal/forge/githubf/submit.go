@@ -24,13 +24,13 @@ func (d *Driver) CreateReview(ctx context.Context, pr *forge.PullRequestDetails,
 		return nil, d.err(op, forge.ErrorValidation, 0, "", err)
 	}
 	reviewReq := &github.PullRequestReviewRequest{
-		CommitID: github.Ptr(req.CommitID),
-		Body:     github.Ptr(req.Body),
+		CommitID: new(req.CommitID),
+		Body:     new(req.Body),
 		Event:    event,
 		Comments: draftComments(req.Comments),
 	}
 	review, _, err := d.rest.PullRequests.CreateReview(ctx, pr.Repository.Owner, pr.Repository.Name,
-		int(pr.Number), reviewReq)
+		int(pr.Number), reviewReq) //nolint:gosec // G115: pull request numbers are small forge-assigned integers
 	if err != nil {
 		return nil, d.wrapCreateReview(err)
 	}
@@ -47,11 +47,11 @@ func (d *Driver) CreateReview(ctx context.Context, pr *forge.PullRequestDetails,
 func githubEvent(event forge.SubmitEvent) (*string, error) {
 	switch event {
 	case forge.SubmitComment:
-		return github.Ptr("COMMENT"), nil
+		return new("COMMENT"), nil
 	case forge.SubmitApprove:
-		return github.Ptr("APPROVE"), nil
+		return new("APPROVE"), nil
 	case forge.SubmitRequestChanges:
-		return github.Ptr("REQUEST_CHANGES"), nil
+		return new("REQUEST_CHANGES"), nil
 	case forge.SubmitDraft:
 		return nil, nil
 	default:
@@ -71,16 +71,16 @@ func draftComments(comments []submit.InlineComment) []*github.DraftReviewComment
 	for i := range comments {
 		c := &comments[i]
 		dc := &github.DraftReviewComment{
-			Path: github.Ptr(c.Path),
-			Body: github.Ptr(c.Body),
-			Line: github.Ptr(int(c.Line)),
-			Side: github.Ptr(githubSide(c.Side)),
+			Path: new(c.Path),
+			Body: new(c.Body),
+			Line: new(int(c.Line)),
+			Side: new(githubSide(c.Side)),
 		}
 		if c.StartLine != nil {
-			dc.StartLine = github.Ptr(int(*c.StartLine))
+			dc.StartLine = new(int(*c.StartLine))
 		}
 		if c.StartSide != nil {
-			dc.StartSide = github.Ptr(githubSide(*c.StartSide))
+			dc.StartSide = new(githubSide(*c.StartSide))
 		}
 		out = append(out, dc)
 	}
@@ -101,8 +101,7 @@ func githubSide(side submit.Side) string {
 // permission failures name the missing PR write scope.
 func (d *Driver) wrapCreateReview(err error) error {
 	const op = "create_review"
-	var ghErr *github.ErrorResponse
-	if errors.As(err, &ghErr) {
+	if ghErr, ok := errors.AsType[*github.ErrorResponse](err); ok {
 		status := 0
 		if ghErr.Response != nil {
 			status = ghErr.Response.StatusCode

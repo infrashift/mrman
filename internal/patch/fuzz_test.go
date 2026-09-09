@@ -11,7 +11,7 @@ func FuzzLoad(f *testing.F) {
 	f.Add("--- \"a/quoted\\303\\251\"\n+++ \"b/quoted\\303\\251\"\n@@ -1 +1 @@\n-a\n+b\n", 0)
 	f.Add("--- x\n+++ y\n@@ -1 +1 @@\n+\\\n", 3)
 	f.Add("", 1)
-	f.Fuzz(func(t *testing.T, text string, strip int) {
+	f.Fuzz(func(_ *testing.T, text string, strip int) {
 		if strip < 0 || strip > 8 {
 			strip = 1
 		}

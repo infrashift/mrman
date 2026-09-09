@@ -80,10 +80,6 @@ func mustJSON(t *testing.T, s string) map[string]any {
 	return v
 }
 
-func uptr(v uint32) *uint32 { return &v }
-
-func sideptr(s submit.Side) *submit.Side { return &s }
-
 func TestCreateReviewCommentSequence(t *testing.T) {
 	h := &submitHandler{t: t}
 	d := newTestDriver(t, h)
@@ -99,7 +95,7 @@ func TestCreateReviewCommentSequence(t *testing.T) {
 			},
 			{
 				Path: "src/main.go", Line: 9, Side: submit.SideNew,
-				StartLine: uptr(6), StartSide: sideptr(submit.SideNew),
+				StartLine: new(uint32(6)), StartSide: new(submit.SideNew),
 				Body: "range comment", CommentID: "c2",
 			},
 			{

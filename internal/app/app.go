@@ -3,6 +3,7 @@
 // HelpState, and the read-only reviewed-state helpers from
 // src/app/reviewed.rs. Pure state — no rendering or theme imports; the ui
 // layer renders from this.
+
 package app
 
 import (

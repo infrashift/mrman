@@ -237,18 +237,18 @@ func (d *Driver) ReviewMetadata(ctx context.Context, pr *forge.PullRequestDetail
 
 // baseVariables builds the shared query variables; $after starts null so
 // the first page needs no separate query shape.
-func (d *Driver) baseVariables(pr *forge.PullRequestDetails) map[string]interface{} {
-	return map[string]interface{}{
+func (d *Driver) baseVariables(pr *forge.PullRequestDetails) map[string]any {
+	return map[string]any{
 		"owner":  githubv4.String(pr.Repository.Owner),
 		"name":   githubv4.String(pr.Repository.Name),
-		"number": githubv4.Int(pr.Number),
+		"number": githubv4.Int(pr.Number), //nolint:gosec // G115: pull request numbers are small forge-assigned integers
 		"after":  (*githubv4.String)(nil),
 	}
 }
 
 // nextCursor advances the $after variable, reporting whether another page
 // exists.
-func nextCursor(variables map[string]interface{}, page gqlPageInfo) bool {
+func nextCursor(variables map[string]any, page gqlPageInfo) bool {
 	if !page.HasNextPage || page.EndCursor == nil {
 		return false
 	}

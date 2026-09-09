@@ -42,7 +42,7 @@ func TestPatchSessionRoundTrips(t *testing.T) {
 	}
 
 	_, loaded, found, err := store.LoadLatestSessionForContext(
-		dir, strp("v2_net_fix"), "9f3c1a2b7d4e5061", model.SourcePatch, nil)
+		dir, new("v2_net_fix"), "9f3c1a2b7d4e5061", model.SourcePatch, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,7 +115,7 @@ func TestPatchSessionIsNeverCarriedForward(t *testing.T) {
 	mustSave(t, store, sess)
 
 	if _, ok, err := store.AdoptSessionForNewHead(
-		dir, strp("series"), "2222222222222222", model.SourcePatch); err != nil || ok {
+		dir, new("series"), "2222222222222222", model.SourcePatch); err != nil || ok {
 		t.Errorf("a patch session must not carry forward (ok=%v, err=%v)", ok, err)
 	}
 }

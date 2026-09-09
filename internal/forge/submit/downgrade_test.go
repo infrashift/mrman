@@ -8,7 +8,7 @@ func TestDowngradeCollapsesRangeToEndLineWithPrefix(t *testing.T) {
 		Path:      "a.go",
 		Line:      12,
 		Side:      SideNew,
-		StartLine: u32(10),
+		StartLine: new(uint32(10)),
 		StartSide: &startSide,
 		Body:      "[NOTE] ranged",
 		CommentID: "c1",
@@ -41,7 +41,7 @@ func TestDowngradeLeavesSingleLineCommentsUntouched(t *testing.T) {
 func TestDowngradeDropsDegenerateRangeWithoutPrefix(t *testing.T) {
 	// StartLine equal to the end line carries no information; clear it
 	// silently instead of writing "Lines 5-5:".
-	in := []InlineComment{{Path: "a.go", Line: 5, Side: SideNew, StartLine: u32(5), Body: "b"}}
+	in := []InlineComment{{Path: "a.go", Line: 5, Side: SideNew, StartLine: new(uint32(5)), Body: "b"}}
 	out := DowngradeMultiline(in)
 	if out[0].Body != "b" || out[0].StartLine != nil {
 		t.Fatalf("comment = %+v", out[0])
@@ -51,7 +51,7 @@ func TestDowngradeDropsDegenerateRangeWithoutPrefix(t *testing.T) {
 func TestDowngradePreservesOrderAndCount(t *testing.T) {
 	in := []InlineComment{
 		{Path: "a.go", Line: 3, Side: SideNew, Body: "one"},
-		{Path: "b.go", Line: 9, Side: SideNew, StartLine: u32(4), Body: "two"},
+		{Path: "b.go", Line: 9, Side: SideNew, StartLine: new(uint32(4)), Body: "two"},
 		{Path: "c.go", Line: 1, Side: SideOld, Body: "three"},
 	}
 	out := DowngradeMultiline(in)

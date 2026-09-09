@@ -27,10 +27,7 @@ func (s *selectorBackend) RecentCommits(offset, limit int) ([]vcs.CommitInfo, er
 	if offset >= len(s.commits) {
 		return nil, nil
 	}
-	end := offset + limit
-	if end > len(s.commits) {
-		end = len(s.commits)
-	}
+	end := min(offset+limit, len(s.commits))
 	return s.commits[offset:end], nil
 }
 

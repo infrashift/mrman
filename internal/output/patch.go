@@ -1,6 +1,7 @@
 package output
 
 import (
+	"slices"
 	"sort"
 	"strings"
 
@@ -357,7 +358,7 @@ func placeComments(
 	for line := range review.LineComments {
 		lines = append(lines, line)
 	}
-	sort.Slice(lines, func(i, j int) bool { return lines[i] < lines[j] })
+	slices.Sort(lines)
 
 	for _, line := range lines {
 		for _, c := range review.LineComments[line] {
@@ -466,7 +467,7 @@ func orphanAll(
 	for line := range review.LineComments {
 		lines = append(lines, line)
 	}
-	sort.Slice(lines, func(i, j int) bool { return lines[i] < lines[j] })
+	slices.Sort(lines)
 
 	var out []OrphanComment
 	for _, line := range lines {

@@ -13,8 +13,8 @@ import (
 
 // gqlRequest is the wire shape the GraphQL client posts.
 type gqlRequest struct {
-	Query     string                 `json:"query"`
-	Variables map[string]interface{} `json:"variables"`
+	Query     string         `json:"query"`
+	Variables map[string]any `json:"variables"`
 }
 
 // graphqlHandler dispatches fixture pages keyed by the $after cursor.

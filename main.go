@@ -118,8 +118,7 @@ func runSubmit(store *persistence.Store, opts reviewcli.Options, args *cli.Args)
 		Options: opts,
 		Event:   args.Review.Event,
 	}, os.Stdout)
-	var denied *agentsubmit.SubmitDenied
-	if errors.As(err, &denied) {
+	if denied, ok := errors.AsType[*agentsubmit.SubmitDenied](err); ok {
 		if writeErr := agentsubmit.WriteDenial(os.Stdout, denied); writeErr != nil {
 			return writeErr
 		}

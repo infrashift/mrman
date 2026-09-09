@@ -5,11 +5,9 @@ import (
 	"testing"
 )
 
-func line(n uint32) *uint32 { return &n }
-
 func TestPlusLineFamily(t *testing.T) {
 	for _, ed := range []string{"vi", "vim", "nvim", "nano"} {
-		cmd := FromEditor(ed, Target{Path: "/repo/src/main.go", Line: line(42)})
+		cmd := FromEditor(ed, Target{Path: "/repo/src/main.go", Line: new(uint32(42))})
 		if cmd.Program != ed || len(cmd.Args) != 2 ||
 			cmd.Args[0] != "+42" || cmd.Args[1] != "/repo/src/main.go" {
 			t.Errorf("%s: got %+v", ed, cmd)
@@ -19,7 +17,7 @@ func TestPlusLineFamily(t *testing.T) {
 
 func TestGotoLineFamily(t *testing.T) {
 	for _, ed := range []string{"code", "code-insiders", "codium", "cursor"} {
-		cmd := FromEditor(ed, Target{Path: "/repo/a.go", Line: line(7)})
+		cmd := FromEditor(ed, Target{Path: "/repo/a.go", Line: new(uint32(7))})
 		if len(cmd.Args) != 2 || cmd.Args[0] != "--goto" || cmd.Args[1] != "/repo/a.go:7" {
 			t.Errorf("%s: got %+v", ed, cmd)
 		}
@@ -27,7 +25,7 @@ func TestGotoLineFamily(t *testing.T) {
 }
 
 func TestPlainFamilyAndNoLine(t *testing.T) {
-	cmd := FromEditor("emacs", Target{Path: "/x.go", Line: line(3)})
+	cmd := FromEditor("emacs", Target{Path: "/x.go", Line: new(uint32(3))})
 	if len(cmd.Args) != 1 || cmd.Args[0] != "/x.go" {
 		t.Errorf("plain: %+v", cmd)
 	}
@@ -39,7 +37,7 @@ func TestPlainFamilyAndNoLine(t *testing.T) {
 }
 
 func TestUserArgsPreservedAndQuoting(t *testing.T) {
-	cmd := FromEditor(`vim -u "/home/me/my vimrc"`, Target{Path: "/x.go", Line: line(9)})
+	cmd := FromEditor(`vim -u "/home/me/my vimrc"`, Target{Path: "/x.go", Line: new(uint32(9))})
 	if cmd.Program != "vim" || len(cmd.Args) != 4 {
 		t.Fatalf("got %+v", cmd)
 	}
@@ -51,7 +49,7 @@ func TestUserArgsPreservedAndQuoting(t *testing.T) {
 
 func TestFallbackToVi(t *testing.T) {
 	for _, bad := range []string{"", `unclosed "quote`} {
-		cmd := FromEditor(bad, Target{Path: "/x.go", Line: line(2)})
+		cmd := FromEditor(bad, Target{Path: "/x.go", Line: new(uint32(2))})
 		if cmd.Program != "vi" || cmd.Args[0] != "+2" {
 			t.Errorf("%q: got %+v", bad, cmd)
 		}
@@ -59,7 +57,7 @@ func TestFallbackToVi(t *testing.T) {
 }
 
 func TestFamilyByBasename(t *testing.T) {
-	cmd := FromEditor("/usr/local/bin/nvim", Target{Path: "/x.go", Line: line(5)})
+	cmd := FromEditor("/usr/local/bin/nvim", Target{Path: "/x.go", Line: new(uint32(5))})
 	if cmd.Args[0] != "+5" {
 		t.Errorf("path-qualified nvim must be PlusLine: %+v", cmd)
 	}

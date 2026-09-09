@@ -18,7 +18,7 @@ func withNow(t *testing.T, fake func() time.Time) {
 
 func TestMarkAndClearActiveSession(t *testing.T) {
 	store := newTestStore(t)
-	sess := makeLocalSession(t, makeRepo(t), "abc1234", strp("main"), model.SourceWorkingTree, nil)
+	sess := makeLocalSession(t, makeRepo(t), "abc1234", new("main"), model.SourceWorkingTree, nil)
 	path := mustSave(t, store, sess)
 
 	if err := store.MarkSessionActive(sess, path); err != nil {
@@ -46,7 +46,7 @@ func TestMarkAndClearActiveSession(t *testing.T) {
 
 func TestMarkSessionActiveSupersedesSamePathEntry(t *testing.T) {
 	store := newTestStore(t)
-	sess := makeLocalSession(t, makeRepo(t), "abc1234", strp("main"), model.SourceWorkingTree, nil)
+	sess := makeLocalSession(t, makeRepo(t), "abc1234", new("main"), model.SourceWorkingTree, nil)
 	path := mustSave(t, store, sess)
 
 	// A previous (fresh, live) entry from another pid for the same path is
@@ -83,7 +83,7 @@ func TestMarkSessionActiveSupersedesSamePathEntry(t *testing.T) {
 
 func TestActiveSessionStaleAfterAge(t *testing.T) {
 	store := newTestStore(t)
-	sess := makeLocalSession(t, makeRepo(t), "abc1234", strp("main"), model.SourceWorkingTree, nil)
+	sess := makeLocalSession(t, makeRepo(t), "abc1234", new("main"), model.SourceWorkingTree, nil)
 	path := mustSave(t, store, sess)
 	if err := store.MarkSessionActive(sess, path); err != nil {
 		t.Fatal(err)
@@ -102,7 +102,7 @@ func TestActiveSessionStaleAfterAge(t *testing.T) {
 
 func TestActiveSessionStaleWhenHeartbeatInFuture(t *testing.T) {
 	store := newTestStore(t)
-	sess := makeLocalSession(t, makeRepo(t), "abc1234", strp("main"), model.SourceWorkingTree, nil)
+	sess := makeLocalSession(t, makeRepo(t), "abc1234", new("main"), model.SourceWorkingTree, nil)
 	path := mustSave(t, store, sess)
 
 	seed := activeSessionsFile{
@@ -131,7 +131,7 @@ func TestActiveSessionStaleWhenHeartbeatInFuture(t *testing.T) {
 
 func TestActiveSessionStaleWhenProcessDead(t *testing.T) {
 	store := newTestStore(t)
-	sess := makeLocalSession(t, makeRepo(t), "abc1234", strp("main"), model.SourceWorkingTree, nil)
+	sess := makeLocalSession(t, makeRepo(t), "abc1234", new("main"), model.SourceWorkingTree, nil)
 	path := mustSave(t, store, sess)
 	if err := store.MarkSessionActive(sess, path); err != nil {
 		t.Fatal(err)
@@ -150,7 +150,7 @@ func TestActiveSessionStaleWhenProcessDead(t *testing.T) {
 
 func TestActiveSessionStaleWhenPathMissing(t *testing.T) {
 	store := newTestStore(t)
-	sess := makeLocalSession(t, makeRepo(t), "abc1234", strp("main"), model.SourceWorkingTree, nil)
+	sess := makeLocalSession(t, makeRepo(t), "abc1234", new("main"), model.SourceWorkingTree, nil)
 	path := mustSave(t, store, sess)
 	if err := store.MarkSessionActive(sess, path); err != nil {
 		t.Fatal(err)
@@ -170,7 +170,7 @@ func TestActiveSessionStaleWhenPathMissing(t *testing.T) {
 
 func TestActiveSessionsFileCorruptRecovers(t *testing.T) {
 	store := newTestStore(t)
-	sess := makeLocalSession(t, makeRepo(t), "abc1234", strp("main"), model.SourceWorkingTree, nil)
+	sess := makeLocalSession(t, makeRepo(t), "abc1234", new("main"), model.SourceWorkingTree, nil)
 	path := mustSave(t, store, sess)
 	writeTestFile(t, store.activeSessionsPath(), "not json {")
 
@@ -190,7 +190,7 @@ func TestActiveSessionsFileCorruptRecovers(t *testing.T) {
 // staleness window keeps its entry, and its grant, by heartbeating.
 func TestTouchKeepsALongRunningSessionFresh(t *testing.T) {
 	store := newTestStore(t)
-	sess := makeLocalSession(t, makeRepo(t), "abc1234", strp("main"), model.SourceWorkingTree, nil)
+	sess := makeLocalSession(t, makeRepo(t), "abc1234", new("main"), model.SourceWorkingTree, nil)
 	path := mustSave(t, store, sess)
 
 	now := time.Now()

@@ -27,7 +27,7 @@ func (d *Driver) GetPullRequest(ctx context.Context, target forge.Target) (*forg
 			fmt.Errorf("merge request target %q does not include a valid number", target.Original))
 	}
 	pr, _, err := d.rest.PullRequests.Get(ctx, target.Repository.Owner, target.Repository.Name,
-		int(target.Number))
+		int(target.Number)) //nolint:gosec // G115: pull request numbers are small forge-assigned integers
 	if err != nil {
 		return nil, d.wrap(op, err)
 	}
@@ -41,7 +41,7 @@ func (d *Driver) GetPullRequest(ctx context.Context, target forge.Target) (*forg
 	return &forge.PullRequestDetails{
 		PullRequestSummary: forge.PullRequestSummary{
 			Repository:  *target.Repository,
-			Number:      uint64(pr.GetNumber()),
+			Number:      uint64(pr.GetNumber()), //nolint:gosec // G115: the forge never returns a negative id
 			Title:       pr.GetTitle(),
 			Author:      pr.GetUser().GetLogin(),
 			HeadRefName: pr.GetHead().GetRef(),
@@ -63,7 +63,7 @@ func (d *Driver) GetPullRequest(ctx context.Context, target forge.Target) (*forg
 func (d *Driver) GetDiff(ctx context.Context, pr *forge.PullRequestDetails) (string, error) {
 	const op = "get_diff"
 	diff, _, err := d.rest.PullRequests.GetRaw(ctx, pr.Repository.Owner, pr.Repository.Name,
-		int(pr.Number), github.RawOptions{Type: github.Diff})
+		int(pr.Number), github.RawOptions{Type: github.Diff}) //nolint:gosec // G115: pull request numbers are small forge-assigned integers
 	if err != nil {
 		return "", d.wrap(op, err)
 	}
@@ -112,7 +112,7 @@ func (d *Driver) ListCommits(ctx context.Context, pr *forge.PullRequestDetails) 
 	page := 1
 	for range maxCommitPages {
 		rows, resp, err := d.rest.PullRequests.ListCommits(ctx, pr.Repository.Owner, pr.Repository.Name,
-			int(pr.Number), &github.ListOptions{Page: page, PerPage: 100})
+			int(pr.Number), &github.ListOptions{Page: page, PerPage: 100}) //nolint:gosec // G115: pull request numbers are small forge-assigned integers
 		if err != nil {
 			return nil, d.wrap(op, err)
 		}
