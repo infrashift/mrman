@@ -113,9 +113,14 @@ it rather than leaving you guessing which one won.
 
 Tokens resolve per host in this order: a SaaS-scoped environment variable
 (`GITHUB_TOKEN`, `GITLAB_TOKEN`, `AZURE_DEVOPS_EXT_PAT`,
-`FORGEJO_TOKEN` / `CODEBERG_TOKEN`), then `token`, then `token_cmd`, then
-`gh auth token` for GitHub. `insecure_skip_verify` exists per host and
-should stay a last resort.
+`FORGEJO_TOKEN` / `CODEBERG_TOKEN`; `GH_ENTERPRISE_TOKEN` for other GitHub
+hosts), then `token`, then `token_cmd`, then `gh auth token` for GitHub.
+
+Only a **trusted host** receives any of them: the four SaaS hosts, or a host
+with its own `[[forge.hosts]]` entry. Every other host is connected to
+without credentials and a warning names the entry to add — mrman can guess
+which forge a host runs from a URL, but a guess is not grounds to send it a
+token. `insecure_skip_verify` exists per host and should stay a last resort.
 
 ### What each forge can do
 

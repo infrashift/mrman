@@ -79,6 +79,9 @@ func openPullRequest(target string, opts cli.TuiOptions) (*prOpen, error) {
 		return nil, fmt.Errorf("cannot determine the repository for '%s': run inside a checkout or pass owner/repo#%d", target, parsed.Number)
 	}
 
+	if !forge.HostTrusted(repo.Host, cfg.Forge) {
+		warnings = append(warnings, forge.UntrustedHostWarning(repo.Host))
+	}
 	backend, err := forge.ForRepository(*repo, cfg.Forge)
 	if err != nil {
 		return nil, err
@@ -252,6 +255,9 @@ func RunPrHeadless(target string, opts cli.TuiOptions, out io.Writer) error {
 	opened, err := openPullRequest(target, opts)
 	if err != nil {
 		return err
+	}
+	for _, w := range opened.warnings {
+		fmt.Fprintf(os.Stderr, "mrman: %s\n", w)
 	}
 	details := opened.load.Details
 

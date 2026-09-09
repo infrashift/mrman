@@ -50,6 +50,13 @@ This scoping is deliberate. `GITHUB_TOKEN` is read **only** for github.com, so
 a token in your shell for public work never leaks to your employer's
 on-premise instance, and vice versa.
 
+The `[[forge.hosts]]` entry above is required for *any* credential, not just
+for `api_base`: `GH_ENTERPRISE_TOKEN` is read only for hosts you have listed.
+Without an entry mrman still recognises the host as GitHub — from the URL,
+or from a hostname containing "github" — but connects unauthenticated and
+warns, so a pasted link to a look-alike domain can never be handed your
+enterprise token.
+
 Resolution order for a GHE host, first hit wins:
 
 1. `GH_ENTERPRISE_TOKEN`
@@ -88,7 +95,9 @@ ca_file = "/etc/ssl/corp-root.pem"
 
 There is also `insecure_skip_verify = true` per host. It exists because
 sometimes you need to get work done, and it should stay a last resort — it
-disables certificate verification for that host entirely.
+disables certificate verification for that host entirely. mrman reminds you
+it is on with a warning at every start, so it does not outlive the outage
+that justified it.
 
 ## SSH remotes
 
