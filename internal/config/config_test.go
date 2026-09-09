@@ -789,3 +789,16 @@ func TestDirAndLoad(t *testing.T) {
 		t.Errorf("Username = %q, want xdg-user", cfg.Username)
 	}
 }
+
+func TestPlaintextAPIBaseWarns(t *testing.T) {
+	_, warnings := loadString(t, `
+[[forge.hosts]]
+host = "fixture.local"
+forge = "github"
+api_base = "http://fixture.local:8080/api/v3"
+`)
+	if len(warnings) != 1 || !strings.Contains(warnings[0], "plaintext http") ||
+		!strings.Contains(warnings[0], "fixture.local") {
+		t.Fatalf("warnings = %q, want the plaintext api_base notice", warnings)
+	}
+}

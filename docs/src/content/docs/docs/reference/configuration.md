@@ -120,7 +120,14 @@ Only a **trusted host** receives any of them: the four SaaS hosts, or a host
 with its own `[[forge.hosts]]` entry. Every other host is connected to
 without credentials and a warning names the entry to add — mrman can guess
 which forge a host runs from a URL, but a guess is not grounds to send it a
-token. `insecure_skip_verify` exists per host and should stay a last resort.
+token. `insecure_skip_verify` exists per host and should stay a last resort;
+mrman warns at every start while it is on.
+
+Requests to a host stay on that host: a redirect to another origin — or from
+https down to http — is refused rather than followed with the token attached.
+`api_base` may be plain `http://` for a fixture server, and mrman warns at
+start that tokens for that host travel unencrypted. Every request carries a
+90-second timeout so a stalled forge cannot hang the review.
 
 ### What each forge can do
 
