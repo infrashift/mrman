@@ -7,6 +7,8 @@ import (
 	"net"
 	"strings"
 
+	"github.com/infrashift/mrman/internal/textsafe"
+
 	"github.com/infrashift/mrman/internal/errs"
 	"github.com/infrashift/mrman/internal/forge/forgetypes"
 )
@@ -114,8 +116,14 @@ type Error struct {
 	Err error
 }
 
-// Error implements the error interface.
+// Error implements the error interface. The wrapped SDK error often quotes
+// the response body, which is forge-authored text, so the result is
+// scrubbed before it can reach the status bar.
 func (e *Error) Error() string {
+	return textsafe.SanitizeLine(e.render())
+}
+
+func (e *Error) render() string {
 	var b strings.Builder
 	if e.ForgeID != "" {
 		b.WriteString(string(e.ForgeID))

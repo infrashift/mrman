@@ -265,10 +265,27 @@ func TestExecClipboardCmdRunsRealCommand(t *testing.T) {
 	}
 }
 
-func TestDefaultOpenTTYNeverFails(t *testing.T) {
+// TestDefaultOpenTTYNeverWritesEscapesIntoAPipe pins the contract: with a
+// controlling terminal the tty is used; without one, stdout is used only
+// when it is itself a terminal, and otherwise the copy fails rather than
+// leaking an OSC 52 sequence into whatever stdout is redirected to. Under
+// `go test` stdout is a pipe, so the fallback must be an error whenever
+// /dev/tty cannot be opened.
+func TestDefaultOpenTTYNeverWritesEscapesIntoAPipe(t *testing.T) {
 	w, err := defaultOpenTTY()
-	if err != nil || w == nil {
-		t.Fatalf("defaultOpenTTY = (%v, %v)", w, err)
+	if err != nil {
+		if w != nil {
+			t.Fatalf("error and writer both returned: %v", err)
+		}
+		if !strings.Contains(err.Error(), "no controlling terminal") {
+			t.Fatalf("err = %v, want it to explain the missing terminal", err)
+		}
+		return
+	}
+	// /dev/tty opened: this is a real terminal session. It must not be
+	// the stdout shim, because stdout is a pipe here.
+	if _, isStdout := w.(nopCloser); isStdout {
+		t.Fatal("fell back to a non-terminal stdout")
 	}
 	if err := w.Close(); err != nil {
 		t.Errorf("Close: %v", err)

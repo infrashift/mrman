@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/infrashift/mrman/internal/textsafe"
+
 	"github.com/infrashift/mrman/internal/errs"
 	"github.com/infrashift/mrman/internal/model"
 	"github.com/infrashift/mrman/internal/persistence"
@@ -76,8 +78,10 @@ func Add(store *persistence.Store, opts Options, out io.Writer) error {
 	var added *model.Comment
 	_, err = store.UpdateSession(path, func(session *model.ReviewSession) error {
 		added, err = AddCommentToSession(session, AddCommentRequest{
-			Target:      target,
-			Content:     content,
+			Target: target,
+			// An agent's comment is input from a process the user does
+			// not read before it lands on their screen.
+			Content:     textsafe.Sanitize(content),
 			CommentType: model.CommentTypeFromID(commentType),
 			Author:      resolveAuthor(username),
 		})

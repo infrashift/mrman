@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/infrashift/mrman/internal/textsafe"
+
 	"github.com/infrashift/mrman/internal/errs"
 	"github.com/infrashift/mrman/internal/model"
 	"github.com/infrashift/mrman/internal/syntax"
@@ -51,7 +53,12 @@ func Parse(text string, format Format, h *syntax.Highlighter) ([]model.DiffFile,
 // huge diffs without buffering. Highlighter h may be nil (no spans).
 // It returns errs.ErrNoChanges when the stream contains no file diffs.
 func ParseLines(next func() (string, bool, error), format Format, h *syntax.Highlighter) ([]model.DiffFile, error) {
-	src := &lineSource{next: next}
+	// Every diff mrman shows — from a forge, a patch file, git or jj —
+	// enters here, so this is where terminal control sequences leave it.
+	src := &lineSource{next: func() (string, bool, error) {
+		line, ok, err := next()
+		return textsafe.SanitizeLine(line), ok, err
+	}}
 	var files []model.DiffFile
 
 	headerPrefix := "diff --git "

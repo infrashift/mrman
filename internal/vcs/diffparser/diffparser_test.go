@@ -946,3 +946,18 @@ func TestParseDiffGitHeader(t *testing.T) {
 		})
 	}
 }
+
+// TestParseScrubsTerminalControls pins that a diff is scrubbed on the way
+// in: every backend and every forge feeds this parser, so a hostile line in
+// a pull request or a mailed patch cannot restyle the terminal.
+func TestParseScrubsTerminalControls(t *testing.T) {
+	diff := "diff --git a/x.go b/x.go\n--- a/x.go\n+++ b/x.go\n@@ -1 +1 @@\n-old\n+\x1b[31mfoo\x1b[0m\x07\n"
+	files, err := Parse(diff, GitStyle, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	line := files[0].Hunks[0].Lines[1]
+	if line.Content != "foo" || line.Raw != "+foo" {
+		t.Fatalf("line = %+v, want the escapes and the bell gone", line)
+	}
+}

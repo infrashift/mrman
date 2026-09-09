@@ -1,11 +1,14 @@
 package output
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"runtime"
 	"strings"
+
+	"github.com/charmbracelet/x/term"
 
 	"github.com/infrashift/mrman/internal/errs"
 )
@@ -111,15 +114,19 @@ func execClipboardCmd(name string, args []string, stdin string) error {
 	return cmd.Run()
 }
 
-// defaultOpenTTY opens /dev/tty for writing, falling back to stdout when no
-// controlling terminal is available (matching tuicr, which writes OSC 52 to
-// stdout).
+// defaultOpenTTY opens /dev/tty for writing. Without a controlling
+// terminal it falls back to stdout only when stdout *is* a terminal; an
+// OSC 52 sequence written into a pipe or a file is not a clipboard copy,
+// it is an escape sequence handed to whatever reads that stream.
 func defaultOpenTTY() (io.WriteCloser, error) {
 	tty, err := os.OpenFile("/dev/tty", os.O_WRONLY, 0)
-	if err != nil {
+	if err == nil {
+		return tty, nil
+	}
+	if term.IsTerminal(os.Stdout.Fd()) {
 		return nopCloser{os.Stdout}, nil
 	}
-	return tty, nil
+	return nil, fmt.Errorf("no controlling terminal for OSC 52: %w", err)
 }
 
 // nopCloser adapts a Writer we must not close (stdout) to WriteCloser.

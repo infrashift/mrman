@@ -126,10 +126,16 @@ func ForRepository(repo forgetypes.Repository, cfg config.ForgeConfig) (Forge, e
 	if err != nil {
 		return nil, err
 	}
+	var f Forge
 	if d.NewForRepo != nil {
-		return d.NewForRepo(hc, repo)
+		f, err = d.NewForRepo(hc, repo)
+	} else {
+		f, err = d.New(hc)
 	}
-	return d.New(hc)
+	if err != nil {
+		return nil, err
+	}
+	return Sanitized(f), nil
 }
 
 // kindFromConfigName maps a config forge name to a Kind, accepting the
