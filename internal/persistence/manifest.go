@@ -265,7 +265,7 @@ func loadManifestOrDefault(reviewsDir string) *Manifest {
 // index.json.tmp which is then renamed over index.json, so a concurrent
 // reader sees either the old version or the new one, never a partial write.
 func SaveManifest(reviewsDir string, m *Manifest) error {
-	if err := os.MkdirAll(reviewsDir, 0o755); err != nil {
+	if err := os.MkdirAll(reviewsDir, dirMode); err != nil {
 		return err
 	}
 	data, err := marshalPretty(m)
@@ -273,7 +273,7 @@ func SaveManifest(reviewsDir string, m *Manifest) error {
 		return err
 	}
 	tmp := filepath.Join(reviewsDir, ManifestFilename+".tmp")
-	f, err := os.Create(tmp)
+	f, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, fileMode)
 	if err != nil {
 		return err
 	}

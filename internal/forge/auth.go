@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -22,10 +23,14 @@ import (
 var (
 	// lookupEnv reads an environment variable.
 	lookupEnv = os.LookupEnv
-	// runTokenCmd executes a config token_cmd via `sh -c` and returns
-	// the first stdout line.
+	// runTokenCmd executes a config token_cmd via `sh -c` (`cmd /C` on
+	// Windows) and returns the first stdout line.
 	runTokenCmd = func(command string) (string, error) {
-		out, err := exec.Command("sh", "-c", command).Output()
+		shell, flag := "sh", "-c"
+		if runtime.GOOS == "windows" {
+			shell, flag = "cmd", "/C"
+		}
+		out, err := exec.Command(shell, flag, command).Output()
 		if err != nil {
 			var exitErr *exec.ExitError
 			if errors.As(err, &exitErr) && len(exitErr.Stderr) > 0 {
