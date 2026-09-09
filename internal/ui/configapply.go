@@ -53,6 +53,7 @@ func applyConfig(cfg config.Config, a *app.App, m *Model) {
 	m.export.ShowLegend = cfg.ExportLegend
 	m.export.TemplatePath = cfg.Templates.Notes
 	m.export.ReviewBodyTemplatePath = cfg.Templates.ReviewBody
+	m.export.PatchTemplatePath = cfg.Templates.PatchReply
 	if m.session != nil && cfg.ReviewWatchIntervalMS >= 0 {
 		if cfg.ReviewWatchIntervalMS == 0 {
 			m.session.watchEvery = 0 // 0 disables via the poll guard below

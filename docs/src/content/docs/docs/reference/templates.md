@@ -3,18 +3,20 @@ title: Templates
 description: Override the exported review markdown and the review body posted with :submit, using Go text/template and a documented data model.
 ---
 
-Two pieces of markdown mrman produces are templated, with embedded defaults you
+Three pieces of text mrman produces are templated, with embedded defaults you
 can replace:
 
 | Template | Renders |
 |---|---|
 | `notes` | The export from `y`, `:clip`, `:export` and `--stdout` |
 | `review_body` | The body posted with `:submit` |
+| `patch_reply` | The mail reply from `:patch` when reviewing a patch series |
 
 ```toml
 [templates]
 notes = "~/.config/mrman/templates/notes.md.tmpl"
 review_body = "~/.config/mrman/templates/review_body.md.tmpl"
+patch_reply = "~/.config/mrman/templates/patch_reply.txt.tmpl"
 ```
 
 Both are Go [`text/template`](https://pkg.go.dev/text/template). A template that
@@ -157,6 +159,17 @@ The default:
 see [preflight](../../guides/merge-requests/#preflight) for the reasons a comment
 ends up there. **Keep that section in any override**, or you will silently lose
 comments on submit.
+
+## The patch-reply template
+
+`:patch` quotes the diff with your comments interleaved, for replying on a
+mailing list. Its data model (`PatchData`: the reply headers, one entry per
+file and hunk with the quoted lines, and the comments that could not be
+placed) is in `internal/output/patch.go`; the embedded default is
+`internal/output/templates/patch_reply.txt.tmpl` and the same `upper`,
+`trunc`, `indent`, `join` and `codefence` helpers apply. Start from the
+default when overriding — the quoting rules it encodes are what make the
+reply threadable.
 
 ## Testing an override
 

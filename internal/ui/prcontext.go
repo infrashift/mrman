@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"context"
 	"errors"
 
 	tea "charm.land/bubbletea/v2"
@@ -48,8 +47,8 @@ func (m *Model) fetchPrContext(req app.PrContextRequest) tea.Cmd {
 		Status:     req.Status,
 		Side:       req.Side(),
 	}
+	ctx := m.inflight.root()
 	return func() tea.Msg {
-		ctx := context.Background()
 		count, err := backend.FileLineCount(ctx, lineReq)
 		if err != nil {
 			return prContextResultMsg{Gen: gen, Key: key, Request: req, Err: err}

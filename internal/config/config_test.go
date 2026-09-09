@@ -802,3 +802,16 @@ api_base = "http://fixture.local:8080/api/v3"
 		t.Fatalf("warnings = %q, want the plaintext api_base notice", warnings)
 	}
 }
+
+func TestPatchReplyTemplateKey(t *testing.T) {
+	cfg, warnings := loadString(t, `
+[templates]
+patch_reply = "/abs/reply.txt.tmpl"
+`)
+	if len(warnings) != 0 {
+		t.Fatalf("warnings = %q", warnings)
+	}
+	if cfg.Templates.PatchReply != "/abs/reply.txt.tmpl" {
+		t.Fatalf("PatchReply = %q", cfg.Templates.PatchReply)
+	}
+}

@@ -1,8 +1,6 @@
 package ui
 
 import (
-	"context"
-
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/infrashift/mrman/internal/app"
@@ -99,8 +97,9 @@ func (m *Model) reloadPrCommitRange() tea.Cmd {
 	highlighter := m.Theme.Highlighter()
 	localCheckout := m.localCheckout
 
+	ctx := m.inflight.replace(&m.inflight.rangeDiff)
 	return func() tea.Msg {
-		patch, err := backend.GetCommitRangeDiff(context.Background(), details, startSHA, endSHA)
+		patch, err := backend.GetCommitRangeDiff(ctx, details, startSHA, endSHA)
 		if err != nil {
 			return prRangeDiffResultMsg{Gen: gen, Key: key, Err: err}
 		}

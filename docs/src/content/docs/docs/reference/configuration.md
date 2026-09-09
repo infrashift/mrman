@@ -175,6 +175,7 @@ warns and falls through.
 [templates]
 notes = "~/.config/mrman/templates/notes.md.tmpl"
 review_body = "~/.config/mrman/templates/review_body.md.tmpl"
+patch_reply = "~/.config/mrman/templates/patch_reply.txt.tmpl"
 ```
 
 `notes` renders `y` / `:clip` output; `review_body` renders the body posted

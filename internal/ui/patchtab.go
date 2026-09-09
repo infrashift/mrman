@@ -180,7 +180,7 @@ func (m *Model) openSelectedPatch() {
 	info := backend.Info()
 	fresh := model.NewReviewSession(info.RootPath, info.HeadCommit, info.BranchName, model.SourcePatch)
 	if m.session != nil {
-		m.session.finish(a)
+		m.shutdown(a)
 	}
 	lifecycle, session := openSession(m.store, fresh)
 	m.session = lifecycle

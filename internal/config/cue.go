@@ -61,6 +61,7 @@ var keyMessages = map[string]string{ //nolint:gosec // G101: key names and their
 	"templates":                 "must be a table",
 	"templates.notes":           "must be a string",
 	"templates.review_body":     "must be a string",
+	"templates.patch_reply":     "must be a string",
 	"forge":                     "must be a table",
 	"forge.default":             forgeKindMessage,
 	"forge.comment_type_prefix": "must be true or false",
