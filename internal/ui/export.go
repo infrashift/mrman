@@ -121,6 +121,11 @@ func (m *Model) patchReplyToClipboard() (pendingStdout string) {
 	return m.deliverExport(renderPatchReply, "Reply")
 }
 
+// copyText is the clipboard seam. Tests replace it: under `go test` there
+// is no controlling terminal, and the real function refuses to write an
+// OSC 52 sequence into a pipe.
+var copyText = output.CopyText
+
 // deliverExport renders with the given renderer and puts the result where the
 // reviewer asked for it, setting the outcome message. pendingStdout is
 // returned non-empty in --stdout mode: the caller prints it after the TUI
@@ -142,7 +147,7 @@ func (m *Model) deliverExport(
 		a.SetMessage(noun + " will print to stdout on exit")
 		return text
 	}
-	viaTerminal, err := output.CopyText(text)
+	viaTerminal, err := copyText(text)
 	switch {
 	case err != nil:
 		a.SetError("Clipboard failed: " + err.Error())

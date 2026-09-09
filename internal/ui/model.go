@@ -14,7 +14,6 @@ import (
 	"github.com/infrashift/mrman/internal/forge/forgetypes"
 	"github.com/infrashift/mrman/internal/input"
 	"github.com/infrashift/mrman/internal/model"
-	"github.com/infrashift/mrman/internal/output"
 	"github.com/infrashift/mrman/internal/persistence"
 	"github.com/infrashift/mrman/internal/theme"
 	"github.com/infrashift/mrman/internal/version"
@@ -894,7 +893,7 @@ func (m *Model) dispatchVisual(action input.Action) bool {
 			a.SetError("Copy failed: " + err.Error())
 			break
 		}
-		if _, copyErr := output.CopyText(text); copyErr != nil {
+		if _, copyErr := copyText(text); copyErr != nil {
 			a.SetError("Clipboard failed: " + copyErr.Error())
 		} else {
 			a.SetMessage(fmt.Sprintf("Yanked %d character(s)", chars))

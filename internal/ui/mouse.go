@@ -16,7 +16,6 @@ import (
 	"github.com/infrashift/mrman/internal/app"
 	"github.com/infrashift/mrman/internal/input"
 	"github.com/infrashift/mrman/internal/model"
-	"github.com/infrashift/mrman/internal/output"
 )
 
 // Wheel step sizes, matching tuicr's WHEEL_LINES / WHEEL_COLS.
@@ -341,7 +340,7 @@ func (m *Model) yankMouseSelection() bool {
 		a.SetError("Copy failed: " + err.Error())
 		return true
 	}
-	if _, copyErr := output.CopyText(text); copyErr != nil {
+	if _, copyErr := copyText(text); copyErr != nil {
 		a.SetError("Clipboard failed: " + copyErr.Error())
 	} else {
 		a.SetMessage(fmt.Sprintf("Yanked %d character(s)", chars))
