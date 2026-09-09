@@ -204,6 +204,11 @@ directly and mrman cannot stop it. If that is your threat model, the control
 belongs at the credential: give agent sessions a token without write scope, or
 no token at all.
 
+The grant is keyed to the TUI's process id and checked for liveness on every
+submit, on Linux, macOS and Windows alike. The files that record it live in
+`~/.local/share/mrman/reviews/`, which mrman keeps owner-only (0700/0600);
+an older store is tightened the first time a newer mrman opens it.
+
 ## Comments an agent must not touch
 
 A comment whose `lifecycle_state` is `pushed_draft` or `submitted` is already

@@ -242,7 +242,7 @@ Listing the host is what turns authentication on.
 | `~/.config/mrman/config.toml` | [Configuration](../configuration/) |
 | `~/.config/mrman/themes/` | [Local themes](../themes/) |
 | `~/.config/mrman/templates/` | [Templates](../templates/) (by convention) |
-| `~/.local/share/mrman/reviews/` | Saved sessions (`sessions/<repo>@<what>-<hash>.json`) |
+| `~/.local/share/mrman/reviews/` | Saved sessions (`sessions/<repo>@<what>-<hash>.json`), owner-only: directories 0700, files 0600 |
 | `<repo>/.mrmanignore` | Per-repository ignore rules |
 
 `$XDG_CONFIG_HOME` and `$XDG_DATA_HOME` are honored if set.

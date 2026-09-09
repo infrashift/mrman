@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -972,5 +973,74 @@ func TestNoMigrationWhenReviewsDirMissing(t *testing.T) {
 	}
 	if fileExists(t, store.ReviewsDir) {
 		t.Fatal("maybeMigrate must not create the reviews dir")
+	}
+}
+
+// TestStoreFilesArePrivate pins the modes: sessions carry private-repo diff
+// context and review text, so nothing under the store may be group- or
+// world-readable.
+func TestStoreFilesArePrivate(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX modes")
+	}
+	store := newTestStore(t)
+	sess := makeLocalSession(t, makeRepo(t), "abc123", strp("main"), model.SourceWorkingTree, nil)
+	path, err := store.SaveSession(sess)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.MarkSessionActive(sess, path); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []string{
+		store.ReviewsDir,
+		filepath.Join(store.ReviewsDir, SessionsDirname),
+		filepath.Join(store.ReviewsDir, ManifestFilename),
+		store.activeSessionsPath(),
+		path,
+	} {
+		info, err := os.Stat(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if info.Mode().Perm()&0o077 != 0 {
+			t.Errorf("%s has mode %o; must be owner-only", p, info.Mode().Perm())
+		}
+	}
+}
+
+func TestNewDefaultStoreHardensExistingFiles(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX modes")
+	}
+	tmp := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", tmp)
+	xdg.Reload()
+	t.Cleanup(xdg.Reload)
+
+	// A store as an earlier mrman left it: 0755 dirs, 0644 files.
+	dir := filepath.Join(tmp, "mrman", "reviews")
+	if err := os.MkdirAll(filepath.Join(dir, SessionsDirname), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	old := filepath.Join(dir, SessionsDirname, "old.json")
+	if err := os.WriteFile(old, []byte("{}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, ManifestFilename), []byte("{}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := NewDefaultStore(); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []string{dir, filepath.Join(dir, SessionsDirname), old} {
+		info, err := os.Stat(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if info.Mode().Perm()&0o077 != 0 {
+			t.Errorf("%s still has mode %o after opening the store", p, info.Mode().Perm())
+		}
 	}
 }

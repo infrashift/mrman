@@ -67,7 +67,7 @@ Resolution order for a GHE host, first hit wins:
 
 ### Keeping the token out of your config file
 
-`token_cmd` runs through `sh -c` and its result is cached for the process, so a
+`token_cmd` runs through `sh -c` (`cmd /C` on Windows) and its result is cached for the process, so a
 password manager works cleanly:
 
 ```toml

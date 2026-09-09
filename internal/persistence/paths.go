@@ -51,6 +51,15 @@ import (
 // nowFn is an injection seam for deterministic time-dependent tests.
 var nowFn = time.Now
 
+// Everything under the reviews dir is private to the user: a session holds
+// the diff context of whatever was reviewed, which may be a private
+// repository, and the comments written about it. The umask is not enough —
+// the common 022 leaves files world-readable.
+const (
+	dirMode  = 0o700
+	fileMode = 0o600
+)
+
 // Store is the persistence layer rooted at one reviews directory. Tests point
 // ReviewsDir at a t.TempDir(); production code uses NewDefaultStore.
 type Store struct {
@@ -63,14 +72,47 @@ type Store struct {
 // pre-flat layout aside.
 func NewDefaultStore() (*Store, error) {
 	dir := filepath.Join(xdg.DataHome, "mrman", "reviews")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, dirMode); err != nil {
 		return nil, fmt.Errorf("create reviews dir: %w", err)
 	}
 	s := &Store{ReviewsDir: dir}
+	s.hardenPermissions()
 	if err := s.maybeMigrate(); err != nil {
 		return nil, err
 	}
 	return s, nil
+}
+
+// hardenPermissions brings a store written by an earlier mrman, which
+// created world-readable files, down to owner-only. Best effort and
+// effectively once: when the manifest is already private the walk is
+// skipped. Windows has no POSIX modes to fix.
+func (s *Store) hardenPermissions() {
+	if runtime.GOOS == "windows" {
+		return
+	}
+	if info, err := os.Stat(filepath.Join(s.ReviewsDir, ManifestFilename)); err == nil &&
+		info.Mode().Perm()&0o077 == 0 {
+		return
+	}
+	// Walk and chmod through an os.Root so a symlink planted in the store
+	// cannot redirect the chmod outside it; symlinks themselves are skipped.
+	root, err := os.OpenRoot(s.ReviewsDir)
+	if err != nil {
+		return
+	}
+	defer func() { _ = root.Close() }()
+	_ = fs.WalkDir(root.FS(), ".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.Type()&fs.ModeSymlink != 0 {
+			return nil //nolint:nilerr // best effort: skip what cannot be read or is a link
+		}
+		mode := fs.FileMode(fileMode)
+		if d.IsDir() {
+			mode = dirMode
+		}
+		_ = root.Chmod(path, mode)
+		return nil
+	})
 }
 
 // maybeMigrate brings the reviews dir up to the current layout. Two steps,
@@ -223,7 +265,7 @@ func (s *Store) migrateLegacyLayout() error {
 	if err := os.Rename(s.ReviewsDir, backup); err != nil {
 		return fmt.Errorf("migrate reviews dir: %w", err)
 	}
-	if err := os.MkdirAll(s.ReviewsDir, 0o755); err != nil {
+	if err := os.MkdirAll(s.ReviewsDir, dirMode); err != nil {
 		return err
 	}
 	fmt.Fprintf(os.Stderr,
@@ -441,11 +483,11 @@ func marshalPretty(v any) ([]byte, error) {
 // rename, so concurrent readers see either the old or the new content.
 func writeAtomic(path string, data []byte) error {
 	parent := filepath.Dir(path)
-	if err := os.MkdirAll(parent, 0o755); err != nil {
+	if err := os.MkdirAll(parent, dirMode); err != nil {
 		return err
 	}
 	tmp := filepath.Join(parent, fmt.Sprintf(".%s.%s.tmp", filepath.Base(path), uuid.NewString()))
-	f, err := os.Create(tmp)
+	f, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_EXCL, fileMode)
 	if err != nil {
 		return err
 	}
