@@ -53,15 +53,18 @@ jobs:
 
   release-shape:
     # `go install github.com/infrashift/mrman@vX.Y.Z` builds with the workspace
-    # disabled, and `go mod tidy` resolves charmkit through the network; see
-    # the Makefile for why neither can pass until charmkit is tagged. Advisory
-    # until the first release, then flip to a hard failure.
+    # disabled, resolving charmkit as a tagged module from this repository.
+    # The repository is private, so the module fetch authenticates with the
+    # job's own token and skips the public checksum database.
     runs-on: ubuntu-latest
-    continue-on-error: true
+    env:
+      GOPRIVATE: github.com/infrashift
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+      - name: Authenticate module fetches for this repository
+        run: git config --global url."https://x-access-token:${{ github.token }}@github.com/".insteadOf "https://github.com/"
       - run: GOWORK=off go build ./...
       - run: make tidy
