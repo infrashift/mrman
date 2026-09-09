@@ -188,6 +188,42 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if cmd, handled := m.handleTerminalEvent(msg); handled {
+		return m, cmd
+	}
+	switch msg := msg.(type) {
+	case tea.KeyPressMsg:
+		return m.handleKey(tea.Key(msg))
+	case tea.PasteMsg:
+		m.handlePaste(msg.Content)
+	case prSubmitResultMsg:
+		m.handleSubmitResult(msg)
+	case prListResultMsg:
+		m.handlePrListResult(msg)
+	case patchListResultMsg:
+		m.handlePatchListResult(msg)
+	case prOpenResultMsg:
+		return m, m.handlePrOpenResult(msg)
+	case remoteCommentsResultMsg:
+		m.handleRemoteCommentsResult(msg)
+	case prContextResultMsg:
+		m.handlePrContextResult(msg)
+	case prReloadResultMsg:
+		return m, m.handlePrReloadResult(msg)
+	case prRangeDiffResultMsg:
+		m.handlePrRangeDiffResult(msg)
+	case tea.MouseMsg:
+		return m, m.handleMouse(msg)
+	case editorFinishedMsg:
+		m.handleEditorFinished(msg)
+	}
+	return m, nil
+}
+
+// handleTerminalEvent takes the messages that come from the terminal and
+// the clock rather than from the user's keys or an async result: resize,
+// keyboard-protocol negotiation, key release, and the tick.
+func (m *Model) handleTerminalEvent(msg tea.Msg) (tea.Cmd, bool) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
@@ -216,33 +252,11 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.App.SetMessage(fmt.Sprintf("Merged %d external change(s)", merged))
 			}
 		}
-		return m, tick()
-	case tea.KeyPressMsg:
-		return m.handleKey(tea.Key(msg))
-	case tea.PasteMsg:
-		m.handlePaste(msg.Content)
-	case prSubmitResultMsg:
-		m.handleSubmitResult(msg)
-	case prListResultMsg:
-		m.handlePrListResult(msg)
-	case patchListResultMsg:
-		m.handlePatchListResult(msg)
-	case prOpenResultMsg:
-		return m, m.handlePrOpenResult(msg)
-	case remoteCommentsResultMsg:
-		m.handleRemoteCommentsResult(msg)
-	case prContextResultMsg:
-		m.handlePrContextResult(msg)
-	case prReloadResultMsg:
-		return m, m.handlePrReloadResult(msg)
-	case prRangeDiffResultMsg:
-		m.handlePrRangeDiffResult(msg)
-	case tea.MouseMsg:
-		return m, m.handleMouse(msg)
-	case editorFinishedMsg:
-		m.handleEditorFinished(msg)
+		return tick(), true
+	default:
+		return nil, false
 	}
-	return m, nil
+	return nil, true
 }
 
 // handlePaste routes bracketed-paste text to the active input surface.
@@ -288,130 +302,39 @@ func (m *Model) fileListWidth() int {
 	return m.width / 5
 }
 
+// handleKey is the key pipeline: Ctrl-C guard, comment-vim routing, chord
+// feeding, keymap lookup, count prefix, modal dispatch, then the normal
+// dispatch. Each stage that consumes the key returns early.
 func (m *Model) handleKey(k tea.Key) (tea.Model, tea.Cmd) {
 	a := m.App
 
-	// 1. Ctrl-C twice to exit.
-	if k.Mod == tea.ModCtrl && k.Code == 'c' {
-		if !m.pendingCtrlC.IsZero() && time.Since(m.pendingCtrlC) <= ctrlCWindow {
-			return m, tea.Quit
-		}
-		m.pendingCtrlC = time.Now()
-		a.SetWarning("Press Ctrl+C again to exit")
-		return m, nil
+	if done, cmd := m.handleCtrlC(k); done {
+		return m, cmd
 	}
-	m.pendingCtrlC = time.Time{}
-
-	// 2. Comment-vim routing intercepts everything while composing.
 	if a.InputMode == input.ModeComment && m.vim != nil {
-		m.chords.Reset()
-		switch m.vim.handleKey(a, k) {
-		case vimSave:
-			m.saveComment()
-		case vimCancel:
-			m.vim = nil
-			a.ExitCommentMode()
-		case vimCycleType:
-			a.CycleCommentType()
-		case vimCycleTypeReverse:
-			a.CycleCommentTypeReverse()
+		m.routeVimComment(k)
+		return m, nil
+	}
+	if done, quit := m.feedChord(k); done {
+		if quit {
+			return m, tea.Quit
 		}
 		return m, nil
 	}
 
-	// 3. Chords. Every prefix comes from the normal-mode keymap, so a
-	// half-typed chord must be abandoned the moment input goes anywhere
-	// else — otherwise it would complete against a text field.
-	if a.InputMode != input.ModeNormal {
-		m.chords.Reset()
-	} else if r, ok := printable(k); ok {
-		ev := m.chords.Feed(string(r))
-		if ev.Consumed {
-			// Starting a chord abandons any count typed before it: "5zz"
-			// centers the view, it does not center it five times and then
-			// apply the 5 to whatever comes next.
-			a.PendingCount = nil
-			return m, nil
-		}
-		if ev.IsChord() {
-			quit, handled := m.dispatchChord(ev)
-			if quit {
-				return m, tea.Quit
-			}
-			if handled {
-				return m, nil
-			}
-			// An unrecognized chord is a mistyped prefix, not a mistyped
-			// key: let the second key act on its own, as it did before the
-			// prefix was pressed.
-		}
-	} else {
-		// A non-printable key cannot complete a chord; drop the prefix and
-		// let the keymap have the key.
-		m.chords.Reset()
-	}
-
-	// 4. Keymap lookup.
 	action := input.MapKey(k, a.InputMode, m.leader)
-
-	// 6. Count prefix. Normal mode and the help popup both take one — the
-	// popup is a scrollable document, and it was the one mode where a
-	// typed count was silently dropped.
-	if a.InputMode == input.ModeNormal || a.InputMode == input.ModeHelp {
-		if action.Kind == input.Digit {
-			n := 0
-			if a.PendingCount != nil {
-				n = *a.PendingCount
-			}
-			n = min(n*10+action.N, 999_999)
-			a.PendingCount = &n
-			return m, nil
-		}
-		if a.PendingCount != nil {
-			count := *a.PendingCount
-			a.PendingCount = nil
-			switch action.Kind {
-			case input.GoToBottom:
-				// {N}G jumps to a source line, which the help popup does
-				// not have; there a count leaves G meaning "to the end".
-				if a.InputMode == input.ModeNormal {
-					a.GoToSourceLine(uint32(count), "new") //nolint:gosec // G115: line numbers fit uint32
-					return m, nil
-				}
-			case input.CursorDown, input.CursorUp, input.ScrollLeft, input.ScrollRight,
-				input.ScrollViewDown, input.ScrollViewUp:
-				action.N *= count
-			case input.NextFile, input.PrevFile, input.NextHunk, input.PrevHunk:
-				for i := 0; i < count-1; i++ {
-					m.dispatch(action)
-				}
-			}
-		}
+	action, consumed := m.applyCountPrefix(action)
+	if consumed {
+		return m, nil
 	}
 
-	// 7. Submit modals may spawn async work.
-	switch a.InputMode {
-	case input.ModeSubmitActionPicker:
-		quit, cmd := m.dispatchSubmitPicker(action)
-		if quit {
-			return m, tea.Quit
-		}
-		return m, cmd
-	case input.ModeSubmitResolver:
-		return m, m.dispatchSubmitResolver(action)
-	case input.ModeSubmitConfirm:
-		return m, m.dispatchSubmitConfirm(action)
-	case input.ModeCommitSelect:
-		// The target selector reaches the forge: listing, paging and
-		// opening a PR all spawn async work.
-		quit, cmd := m.dispatchSelector(k, action)
+	if cmd, quit, handled := m.dispatchModal(k, action); handled {
 		if quit {
 			return m, tea.Quit
 		}
 		return m, cmd
 	}
 
-	// 8. Dispatch.
 	if quit := m.dispatch(action); quit {
 		return m, tea.Quit
 	}
@@ -419,6 +342,138 @@ func (m *Model) handleKey(k tea.Key) (tea.Model, tea.Cmd) {
 	// machine; Update drains it with everything else.
 	m.queue(m.drainPrContextRequest())
 	return m, nil
+}
+
+// handleCtrlC implements Ctrl-C twice to exit. done is true when the key
+// was Ctrl-C, whether it quit or only armed the second press.
+func (m *Model) handleCtrlC(k tea.Key) (done bool, cmd tea.Cmd) {
+	if k.Mod != tea.ModCtrl || k.Code != 'c' {
+		m.pendingCtrlC = time.Time{}
+		return false, nil
+	}
+	if !m.pendingCtrlC.IsZero() && time.Since(m.pendingCtrlC) <= ctrlCWindow {
+		return true, tea.Quit
+	}
+	m.pendingCtrlC = time.Now()
+	m.App.SetWarning("Press Ctrl+C again to exit")
+	return true, nil
+}
+
+// routeVimComment hands a key to the comment editor's vim layer, which
+// intercepts everything while composing.
+func (m *Model) routeVimComment(k tea.Key) {
+	a := m.App
+	m.chords.Reset()
+	switch m.vim.handleKey(a, k) {
+	case vimSave:
+		m.saveComment()
+	case vimCancel:
+		m.vim = nil
+		a.ExitCommentMode()
+	case vimCycleType:
+		a.CycleCommentType()
+	case vimCycleTypeReverse:
+		a.CycleCommentTypeReverse()
+	}
+}
+
+// feedChord runs the chord recognizer. Every prefix comes from the
+// normal-mode keymap, so a half-typed chord is abandoned the moment input
+// goes anywhere else — otherwise it would complete against a text field.
+// done is true when the key was consumed (as a prefix or a chord).
+func (m *Model) feedChord(k tea.Key) (done, quit bool) {
+	a := m.App
+	if a.InputMode != input.ModeNormal {
+		m.chords.Reset()
+		return false, false
+	}
+	r, ok := printable(k)
+	if !ok {
+		// A non-printable key cannot complete a chord; drop the prefix and
+		// let the keymap have the key.
+		m.chords.Reset()
+		return false, false
+	}
+	ev := m.chords.Feed(string(r))
+	if ev.Consumed {
+		// Starting a chord abandons any count typed before it: "5zz"
+		// centers the view, it does not center it five times and then
+		// apply the 5 to whatever comes next.
+		a.PendingCount = nil
+		return true, false
+	}
+	if ev.IsChord() {
+		quit, handled := m.dispatchChord(ev)
+		if quit || handled {
+			return true, quit
+		}
+		// An unrecognized chord is a mistyped prefix, not a mistyped key:
+		// let the second key act on its own, as it did before the prefix
+		// was pressed.
+	}
+	return false, false
+}
+
+// applyCountPrefix accumulates a typed count and applies it to the action
+// it precedes. Normal mode and the help popup both take one — the popup is
+// a scrollable document. consumed is true when the key was a digit.
+func (m *Model) applyCountPrefix(action input.Action) (input.Action, bool) {
+	a := m.App
+	if a.InputMode != input.ModeNormal && a.InputMode != input.ModeHelp {
+		return action, false
+	}
+	if action.Kind == input.Digit {
+		n := 0
+		if a.PendingCount != nil {
+			n = *a.PendingCount
+		}
+		n = min(n*10+action.N, 999_999)
+		a.PendingCount = &n
+		return action, true
+	}
+	if a.PendingCount == nil {
+		return action, false
+	}
+	count := *a.PendingCount
+	a.PendingCount = nil
+	switch action.Kind {
+	case input.GoToBottom:
+		// {N}G jumps to a source line, which the help popup does not
+		// have; there a count leaves G meaning "to the end".
+		if a.InputMode == input.ModeNormal {
+			a.GoToSourceLine(uint32(count), "new") //nolint:gosec // G115: line numbers fit uint32
+			return action, true
+		}
+	case input.CursorDown, input.CursorUp, input.ScrollLeft, input.ScrollRight,
+		input.ScrollViewDown, input.ScrollViewUp:
+		action.N *= count
+	case input.NextFile, input.PrevFile, input.NextHunk, input.PrevHunk:
+		for range count - 1 {
+			m.dispatch(action)
+		}
+	}
+	return action, false
+}
+
+// dispatchModal routes the modes whose handlers may spawn async work: the
+// submit modals and the target selector. handled is false for every other
+// mode.
+func (m *Model) dispatchModal(k tea.Key, action input.Action) (cmd tea.Cmd, quit, handled bool) {
+	switch m.App.InputMode {
+	case input.ModeSubmitActionPicker:
+		quit, cmd = m.dispatchSubmitPicker(action)
+		return cmd, quit, true
+	case input.ModeSubmitResolver:
+		return m.dispatchSubmitResolver(action), false, true
+	case input.ModeSubmitConfirm:
+		return m.dispatchSubmitConfirm(action), false, true
+	case input.ModeCommitSelect:
+		// The target selector reaches the forge: listing, paging and
+		// opening a PR all spawn async work.
+		quit, cmd = m.dispatchSelector(k, action)
+		return cmd, quit, true
+	}
+	return nil, false, false
 }
 
 // queue records async work for handleKey to return once dispatch unwinds.
