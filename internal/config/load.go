@@ -129,151 +129,100 @@ func tableList(v any) ([]any, bool) {
 	return nil, false
 }
 
+// stripUnknown warns about and removes the keys of one table that its
+// schema does not know. prefix names the table in the warning
+// ("forge.hosts[0].").
+func stripUnknown(table map[string]any, known map[string]struct{}, prefix string, warnings *[]string) {
+	for _, key := range sortedKeys(table) {
+		if _, ok := known[key]; !ok {
+			*warnings = append(*warnings, fmt.Sprintf("unknown config key `%s%s` — ignored", prefix, key))
+			delete(table, key)
+		}
+	}
+}
+
+// stripUnknownList applies stripUnknown to each table of an array of
+// tables, naming entries by index. Non-table entries are left for the
+// schema pass to reject.
+func stripUnknownList(items []any, known map[string]struct{}, prefix string, warnings *[]string) {
+	for i, item := range items {
+		if entry, ok := item.(map[string]any); ok {
+			stripUnknown(entry, known, fmt.Sprintf("%s[%d].", prefix, i), warnings)
+		}
+	}
+}
+
 // stripUnknownKeys warns about and removes keys the schema does not know, at
 // the top level and inside the nested [forge], [[forge.hosts]], [templates],
 // and comment_types tables.
 func stripUnknownKeys(raw map[string]any, warnings *[]string) {
-	for _, key := range sortedKeys(raw) {
-		if _, ok := knownTopLevelKeys[key]; !ok {
-			*warnings = append(*warnings, fmt.Sprintf("unknown config key `%s` — ignored", key))
-			delete(raw, key)
-		}
-	}
+	stripUnknown(raw, knownTopLevelKeys, "", warnings)
 	if forge, ok := raw["forge"].(map[string]any); ok {
-		for _, key := range sortedKeys(forge) {
-			if _, ok := knownForgeKeys[key]; !ok {
-				*warnings = append(*warnings, fmt.Sprintf("unknown config key `forge.%s` — ignored", key))
-				delete(forge, key)
-			}
-		}
+		stripUnknown(forge, knownForgeKeys, "forge.", warnings)
 		if hosts, ok := tableList(forge["hosts"]); ok {
-			for i, item := range hosts {
-				entry, ok := item.(map[string]any)
-				if !ok {
-					continue // CUE rejects the entry later
-				}
-				for _, key := range sortedKeys(entry) {
-					if _, ok := knownHostKeys[key]; !ok {
-						*warnings = append(*warnings,
-							fmt.Sprintf("unknown config key `forge.hosts[%d].%s` — ignored", i, key))
-						delete(entry, key)
-					}
-				}
-			}
+			stripUnknownList(hosts, knownHostKeys, "forge.hosts", warnings)
 			forge["hosts"] = hosts
 		}
 	}
 	if templates, ok := raw["templates"].(map[string]any); ok {
-		for _, key := range sortedKeys(templates) {
-			if _, ok := knownTemplateKeys[key]; !ok {
-				*warnings = append(*warnings, fmt.Sprintf("unknown config key `templates.%s` — ignored", key))
-				delete(templates, key)
-			}
-		}
+		stripUnknown(templates, knownTemplateKeys, "templates.", warnings)
 	}
 	if items, ok := tableList(raw["comment_types"]); ok {
-		for i, item := range items {
-			entry, ok := item.(map[string]any)
-			if !ok {
-				continue // reported when comment_types are parsed
-			}
-			for _, key := range sortedKeys(entry) {
-				if _, ok := knownCommentTypeKeys[key]; !ok {
-					*warnings = append(*warnings,
-						fmt.Sprintf("unknown config key `comment_types[%d].%s` — ignored", i, key))
-					delete(entry, key)
-				}
-			}
-		}
+		stripUnknownList(items, knownCommentTypeKeys, "comment_types", warnings)
 		raw["comment_types"] = items
 	}
 }
 
 // apply decodes the CUE-cleaned map onto cfg. Types are already vetted, so
-// failed assertions simply keep the default.
+// failed assertions simply keep the default. The scalar keys are tables of
+// destination fields; the structured ones are handled by hand.
 func apply(raw map[string]any, cfg *Config, warnings *[]string) {
-	if v, ok := stringAt(raw, "theme"); ok {
-		cfg.Theme = v
+	stringKeys := map[string]*string{
+		"theme": &cfg.Theme, "theme_dark": &cfg.ThemeDark, "theme_light": &cfg.ThemeLight,
+		"appearance": &cfg.Appearance, "backend": &cfg.Backend, "diff_view": &cfg.DiffView,
+		"commit_order": &cfg.CommitOrder, "initial_commit_selection": &cfg.InitialCommitSelection,
+		"leader": &cfg.Leader, "username": &cfg.Username,
 	}
-	if v, ok := stringAt(raw, "theme_dark"); ok {
-		cfg.ThemeDark = v
+	boolKeys := map[string]*bool{
+		"show_file_list": &cfg.ShowFileList, "show_commits": &cfg.ShowCommits,
+		"ignore_whitespace": &cfg.IgnoreWhitespace, "wrap": &cfg.Wrap,
+		"export_legend": &cfg.ExportLegend, "cursor_line": &cfg.CursorLine,
+		"mouse": &cfg.Mouse, "comment_vim": &cfg.CommentVim,
+		"transparent_background": &cfg.TransparentBackground, "single_file_view": &cfg.SingleFileView,
 	}
-	if v, ok := stringAt(raw, "theme_light"); ok {
-		cfg.ThemeLight = v
+	intKeys := map[string]*int{
+		"comment_tab_width": &cfg.CommentTabWidth, "scroll_offset": &cfg.ScrollOffset,
+		"review_watch_interval_ms": &cfg.ReviewWatchIntervalMS,
 	}
-	if v, ok := stringAt(raw, "appearance"); ok {
-		cfg.Appearance = v
+	for key, dst := range stringKeys {
+		if v, ok := stringAt(raw, key); ok {
+			*dst = v
+		}
 	}
-	if v, ok := stringAt(raw, "backend"); ok {
-		cfg.Backend = v
+	for key, dst := range boolKeys {
+		if v, ok := boolAt(raw, key); ok {
+			*dst = v
+		}
+	}
+	for key, dst := range intKeys {
+		if v, ok := intAt(raw, key); ok {
+			*dst = v
+		}
+	}
+	if _, ok := stringAt(raw, "backend"); ok {
 		*warnings = append(*warnings, "config `backend` is ignored: mrman uses the git CLI by design, not for want of an alternative")
 	}
 	if v, ok := raw["comment_types"]; ok {
 		cfg.CommentTypes = parseCommentTypes(v, warnings)
 	}
-	if v, ok := boolAt(raw, "show_file_list"); ok {
-		cfg.ShowFileList = v
-	}
-	if v, ok := boolAt(raw, "show_commits"); ok {
-		cfg.ShowCommits = v
-	}
-	if v, ok := stringAt(raw, "diff_view"); ok {
-		cfg.DiffView = v
-	}
-	if v, ok := stringAt(raw, "commit_order"); ok {
-		cfg.CommitOrder = v
-	}
-	if v, ok := stringAt(raw, "initial_commit_selection"); ok {
-		cfg.InitialCommitSelection = v
-	}
-	if v, ok := boolAt(raw, "ignore_whitespace"); ok {
-		cfg.IgnoreWhitespace = v
-	}
-	if v, ok := boolAt(raw, "wrap"); ok {
-		cfg.Wrap = v
-	}
-	if v, ok := boolAt(raw, "export_legend"); ok {
-		cfg.ExportLegend = v
-	}
-	if v, ok := boolAt(raw, "cursor_line"); ok {
-		cfg.CursorLine = v
-	}
-	if v, ok := boolAt(raw, "mouse"); ok {
-		cfg.Mouse = v
-	}
-	if v, ok := boolAt(raw, "comment_vim"); ok {
-		cfg.CommentVim = v
-	}
-	if v, ok := intAt(raw, "comment_tab_width"); ok {
-		cfg.CommentTabWidth = v
-	}
-	if v, ok := stringAt(raw, "leader"); ok {
-		cfg.Leader = v
-	}
-	if v, ok := boolAt(raw, "transparent_background"); ok {
-		cfg.TransparentBackground = v
-	}
-	if v, ok := intAt(raw, "scroll_offset"); ok {
-		cfg.ScrollOffset = v
-	}
-	if v, ok := intAt(raw, "review_watch_interval_ms"); ok {
-		cfg.ReviewWatchIntervalMS = v
-	}
-	if v, ok := boolAt(raw, "single_file_view"); ok {
-		cfg.SingleFileView = v
-	}
-	if v, ok := stringAt(raw, "username"); ok {
-		cfg.Username = v
-	}
 	if t, ok := raw["templates"].(map[string]any); ok {
-		if v, ok := stringAt(t, "notes"); ok {
-			cfg.Templates.Notes = v
+		templateKeys := map[string]*string{
+			"notes": &cfg.Templates.Notes, "review_body": &cfg.Templates.ReviewBody, "patch_reply": &cfg.Templates.PatchReply,
 		}
-		if v, ok := stringAt(t, "review_body"); ok {
-			cfg.Templates.ReviewBody = v
-		}
-		if v, ok := stringAt(t, "patch_reply"); ok {
-			cfg.Templates.PatchReply = v
+		for key, dst := range templateKeys {
+			if v, ok := stringAt(t, key); ok {
+				*dst = v
+			}
 		}
 	}
 	if f, ok := raw["forge"].(map[string]any); ok {
