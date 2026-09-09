@@ -4,6 +4,7 @@ linters:
   default: standard
   enable:
     - errorlint
+    - gosec
     - copyloopvar
     - misspell
     - nolintlint
@@ -12,6 +13,18 @@ linters:
     - unparam
     - usestdlibvars
   settings:
+    gosec:
+      excludes:
+        # G204/G304: mrman runs the user's own $EDITOR, token_cmd and
+        # clipboard tools, and reads paths the user configured — by design.
+        # G301/G302: directory and file modes are set deliberately in
+        # internal/persistence. G115: integer conversions are swept in a
+        # dedicated pass (see .claude plan, workstream D) — remove then.
+        - G115
+        - G204
+        - G301
+        - G302
+        - G304
     revive:
       rules:
         - name: exported
@@ -20,6 +33,10 @@ linters:
     generated: lax
     paths:
       - .reference
+    rules:
+      # Test fixtures write world-readable temp files and embed fake tokens.
+      - path: _test\.go
+        linters: [gosec]
 
 formatters:
   enable:

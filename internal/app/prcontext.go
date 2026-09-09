@@ -258,7 +258,7 @@ func (a *App) PrefetchContextForCurrentFile() {
 // expansion that triggered the fetch. It reports whether the replay ran.
 func (a *App) ApplyPrContextSnapshot(req PrContextRequest, lines []model.DiffLine) bool {
 	provider := a.ensurePrContext()
-	count := uint32(len(lines)) //nolint:gosec // file line counts stay well inside uint32
+	count := uint32(len(lines))
 	provider.Install(req.Key, lines, count)
 
 	// The end-of-file gap needs the count, which only exists now.

@@ -33,7 +33,7 @@ const forgeKindMessage = `must be "github", "gitlab", "azuredevops", or "forgejo
 
 // keyMessages maps config key paths to human-readable constraint messages
 // used when CUE validation rejects the key.
-var keyMessages = map[string]string{
+var keyMessages = map[string]string{ //nolint:gosec // G101: key names and their constraint text, not credentials
 	"theme":                     "must be a string",
 	"theme_dark":                "must be a string",
 	"theme_light":               "must be a string",
