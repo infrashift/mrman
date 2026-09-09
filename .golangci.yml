@@ -97,7 +97,7 @@ linters:
       # Tracked complexity debt: the dispatch tables, parser split and
       # annotation/height iterator refactors (audit plan, workstream D-2)
       # bring these under the ceilings. Remove a path here as it lands.
-      - path: (internal/(ui/run|ui/filelist|ui/commentvim|input/keymap|app/search|app/reviewedmut|vcs/diffparser/diffparser|config/load|reviewcli/run|reviewcli/watch|theme/resolve)|vimtext/normal)\.go
+      - path: (internal/(ui/run|ui/filelist|ui/commentvim|app/search|app/reviewedmut|vcs/diffparser/diffparser|config/load|reviewcli/run|reviewcli/watch|theme/resolve)|vimtext/normal)\.go
         linters:
           - gocognit
           - gocyclo
