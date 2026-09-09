@@ -54,7 +54,7 @@ func TestInsertCommitMessageIfSingleBuildsPseudoFile(t *testing.T) {
 	for i, content := range want {
 		assertEq(t, hunk.Lines[i].Content, content, "line content")
 		assertEq(t, hunk.Lines[i].Origin, model.OriginContext, "context origin")
-		assertLineno(t, hunk.Lines[i].NewLineno, uint32(i)+1, "new lineno") //nolint:gosec // tiny
+		assertLineno(t, hunk.Lines[i].NewLineno, uint32(i)+1, "new lineno")
 		if hunk.Lines[i].OldLineno != nil {
 			t.Error("old lineno must be nil")
 		}

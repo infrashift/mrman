@@ -20,8 +20,14 @@ make check     # the full gate
 make check
 ```
 
-Runs, in order: `fmt` (gofmt + goimports) → `vet` → `lint` (golangci-lint) →
-`test` → `cover-check` → `check-charmkit`.
+Runs, in order: `fmt` (gofmt + goimports) → `vet` (host and a `GOOS=windows`
+cross-vet) → `lint` (golangci-lint, including `gosec`) → `test` →
+`cover-check` → `check-charmkit`. `make vuln` runs `govulncheck` over both
+modules; it is not part of `check` because it needs the network.
+
+The same gate runs in CI (`.github/workflows/ci.yml`) on every push and pull
+request, on Linux and macOS, plus a Windows build and `govulncheck`. A pull
+request that fails it is not mergeable.
 
 **Coverage is gated at 85%** and the gate is not advisory — `make check` fails
 below it:

@@ -59,7 +59,7 @@ func (m *Model) fetchPrContext(req app.PrContextRequest) tea.Cmd {
 		}
 		full := lineReq
 		full.StartLine = 1
-		full.EndLine = uint32(count) //nolint:gosec // file line counts stay inside uint32
+		full.EndLine = uint32(count)
 		lines, err := backend.FetchFileLines(ctx, full)
 		return prContextResultMsg{Gen: gen, Key: key, Request: req, Lines: lines, Err: err}
 	}

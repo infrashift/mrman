@@ -39,7 +39,7 @@ func (f *contextForge) FetchFileLines(_ context.Context, req forge.FileLinesRequ
 	}
 	lines := make([]model.DiffLine, f.lineCount)
 	for i := range lines {
-		n := uint32(i + 1) //nolint:gosec // test fixture line counts stay tiny
+		n := uint32(i + 1)
 		lines[i] = model.DiffLine{
 			Origin: model.OriginContext, Content: "context line", NewLineno: &n,
 		}

@@ -123,7 +123,7 @@ func TestLivePullRequest(t *testing.T) {
 		t.Fatalf("FileLineCount(%s) = 0", path)
 	}
 	full := lineReq
-	full.StartLine, full.EndLine = 1, uint32(count) //nolint:gosec // test fixture
+	full.StartLine, full.EndLine = 1, uint32(count)
 	lines, err := backend.FetchFileLines(ctx, full)
 	if err != nil {
 		t.Fatalf("FetchFileLines(%s): %v", path, err)

@@ -20,10 +20,11 @@ GOFMT         := $(shell go env GOROOT)/bin/gofmt
 GOBIN_DIR     := $(or $(shell go env GOBIN),$(shell go env GOPATH)/bin)
 GOIMPORTS     := $(GOBIN_DIR)/goimports
 GOLANGCI_LINT := $(GOBIN_DIR)/golangci-lint
+GOVULNCHECK   := $(GOBIN_DIR)/govulncheck
 
 .DEFAULT_GOAL := build
 
-.PHONY: all build install run test test-race cover cover-html cover-check bench lint fmt vet tidy \
+.PHONY: all build install run test test-race cover cover-html cover-check bench lint fmt vet vuln tidy \
         generate check check-charmkit package clean tools help docs-dev docs-build
 
 all: check build
@@ -70,8 +71,13 @@ fmt: ## gofmt + goimports over the tree
 	$(GOFMT) -w main.go internal
 	$(GOIMPORTS) -local $(MODULE) -w main.go internal
 
-vet: ## go vet
+vet: ## go vet (host, plus a Windows cross-vet so the platform stays buildable)
 	go vet ./...
+	GOOS=windows go vet ./...
+
+vuln: ## govulncheck over both modules
+	$(GOVULNCHECK) ./...
+	cd charmkit && $(GOVULNCHECK) ./...
 
 tidy: ## go mod tidy, fail if it changes anything (CI-friendly)
 	go mod tidy
@@ -113,9 +119,10 @@ clean: ## Remove build artifacts
 	rm -rf $(BIN_DIR) $(DIST_DIR) $(COVER_FILE)
 	go clean
 
-tools: ## Install dev tools (golangci-lint, goimports)
+tools: ## Install dev tools (golangci-lint, goimports, govulncheck)
 	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
 	go install golang.org/x/tools/cmd/goimports@latest
+	go install golang.org/x/vuln/cmd/govulncheck@latest
 
 help: ## Show this help
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | \

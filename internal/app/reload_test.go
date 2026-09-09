@@ -13,12 +13,12 @@ func diffFile(path string, contents ...string) model.DiffFile {
 	p := path
 	lines := make([]model.DiffLine, len(contents))
 	for i, c := range contents {
-		n := uint32(i + 1) //nolint:gosec // test fixture line counts stay tiny
+		n := uint32(i + 1)
 		lines[i] = model.DiffLine{Origin: model.OriginAddition, Content: c, NewLineno: &n}
 	}
 	hunks := []model.DiffHunk{{
 		Lines: lines, OldStart: 1, OldCount: 0,
-		NewStart: 1, NewCount: uint32(len(lines)), //nolint:gosec // ditto
+		NewStart: 1, NewCount: uint32(len(lines)),
 	}}
 	return model.DiffFile{
 		NewPath: &p, Status: model.StatusModified, Hunks: hunks,
