@@ -27,6 +27,13 @@ type sessionLifecycle struct {
 	// (review_watch_interval_ms = 0).
 	watchDisabled bool
 	lastWatchAt   time.Time
+	// lastHeartbeatAt is when the active-session entry was last refreshed;
+	// the store treats an entry silent for hours as abandoned.
+	lastHeartbeatAt time.Time
+	// activateErr records a failure to mark the session active (and to
+	// record an agent grant with it), so the user is told rather than
+	// shown a grant that does not exist.
+	activateErr error
 	// adoptedFrom is the HEAD a carried-forward session was written against,
 	// empty when the session was resolved at the current HEAD or created
 	// fresh. The reviewer is told: comments arriving from a HEAD they have
@@ -83,7 +90,8 @@ func openSession(store *persistence.Store, fresh *model.ReviewSession) (*session
 			lc.path = path
 			lc.snapshot = session.Clone()
 			lc.fileState = statFile(path)
-			_ = store.MarkSessionActive(session, path)
+			lc.lastHeartbeatAt = time.Now()
+			lc.activateErr = store.MarkSessionActive(session, path)
 		}
 	}
 
@@ -159,6 +167,7 @@ func (lc *sessionLifecycle) pollExternalChanges(a *app.App, composing bool) int 
 		return 0
 	}
 	lc.lastWatchAt = time.Now()
+	lc.heartbeat()
 
 	current := statFile(lc.path)
 	if current == nil {
@@ -182,6 +191,31 @@ func (lc *sessionLifecycle) pollExternalChanges(a *app.App, composing bool) int 
 		a.RebuildAnnotations()
 	}
 	return changed
+}
+
+// heartbeatEvery is how often a running TUI refreshes its active-session
+// entry: far inside the store's staleness window, cheap enough to ignore.
+const heartbeatEvery = 5 * time.Minute
+
+// heartbeat refreshes the active-session entry when it is due.
+func (lc *sessionLifecycle) heartbeat() {
+	if lc.store == nil || time.Since(lc.lastHeartbeatAt) < heartbeatEvery {
+		return
+	}
+	lc.lastHeartbeatAt = time.Now()
+	_ = lc.store.TouchActiveSession() // best effort; the next tick retries
+}
+
+// activationWarning is the message for a session whose active marker (and
+// any grant) could not be written, "" when it was.
+func (lc *sessionLifecycle) activationWarning(grantRequested bool) string {
+	if lc.activateErr == nil {
+		return ""
+	}
+	if grantRequested {
+		return "Agent submit grant was NOT recorded: " + lc.activateErr.Error()
+	}
+	return "Session could not be marked active for agents: " + lc.activateErr.Error()
 }
 
 // finish cleans up on exit: auto-created sessions that stayed empty are

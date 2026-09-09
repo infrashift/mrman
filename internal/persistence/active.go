@@ -150,6 +150,31 @@ func (s *Store) MarkSessionActiveWithGrant(
 	})
 }
 
+// TouchActiveSession refreshes this process's heartbeat. Freshness is
+// bounded by activeSessionStaleAfter; a TUI left open past that would
+// otherwise vanish from `review list`, lose its agent-submit grant and be
+// reported as exited by `review watch` while still running.
+func (s *Store) TouchActiveSession() error {
+	if err := s.maybeMigrate(); err != nil {
+		return err
+	}
+	return s.withLock(func() error {
+		active := s.loadActiveSessionsOrDefault()
+		pid := os.Getpid()
+		touched := false
+		for i := range active.Sessions {
+			if active.Sessions[i].Pid == pid {
+				active.Sessions[i].LastSeenAt = nowFn()
+				touched = true
+			}
+		}
+		if !touched {
+			return nil
+		}
+		return s.saveActiveSessionsUnlocked(&active)
+	})
+}
+
 // RevokeGrantForPid drops this process's agent-submit grant while keeping
 // the session active. Dropping privilege needs no ceremony, so this never
 // fails on a missing entry.

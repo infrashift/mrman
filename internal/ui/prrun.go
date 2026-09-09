@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -144,6 +145,9 @@ func RunPr(target string, opts cli.TuiOptions) error {
 		a.SetWarning(w)
 	}
 	a.SetMessage(fmt.Sprintf("Reviewing %s#%d · %s", repo.Slug(), details.Number, details.Title))
+	if w := lifecycle.activationWarning(len(opts.GrantedEvents) > 0); w != "" {
+		a.SetStickyWarning(w)
+	}
 	// After the greeting, so a stale anchor is not buried under it.
 	reportAnchorValidation(a)
 
@@ -191,7 +195,8 @@ func openPrSession(
 			lc.path = path
 			lc.snapshot = session.Clone()
 			lc.fileState = statFile(path)
-			_ = store.MarkSessionActiveWithGrant(session, path, grantedEvents)
+			lc.lastHeartbeatAt = time.Now()
+			lc.activateErr = store.MarkSessionActiveWithGrant(session, path, grantedEvents)
 		}
 	}
 	announceSession(session)

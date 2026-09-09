@@ -185,3 +185,38 @@ func TestActiveSessionsFileCorruptRecovers(t *testing.T) {
 		t.Fatal("marked session should be active after recovery")
 	}
 }
+
+// TestTouchKeepsALongRunningSessionFresh: a TUI open for longer than the
+// staleness window keeps its entry, and its grant, by heartbeating.
+func TestTouchKeepsALongRunningSessionFresh(t *testing.T) {
+	store := newTestStore(t)
+	sess := makeLocalSession(t, makeRepo(t), "abc1234", strp("main"), model.SourceWorkingTree, nil)
+	path := mustSave(t, store, sess)
+
+	now := time.Now()
+	withNow(t, func() time.Time { return now })
+	if err := store.MarkSessionActiveWithGrant(sess, path, []string{"comment"}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Two thirds of the way through the window: heartbeat.
+	now = now.Add(activeSessionStaleAfter * 2 / 3)
+	if err := store.TouchActiveSession(); err != nil {
+		t.Fatal(err)
+	}
+	// Past the original expiry, but inside the refreshed one.
+	now = now.Add(activeSessionStaleAfter * 2 / 3)
+	if _, reason, err := store.AgentSubmitGrant(path, "comment"); err != nil || reason != GrantOK {
+		t.Fatalf("grant after heartbeat: reason=%q err=%v", reason, err)
+	}
+	active, err := store.ActiveSessionPaths()
+	if err != nil || !active[normalizeActivePath(path)] {
+		t.Fatalf("session should still be active after a heartbeat (err=%v)", err)
+	}
+
+	// Without a further heartbeat the window does expire.
+	now = now.Add(activeSessionStaleAfter)
+	if _, reason, _ := store.AgentSubmitGrant(path, "comment"); reason != GrantExpired {
+		t.Fatalf("reason = %q, want expired once heartbeats stop", reason)
+	}
+}

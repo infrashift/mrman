@@ -69,7 +69,8 @@ mrman review watch --session <slug>
 ```
 
 The stream ends on `submitted` or `closed` — which are the two answers to "is
-the human finished", so the agent never has to ask. `--since <comment-id>`
+the human finished", so the agent never has to ask. `closed` says why:
+`tui_exited`, `timeout` or `canceled`. `--since <comment-id>`
 resumes without re-reading, and `--timeout` bounds the wait.
 
 A one-shot read works too:
