@@ -540,8 +540,10 @@ forge = "forgejo"
 token_cmd = "pass show git.internal"
 insecure_skip_verify = true
 `)
-	if len(warnings) != 0 {
-		t.Fatalf("warnings = %q, want none", warnings)
+	// The only warning is the one insecure_skip_verify earns on every start.
+	if len(warnings) != 1 || !strings.Contains(warnings[0], "git.internal") ||
+		!strings.Contains(warnings[0], "insecure_skip_verify") {
+		t.Fatalf("warnings = %q, want exactly the insecure_skip_verify notice for git.internal", warnings)
 	}
 	f := cfg.Forge
 	if f.Default != "gitlab" || f.CommentTypePrefix || f.CLITokenFallback {

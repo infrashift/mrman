@@ -27,6 +27,10 @@ type HostConfig struct {
 	CAFile string
 	// InsecureSkipVerify disables TLS certificate verification.
 	InsecureSkipVerify bool
+	// Warning is a notice for the user about how this host was resolved
+	// — set when the host is untrusted and therefore unauthenticated. ""
+	// when there is nothing to say.
+	Warning string
 }
 
 // Driver describes one registered forge driver.
@@ -97,6 +101,12 @@ func ResolveHostConfig(host string, kind forgetypes.Kind, cfg config.ForgeConfig
 		hc.APIBase = entry.APIBase
 		hc.CAFile = entry.CAFile
 		hc.InsecureSkipVerify = entry.InsecureSkipVerify
+	}
+	if !HostTrusted(host, cfg) {
+		// No token lookup at all: not even a token_cmd runs for a host
+		// nothing vouches for.
+		hc.Warning = UntrustedHostWarning(host)
+		return hc, nil
 	}
 	token, err := TokenForHost(host, kind, cfg)
 	if err != nil {

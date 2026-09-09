@@ -228,8 +228,12 @@ JSON on stdout and exits `1`:
 | `FORGEJO_TOKEN`, `CODEBERG_TOKEN` | `codeberg.org` |
 | `EDITOR` | `:edit` |
 
-Token variables are host-scoped on purpose, so an environment token never leaks
-to an on-premise instance.
+Token variables are host-scoped on purpose: `GITHUB_TOKEN` is read only for
+github.com, and `GH_ENTERPRISE_TOKEN` only for hosts you have listed under
+`[[forge.hosts]]`. A host mrman merely *guessed* the forge for — a merge
+request URL on an unfamiliar domain, a remote whose hostname happens to
+contain "github" — is connected to without any credential, and mrman says so.
+Listing the host is what turns authentication on.
 
 ## Paths
 

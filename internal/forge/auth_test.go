@@ -70,8 +70,10 @@ func TestTokenEnvConventionsForSaaSHosts(t *testing.T) {
 			map[string]string{"GITHUB_TOKEN": "a", "GH_TOKEN": "b"}, "a"},
 		{"github.com GH_TOKEN fallback", "github.com", forgetypes.KindGitHub,
 			map[string]string{"GH_TOKEN": "b"}, "b"},
-		{"ghe host GH_ENTERPRISE_TOKEN", "ghe.corp.example", forgetypes.KindGitHub,
+		{"listed ghe host GH_ENTERPRISE_TOKEN", "ghe.corp.example", forgetypes.KindGitHub,
 			map[string]string{"GH_ENTERPRISE_TOKEN": "e", "GITHUB_TOKEN": "a"}, "e"},
+		{"unlisted ghe host gets nothing", "ghe.unlisted.example", forgetypes.KindGitHub,
+			map[string]string{"GH_ENTERPRISE_TOKEN": "e", "GITHUB_TOKEN": "a"}, ""},
 		{"gitlab.com GITLAB_TOKEN", "gitlab.com", forgetypes.KindGitLab,
 			map[string]string{"GITLAB_TOKEN": "g"}, "g"},
 		{"dev.azure.com AZURE_DEVOPS_EXT_PAT", "dev.azure.com", forgetypes.KindAzureDevOps,
@@ -87,6 +89,7 @@ func TestTokenEnvConventionsForSaaSHosts(t *testing.T) {
 			installAuthSeams(t, seams)
 			cfg := defaultForgeConfig()
 			cfg.CLITokenFallback = false
+			cfg.Hosts = []config.ForgeHost{{Host: "ghe.corp.example", Forge: "github"}}
 			got, err := TokenForHost(tc.host, tc.kind, cfg)
 			if err != nil {
 				t.Fatal(err)
@@ -105,6 +108,7 @@ func TestTokenEnvNeverLeaksToOnPremHosts(t *testing.T) {
 		"CODEBERG_TOKEN":       "cb",
 		"AZURE_DEVOPS_EXT_PAT": "ado",
 		"GITHUB_TOKEN":         "gh",
+		"GH_ENTERPRISE_TOKEN":  "ghe",
 	}}
 	installAuthSeams(t, seams)
 	cfg := defaultForgeConfig()
@@ -116,6 +120,9 @@ func TestTokenEnvNeverLeaksToOnPremHosts(t *testing.T) {
 		{"gitlab.corp.example", forgetypes.KindGitLab},
 		{"forgejo.corp.example", forgetypes.KindForgejo},
 		{"ado.corp.example", forgetypes.KindAzureDevOps},
+		// A /pull/N URL on any host parses as GitHub by shape; that shape
+		// must not be enough to send GH_ENTERPRISE_TOKEN there.
+		{"evil.example", forgetypes.KindGitHub},
 	} {
 		got, err := TokenForHost(tc.host, tc.kind, cfg)
 		if err != nil {
@@ -192,6 +199,7 @@ func TestGhFallbackGatedByKindAndConfig(t *testing.T) {
 	seams := &authSeams{ghToken: "gh-tok"}
 	installAuthSeams(t, seams)
 	cfg := defaultForgeConfig()
+	cfg.Hosts = []config.ForgeHost{{Host: "ghe.corp.example", Forge: "github"}}
 	got, err := TokenForHost("ghe.corp.example", forgetypes.KindGitHub, cfg)
 	if err != nil || got != "gh-tok" {
 		t.Fatalf("token = %q err = %v", got, err)
@@ -331,4 +339,65 @@ func transportTLS(t *testing.T, client *http.Client) *tls.Config {
 		t.Fatalf("transport = %T, want *http.Transport with TLS config", client.Transport)
 	}
 	return transport.TLSClientConfig
+}
+
+func TestTokenOnlyForTrustedHosts(t *testing.T) {
+	env := map[string]string{"GH_ENTERPRISE_TOKEN": "e", "GITLAB_TOKEN": "gl"}
+
+	t.Run("listed host is trusted", func(t *testing.T) {
+		installAuthSeams(t, &authSeams{env: env})
+		cfg := defaultForgeConfig()
+		cfg.Hosts = []config.ForgeHost{{Host: "ghe.corp.example", Forge: "github"}}
+		got, err := TokenForHost("ghe.corp.example", forgetypes.KindGitHub, cfg)
+		if err != nil || got != "e" {
+			t.Fatalf("token = %q err = %v", got, err)
+		}
+	})
+
+	t.Run("unlisted host gets no env token", func(t *testing.T) {
+		installAuthSeams(t, &authSeams{env: env})
+		got, err := TokenForHost("ghe.corp.example", forgetypes.KindGitHub, defaultForgeConfig())
+		if err != nil || got != "" {
+			t.Fatalf("token = %q err = %v", got, err)
+		}
+	})
+
+	t.Run("unlisted host never consults gh", func(t *testing.T) {
+		seams := &authSeams{ghToken: "gh-tok"}
+		installAuthSeams(t, seams)
+		cfg := defaultForgeConfig()
+		cfg.CLITokenFallback = true
+		got, err := TokenForHost("ghe.corp.example", forgetypes.KindGitHub, cfg)
+		if err != nil || got != "" {
+			t.Fatalf("token = %q err = %v", got, err)
+		}
+		if seams.ghCalls != 0 {
+			t.Fatalf("gh called %d times for an unlisted host", seams.ghCalls)
+		}
+	})
+
+	t.Run("SaaS hosts are trusted without config", func(t *testing.T) {
+		installAuthSeams(t, &authSeams{env: env})
+		got, err := TokenForHost("gitlab.com", forgetypes.KindGitLab, defaultForgeConfig())
+		if err != nil || got != "gl" {
+			t.Fatalf("token = %q err = %v", got, err)
+		}
+	})
+}
+
+func TestHostTrusted(t *testing.T) {
+	cfg := defaultForgeConfig()
+	cfg.Hosts = []config.ForgeHost{{Host: "GHE.Corp.Example", Forge: "github"}}
+	for host, want := range map[string]bool{
+		"github.com":            true,
+		"dev.azure.com":         true,
+		"corp.visualstudio.com": true,
+		"ghe.corp.example":      true, // config entry, case-insensitive
+		"github.evil.example":   false,
+		"evil.example":          false,
+	} {
+		if got := HostTrusted(host, cfg); got != want {
+			t.Errorf("HostTrusted(%q) = %v, want %v", host, got, want)
+		}
+	}
 }

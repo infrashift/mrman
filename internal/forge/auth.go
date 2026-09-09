@@ -73,8 +73,18 @@ func resetTokenCmdCache() {
 //  4. `gh auth token --hostname <host>` for github-kind hosts when
 //     cfg.CLITokenFallback allows it; failures fall through.
 //
+// Before any of that, the host must be trusted (HostTrusted): a credential
+// never goes to a host mrman merely guessed the forge kind for. A merge
+// request URL on an arbitrary host parses as GitHub by shape, and a
+// hostname containing "github" is assumed GitHub — neither is grounds to
+// hand over GH_ENTERPRISE_TOKEN. Untrusted hosts get unauthenticated access
+// and a warning naming the config entry that would change that.
+//
 // An empty result with nil error means unauthenticated access.
 func TokenForHost(host string, kind forgetypes.Kind, cfg config.ForgeConfig) (string, error) {
+	if !HostTrusted(host, cfg) {
+		return "", nil
+	}
 	if token := envToken(host, kind); token != "" {
 		return token, nil
 	}
@@ -100,6 +110,34 @@ func TokenForHost(host string, kind forgetypes.Kind, cfg config.ForgeConfig) (st
 		}
 	}
 	return "", nil
+}
+
+// HostTrusted reports whether host may receive credentials: it is a
+// built-in SaaS host, a registered driver's default host, or the user
+// listed it under [[forge.hosts]]. Kind detection is deliberately not
+// enough — heuristics decide how to talk to a host, never whether to
+// trust it with a token.
+func HostTrusted(host string, cfg config.ForgeConfig) bool {
+	if _, ok := configHostEntry(host, cfg); ok {
+		return true
+	}
+	if _, ok := builtinKindForHost(strings.ToLower(host)); ok {
+		return true
+	}
+	for _, d := range registry {
+		for _, dh := range d.DefaultHosts {
+			if strings.EqualFold(dh, host) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// UntrustedHostWarning is the one-line notice shown when a host runs
+// unauthenticated because nothing vouches for it. It names the remedy.
+func UntrustedHostWarning(host string) string {
+	return fmt.Sprintf("%s is not in [[forge.hosts]]: connecting without credentials; add a host entry to authenticate", host)
 }
 
 // envToken applies the SaaS-scoped environment conventions.

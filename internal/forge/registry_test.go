@@ -470,3 +470,37 @@ func TestParseTargetStripsGitSuffixInURLAndCoordinate(t *testing.T) {
 		t.Fatalf("name = %q", target.Repository.Name)
 	}
 }
+
+func TestResolveHostConfigWarnsAndWithholdsTokenForUntrustedHost(t *testing.T) {
+	withEmptyRegistry(t)
+	installAuthSeams(t, &authSeams{env: map[string]string{"GH_ENTERPRISE_TOKEN": "leak"}})
+	cfg := defaultForgeConfig()
+
+	target, err := ParseTarget("https://evil.example/o/r/pull/1", nil, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if target.Repository.Kind != forgetypes.KindGitHub {
+		t.Fatalf("kind = %q; the URL shape still decides how to talk to the host", target.Repository.Kind)
+	}
+	hc, err := ResolveHostConfig(target.Repository.Host, target.Repository.Kind, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if hc.Token != "" {
+		t.Fatalf("token %q resolved for an untrusted host", hc.Token)
+	}
+	if !strings.Contains(hc.Warning, "evil.example") || !strings.Contains(hc.Warning, "[[forge.hosts]]") {
+		t.Fatalf("warning = %q, want it to name the host and the remedy", hc.Warning)
+	}
+
+	// Listing the host is the remedy, and clears the warning.
+	cfg.Hosts = []config.ForgeHost{{Host: "evil.example", Forge: "github"}}
+	hc, err = ResolveHostConfig("evil.example", forgetypes.KindGitHub, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if hc.Token != "leak" || hc.Warning != "" {
+		t.Fatalf("token = %q warning = %q after listing the host", hc.Token, hc.Warning)
+	}
+}

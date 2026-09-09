@@ -273,12 +273,15 @@ func apply(raw map[string]any, cfg *Config, warnings *[]string) {
 		}
 	}
 	if f, ok := raw["forge"].(map[string]any); ok {
-		applyForge(f, &cfg.Forge)
+		applyForge(f, &cfg.Forge, warnings)
 	}
 }
 
-// applyForge decodes the vetted [forge] table onto the defaults.
-func applyForge(f map[string]any, forge *ForgeConfig) {
+// applyForge decodes the vetted [forge] table onto the defaults. A host
+// that disables certificate verification is reported every start: it is a
+// setting people add to get past a broken proxy and then forget, and a
+// forgotten one silently strips TLS from every token that host sees.
+func applyForge(f map[string]any, forge *ForgeConfig, warnings *[]string) {
 	if v, ok := stringAt(f, "default"); ok {
 		forge.Default = v
 	}
@@ -305,6 +308,10 @@ func applyForge(f map[string]any, forge *ForgeConfig) {
 		h.TokenCmd, _ = stringAt(entry, "token_cmd")
 		h.CAFile, _ = stringAt(entry, "ca_file")
 		h.InsecureSkipVerify, _ = boolAt(entry, "insecure_skip_verify")
+		if h.InsecureSkipVerify {
+			*warnings = append(*warnings, fmt.Sprintf(
+				"forge host %s: insecure_skip_verify is on — TLS certificates are not verified", h.Host))
+		}
 		forge.Hosts = append(forge.Hosts, h)
 	}
 }
