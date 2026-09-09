@@ -59,6 +59,7 @@ Every exported field and method below is stable; overrides may rely on them.
 | `.Location` | The anchor without backticks — see below |
 | `.CommitID` | Short SHA the comment is scoped to, empty when unscoped |
 | `.Content` | Raw comment text, may span lines |
+| `.Anchor` | The anchor as the diff parser saw it (`path:line` or `path:start-end`), for templates that quote hunks |
 | `.Number` | Continuous 1-based sequence across the whole export |
 | `.Marker` | Method: the numbered-list marker, e.g. `3.` |
 | `.Body` | Method: `.Content` with continuation lines indented under the marker |

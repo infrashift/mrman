@@ -19,7 +19,7 @@ source lines to jump to.
 | `Ctrl-e` / `Ctrl-y` | Scroll the view without moving the cursor |
 | `Ctrl-d` / `Ctrl-u` | Half page down / up |
 | `Ctrl-f` / `Ctrl-b`, `PgDn` / `PgUp` | Full page down / up |
-| `g` / `G` | First / last file |
+| `g` / `G` | Top / bottom of the diff |
 | `{N}G` | Jump to source line N in the current file |
 | `}` / `{` | Next / previous file |
 | `]` / `[` | Next / previous hunk |
@@ -86,7 +86,7 @@ thread) and its colour shows the comment type.
 
 | Key | Action |
 |---|---|
-| `j` / `k` | Scroll |
+| `j` / `k`, `↓` / `↑` | Scroll |
 | `Ctrl-d` / `Ctrl-u` | Half page down / up |
 | `q` / `Esc` / `Enter` | Close |
 
@@ -122,7 +122,7 @@ existing comments; mrman says so rather than silently doing nothing.
 | `j` / `k` | Extend the selection |
 | `c` / `Enter` | Comment on the range |
 | `y` | Copy the selection |
-| `Esc` / `v` / `V` | Cancel |
+| `Esc` / `v` / `V` / `q` | Cancel |
 
 ## Comment box
 
@@ -162,8 +162,6 @@ Normal mode and inserts `comment_tab_width` spaces in Insert mode.
 
 ## Target selector
 
-| Key | Action |
-|---|---|
 Three tabs: **Local**, **Merge Requests** and **Patches**.
 
 | Key | Action |
@@ -219,7 +217,7 @@ selection while the mouse is enabled.
 | `:diff` | Toggle unified / side-by-side |
 | `:wrap` `:set wrap` `:set wrap!` | Line wrap |
 | `:focus` `:f` | Toggle single-file view |
-| `:stage` | Stage the reviewed files (git) |
+| `:stage` | Stage the reviewed files — unstaged git reviews only |
 | `:commits` `:targets` | Open the target selector |
 | `:mrs` | Open it on the Merge Requests tab |
 | `:patches` | Open it on the Patches tab |
