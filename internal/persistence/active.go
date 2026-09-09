@@ -79,6 +79,13 @@ func normalizeActivePath(path string) string {
 	return canonicalPath(path)
 }
 
+// NormalizeSessionPath is the canonical form ActiveSessionPaths keys by,
+// for callers that hold a session path and want to look it up there. On
+// macOS a temp path and its resolved /private form are the same session.
+func NormalizeSessionPath(path string) string {
+	return normalizeActivePath(path)
+}
+
 func (s *Store) activeSessionsPath() string {
 	return filepath.Join(s.ReviewsDir, activeSessionsFilename)
 }

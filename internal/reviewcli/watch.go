@@ -223,7 +223,7 @@ func sessionHeld(store *persistence.Store, path string) bool {
 	if err != nil {
 		return false
 	}
-	return paths[path]
+	return paths[persistence.NormalizeSessionPath(path)]
 }
 
 // untilNextPoll is the interval, shortened so a deadline is met on time

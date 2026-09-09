@@ -40,9 +40,6 @@ jobs:
         run: |
           govulncheck ./...
           (cd charmkit && govulncheck ./...)
-      - name: go.mod is tidy
-        run: make tidy
-
   windows-build:
     runs-on: windows-latest
     steps:
@@ -56,8 +53,9 @@ jobs:
 
   release-shape:
     # `go install github.com/infrashift/mrman@vX.Y.Z` builds with the workspace
-    # disabled; see the Makefile for why this cannot pass until charmkit is
-    # tagged. Advisory until the first release, then flip to a hard failure.
+    # disabled, and `go mod tidy` resolves charmkit through the network; see
+    # the Makefile for why neither can pass until charmkit is tagged. Advisory
+    # until the first release, then flip to a hard failure.
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
@@ -66,3 +64,4 @@ jobs:
         with:
           go-version-file: go.mod
       - run: GOWORK=off go build ./...
+      - run: make tidy

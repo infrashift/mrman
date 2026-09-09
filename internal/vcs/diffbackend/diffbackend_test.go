@@ -123,7 +123,13 @@ func TestInfo(t *testing.T) {
 	}
 	info := b.Info()
 
-	if want := filepath.Dir(newFile); info.RootPath != want {
+	// The backend canonicalises its root, which on macOS turns the
+	// temp dir's /var into /private/var; compare like with like.
+	want, err := filepath.EvalSymlinks(filepath.Dir(newFile))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.RootPath != want {
 		t.Errorf("RootPath = %q, want the new side's directory %q", info.RootPath, want)
 	}
 	if info.Type != vcs.TypeDiff {
