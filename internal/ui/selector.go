@@ -50,10 +50,7 @@ func (m *Model) selectorView() []string {
 		}
 		topSpans = append(topSpans, render.Span{Text: " " + tab.Label() + " ", Style: style})
 	}
-	pad := m.width - render.SpanWidth(topSpans) - render.StringWidth(branchInfo)
-	if pad < 0 {
-		pad = 0
-	}
+	pad := max(m.width-render.SpanWidth(topSpans)-render.StringWidth(branchInfo), 0)
 	topSpans = append(topSpans,
 		render.Span{Text: strings.Repeat(" ", pad), Style: render.Style{Bg: t.StatusBarBg}},
 		render.Span{Text: branchInfo, Style: render.Style{Fg: t.FgSecondary, Bg: t.StatusBarBg}})
@@ -99,10 +96,7 @@ func (m *Model) selectorView() []string {
 		{Text: " SELECT ", Style: render.Style{Fg: t.ModeFg, Bg: t.ModeBg, Bold: true}},
 		{Text: hint, Style: render.Style{Fg: t.FgSecondary, Bg: t.StatusBarBg}},
 	}
-	fpad := m.width - render.SpanWidth(footer) - render.StringWidth(selected)
-	if fpad < 0 {
-		fpad = 0
-	}
+	fpad := max(m.width-render.SpanWidth(footer)-render.StringWidth(selected), 0)
 	footer = append(footer,
 		render.Span{Text: strings.Repeat(" ", fpad), Style: render.Style{Bg: t.StatusBarBg}},
 		render.Span{Text: selected, Style: render.Style{Fg: t.FgDim, Bg: t.StatusBarBg}})
@@ -118,7 +112,7 @@ func (m *Model) selectorLocalRows(height int) []string {
 	var rows []string
 
 	count := a.CommitSelectRowCount()
-	for display := 0; display < count; display++ {
+	for display := range count {
 		dataIdx := a.CommitDataIndex(display)
 		if dataIdx < 0 || dataIdx >= len(a.CommitList) {
 			continue
@@ -191,14 +185,8 @@ func (m *Model) selectorLocalRows(height int) []string {
 	}
 
 	// Scroll window.
-	offset := a.CommitListScrollOffset
-	if offset > len(rows) {
-		offset = len(rows)
-	}
-	end := offset + height
-	if end > len(rows) {
-		end = len(rows)
-	}
+	offset := min(a.CommitListScrollOffset, len(rows))
+	end := min(offset+height, len(rows))
 	return rows[offset:end]
 }
 

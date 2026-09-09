@@ -50,13 +50,13 @@ func (s *Store) withLock(fn func() error) error {
 // lockRetryInterval up to lockTimeout and clearing stale locks along the way.
 // The lock body records "<pid> <RFC3339 timestamp>".
 func (s *Store) acquireLock() (release func(), err error) {
-	if err := os.MkdirAll(s.ReviewsDir, 0o755); err != nil {
+	if err := os.MkdirAll(s.ReviewsDir, dirMode); err != nil {
 		return nil, err
 	}
 	path := filepath.Join(s.ReviewsDir, lockFilename)
 	started := nowFn()
 	for {
-		f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
+		f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, fileMode)
 		if err == nil {
 			_, _ = fmt.Fprintf(f, "%d %s\n", os.Getpid(), nowFn().Format(time.RFC3339))
 			_ = f.Sync()

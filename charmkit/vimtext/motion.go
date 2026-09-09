@@ -76,7 +76,7 @@ func (e *Editor) lastLine() int { return strings.Count(e.text, "\n") }
 // line, clamped to the last line.
 func (e *Editor) lineStartOf(line int) int {
 	ls := 0
-	for i := 0; i < line; i++ {
+	for range line {
 		j := strings.IndexByte(e.text[ls:], '\n')
 		if j < 0 {
 			break

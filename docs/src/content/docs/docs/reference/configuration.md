@@ -38,7 +38,7 @@ you get a precise warning in the status bar.
 | `username` | — | Author stamped on your comments; also distinguishes yours from an agent's |
 | `show_own_author` | `false` | Show the author badge on your own comments too, not just other people's |
 | `review_watch_interval_ms` | `1000` | Poll interval for external session changes; `0` disables |
-| `backend` | — | Accepted for tuicr compatibility and ignored: mrman uses the git CLI by design |
+| `backend` | — | Accepted for tuicr compatibility and ignored, with a warning at start: mrman uses the git CLI by design |
 
 `ignore_whitespace` applies to local git and Jujutsu diffs only. A pull
 request's diff arrives from the forge already rendered, so there is no flag
@@ -115,9 +115,21 @@ it rather than leaving you guessing which one won.
 
 Tokens resolve per host in this order: a SaaS-scoped environment variable
 (`GITHUB_TOKEN`, `GITLAB_TOKEN`, `AZURE_DEVOPS_EXT_PAT`,
-`FORGEJO_TOKEN` / `CODEBERG_TOKEN`), then `token`, then `token_cmd`, then
-`gh auth token` for GitHub. `insecure_skip_verify` exists per host and
-should stay a last resort.
+`FORGEJO_TOKEN` / `CODEBERG_TOKEN`; `GH_ENTERPRISE_TOKEN` for other GitHub
+hosts), then `token`, then `token_cmd`, then `gh auth token` for GitHub.
+
+Only a **trusted host** receives any of them: the four SaaS hosts, or a host
+with its own `[[forge.hosts]]` entry. Every other host is connected to
+without credentials and a warning names the entry to add — mrman can guess
+which forge a host runs from a URL, but a guess is not grounds to send it a
+token. `insecure_skip_verify` exists per host and should stay a last resort;
+mrman warns at every start while it is on.
+
+Requests to a host stay on that host: a redirect to another origin — or from
+https down to http — is refused rather than followed with the token attached.
+`api_base` may be plain `http://` for a fixture server, and mrman warns at
+start that tokens for that host travel unencrypted. Every request carries a
+90-second timeout so a stalled forge cannot hang the review.
 
 ### What each forge can do
 
@@ -165,6 +177,7 @@ warns and falls through.
 [templates]
 notes = "~/.config/mrman/templates/notes.md.tmpl"
 review_body = "~/.config/mrman/templates/review_body.md.tmpl"
+patch_reply = "~/.config/mrman/templates/patch_reply.txt.tmpl"
 ```
 
 `notes` renders `y` / `:clip` output; `review_body` renders the body posted
@@ -195,4 +208,6 @@ that a command an agent runs can never create one.
 
 `.gitignore` is honored automatically. A `.mrmanignore` at the repository
 root layers on top of it with the same syntax, `!` negation included, and
-excludes matching files from every review diff.
+excludes matching files from every review diff. Only the two root-level
+files are read — nested ignore files are not — and a merge request's diff
+is filtered only when mrman runs inside a checkout of that repository.

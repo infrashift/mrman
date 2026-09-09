@@ -86,7 +86,7 @@ func buildTargetSelectorApp(backend *selectorVcs) *App {
 	info := &vcs.Info{
 		RootPath:   "/tmp",
 		HeadCommit: "head",
-		BranchName: strPtr("main"),
+		BranchName: new("main"),
 		Type:       vcs.TypeGit,
 	}
 	backend.info = info
@@ -418,7 +418,7 @@ func TestApplyLoadedSelectionSetsUpInlineSelector(t *testing.T) {
 	}
 
 	files := []model.DiffFile{makeFileWithHunks("pkg/x.go", []model.DiffHunk{makeHunk(1, 2)})}
-	session := model.NewReviewSession("/tmp", "newest", strPtr("main"), model.SourceCommitRange)
+	session := model.NewReviewSession("/tmp", "newest", new("main"), model.SourceCommitRange)
 	// DiffSource keeps the opposite, oldest-first order.
 	source := DiffSource{Kind: DiffSourceCommitRange, Commits: []string{"oldest", "middle", "newest"}}
 	a.ApplyLoadedSelection(files, session, source)
@@ -469,7 +469,7 @@ func TestApplyLoadedSelectionSingleCommitInsertsCommitMessage(t *testing.T) {
 	}
 
 	files := []model.DiffFile{makeFileWithHunks("x.go", []model.DiffHunk{makeHunk(1, 1)})}
-	session := model.NewReviewSession("/tmp", "abc1234", strPtr("main"), model.SourceCommitRange)
+	session := model.NewReviewSession("/tmp", "abc1234", new("main"), model.SourceCommitRange)
 	a.ApplyLoadedSelection(files, session, DiffSource{Kind: DiffSourceCommitRange, Commits: []string{"abc1234"}})
 
 	assertEq(t, len(a.DiffFiles), 2, "commit message + real file")
@@ -491,7 +491,7 @@ func TestApplyLoadedSelectionHonorsOldestSelectionStart(t *testing.T) {
 		t.Fatal("expected a confirmed selection")
 	}
 	files := []model.DiffFile{makeFileWithHunks("x.go", []model.DiffHunk{makeHunk(1, 1)})}
-	session := model.NewReviewSession("/tmp", "newest", strPtr("main"), model.SourceCommitRange)
+	session := model.NewReviewSession("/tmp", "newest", new("main"), model.SourceCommitRange)
 	a.ApplyLoadedSelection(files, session, DiffSource{Kind: DiffSourceCommitRange, Commits: []string{"oldest", "middle", "newest"}})
 
 	// initial_commit_selection = oldest opens scoped to the oldest commit;
@@ -514,7 +514,7 @@ func TestApplyLoadedSelectionStagedLeavesSelectorStateAlone(t *testing.T) {
 	assertEq(t, sel.Kind, SelectionStaged, "staged row confirms staged")
 
 	files := []model.DiffFile{makeFileWithHunks("y.go", []model.DiffHunk{makeHunk(1, 1)})}
-	session := model.NewReviewSession("/tmp", "head", strPtr("main"), model.SourceStaged)
+	session := model.NewReviewSession("/tmp", "head", new("main"), model.SourceStaged)
 	a.ApplyLoadedSelection(files, session, DiffSource{Kind: DiffSourceStaged})
 
 	assertEq(t, a.DiffSource.Kind, DiffSourceStaged, "staged source installed")
@@ -536,7 +536,7 @@ func TestApplyLoadedSelectionPreservesWrapSetting(t *testing.T) {
 		t.Fatal("expected a confirmed selection")
 	}
 	files := []model.DiffFile{makeFileWithHunks("x.go", []model.DiffHunk{makeHunk(1, 1)})}
-	session := model.NewReviewSession("/tmp", "c1", strPtr("main"), model.SourceCommitRange)
+	session := model.NewReviewSession("/tmp", "c1", new("main"), model.SourceCommitRange)
 	a.ApplyLoadedSelection(files, session, DiffSource{Kind: DiffSourceCommitRange, Commits: []string{"c1"}})
 
 	assertEq(t, a.DiffState.WrapLines, false, "wrap setting survives the reset")

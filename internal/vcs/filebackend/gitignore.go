@@ -130,7 +130,7 @@ func parseGitignoreFile(path string) []ignoreRule {
 		return nil
 	}
 	var rules []ignoreRule
-	for _, raw := range strings.Split(string(data), "\n") {
+	for raw := range strings.SplitSeq(string(data), "\n") {
 		line := strings.TrimRight(strings.TrimSuffix(raw, "\r"), " ")
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue

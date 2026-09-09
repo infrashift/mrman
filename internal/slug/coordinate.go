@@ -54,7 +54,7 @@ func ParseRepoCoordinate(input string) (RepoCoordinate, error) {
 		normalized = strings.Replace(rest, ":", "/", 1)
 	}
 	var segments []string
-	for _, seg := range strings.Split(strings.Trim(normalized, "/"), "/") {
+	for seg := range strings.SplitSeq(strings.Trim(normalized, "/"), "/") {
 		if seg != "" && seg != adoGitMarker {
 			segments = append(segments, seg)
 		}

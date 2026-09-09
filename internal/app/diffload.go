@@ -4,6 +4,7 @@
 // fallback, the synthetic commit-message pseudo-file, and the shared reset
 // sequence (ApplyLoadedSelection) every load_*_selection path runs after
 // the UI layer has produced the new diff and session.
+
 package app
 
 import (
@@ -120,14 +121,14 @@ func InsertCommitMessageIfSingle(files []model.DiffFile, commits []vcs.CommitInf
 	// Rust's str::lines drops a trailing newline's empty tail.
 	var diffLines []model.DiffLine
 	for i, line := range strings.Split(strings.TrimSuffix(fullMessage, "\n"), "\n") {
-		lineno := uint32(i) + 1 //nolint:gosec // message line counts stay tiny
+		lineno := uint32(i) + 1
 		diffLines = append(diffLines, model.DiffLine{
 			Origin:    model.OriginContext,
 			Content:   line,
 			NewLineno: &lineno,
 		})
 	}
-	lineCount := uint32(len(diffLines)) //nolint:gosec // message line counts stay tiny
+	lineCount := uint32(len(diffLines)) //nolint:gosec // G115: line numbers fit uint32
 	hunks := []model.DiffHunk{{
 		Lines:    diffLines,
 		OldStart: 0,

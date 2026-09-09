@@ -35,10 +35,6 @@ func captureJSON(t *testing.T, sink *[]map[string]any, reply string) http.Handle
 	}
 }
 
-func u32Ptr(v uint32) *uint32 { return &v }
-
-func sidePtr(s submit.Side) *submit.Side { return &s }
-
 func position(t *testing.T, body map[string]any) map[string]any {
 	t.Helper()
 	pos, ok := body["position"].(map[string]any)
@@ -127,7 +123,7 @@ func TestCreateReviewContextLineSendsCounterpart(t *testing.T) {
 			Path:            "src/lib.rs",
 			Line:            20,
 			Side:            submit.SideNew,
-			CounterpartLine: u32Ptr(18),
+			CounterpartLine: new(uint32(18)),
 			Body:            "context line",
 			CommentID:       "c1",
 		}},
@@ -188,8 +184,8 @@ func TestCreateReviewMultiLineRangeGolden(t *testing.T) {
 			Path:      "src/lib.rs",
 			Line:      15,
 			Side:      submit.SideNew,
-			StartLine: u32Ptr(12),
-			StartSide: sidePtr(submit.SideNew),
+			StartLine: new(uint32(12)),
+			StartSide: new(submit.SideNew),
 			Body:      "range comment",
 			CommentID: "c1",
 		}},

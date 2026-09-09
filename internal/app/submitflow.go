@@ -1,6 +1,8 @@
 package app
 
 import (
+	"fmt"
+	"slices"
 	"sort"
 
 	"github.com/infrashift/mrman/internal/forge"
@@ -12,6 +14,67 @@ import (
 // SubmitPickerEvents is the action picker's row order (tuicr parity).
 var SubmitPickerEvents = []forge.SubmitEvent{
 	forge.SubmitComment, forge.SubmitApprove, forge.SubmitRequestChanges, forge.SubmitDraft,
+}
+
+// PickerEvents is SubmitPickerEvents narrowed to what the current forge
+// can do, so the picker never offers an action that fails after it is
+// chosen (Azure DevOps has no draft reviews).
+func (a *App) PickerEvents() []forge.SubmitEvent {
+	if !a.InPrMode() {
+		return SubmitPickerEvents
+	}
+	caps := a.Pr.Backend.Capabilities()
+	events := make([]forge.SubmitEvent, 0, len(SubmitPickerEvents))
+	for _, event := range SubmitPickerEvents {
+		switch event {
+		case forge.SubmitDraft:
+			if !caps.DraftReviews {
+				continue
+			}
+		case forge.SubmitApprove:
+			if !caps.Approve {
+				continue
+			}
+		case forge.SubmitRequestChanges:
+			if !caps.RequestChanges {
+				continue
+			}
+		}
+		events = append(events, event)
+	}
+	return events
+}
+
+// SubmitOutcome is what applying a forge's submit result amounted to.
+type SubmitOutcome struct {
+	// Partial is the forge's account of a mid-sequence failure, nil when
+	// everything posted.
+	Partial *forge.PartialFailure
+	// Posted counts the inline comments the forge accepted.
+	Posted int
+	// Unposted counts the inline comments still local because the
+	// sequence stopped before them.
+	Unposted int
+}
+
+// Complete reports whether every comment reached the forge.
+func (o SubmitOutcome) Complete() bool { return o.Partial == nil }
+
+// Message describes a partial outcome for the status bar: what landed,
+// what did not, and why.
+func (o SubmitOutcome) Message() string {
+	if o.Partial == nil {
+		return ""
+	}
+	total := o.Posted + o.Unposted
+	msg := fmt.Sprintf("Posted %d of %d inline comments before the forge refused", o.Posted, total)
+	if o.Partial.FailedAt >= total {
+		msg = fmt.Sprintf("Posted all %d inline comments but the final step failed", total)
+	}
+	if o.Partial.Cause != nil {
+		msg += ": " + o.Partial.Cause.Error()
+	}
+	return msg + " — the rest stay local; submit again to retry them"
 }
 
 // UnmappableItem is one comment that cannot post inline, awaiting a
@@ -93,7 +156,7 @@ func (a *App) StartSubmitWith(event forge.SubmitEvent, skipConfirm bool) bool {
 		for line := range review.LineComments {
 			lines = append(lines, line)
 		}
-		sort.Slice(lines, func(i, j int) bool { return lines[i] < lines[j] })
+		slices.Sort(lines)
 		for _, line := range lines {
 			for _, c := range review.LineComments[line] {
 				anchor := submit.LineAnchor(line, model.SideOf(c))
@@ -121,11 +184,12 @@ func (a *App) StartSubmitWith(event forge.SubmitEvent, skipConfirm bool) bool {
 	}
 
 	a.Submit = state
-	if len(state.Unmappable) > 0 {
+	switch {
+	case len(state.Unmappable) > 0:
 		a.InputMode = input.ModeSubmitResolver
-	} else if skipConfirm {
+	case skipConfirm:
 		a.InputMode = input.ModeNormal // dispatch happens in the UI layer
-	} else {
+	default:
 		a.InputMode = input.ModeSubmitConfirm
 	}
 	return true
@@ -223,14 +287,34 @@ func (a *App) CancelSubmit() {
 // ApplySubmitSuccess locks every sent comment and stamps the remote review
 // id, mirroring tuicr's post-submit bookkeeping.
 func (a *App) ApplySubmitSuccess(result *forge.SubmitResult, event forge.SubmitEvent) {
+	a.ApplySubmitResult(result, event)
+}
+
+// ApplySubmitResult locks the comments the forge accepted and reports what
+// happened. On a complete result every sent comment locks. On a partial
+// one — GitLab and Azure DevOps post comment by comment and can fail
+// midway — only the comments the forge names as posted lock, plus the
+// review body, which both drivers post first and fail outright on; the
+// rest stay drafts so a second submit can carry them.
+func (a *App) ApplySubmitResult(result *forge.SubmitResult, event forge.SubmitEvent) SubmitOutcome {
 	state := model.LifecycleSubmitted
 	if event == forge.SubmitDraft {
 		state = model.LifecyclePushedDraft
 	}
 	reviewID := result.ReviewID
+	outcome := SubmitOutcome{Partial: result.Partial}
 	sent := make(map[string]bool, len(a.Submit.SentCommentIDs))
-	for _, id := range a.Submit.SentCommentIDs {
-		sent[id] = true
+	if result.Partial == nil {
+		for _, id := range a.Submit.SentCommentIDs {
+			sent[id] = true
+		}
+		outcome.Posted = len(a.Submit.SentCommentIDs)
+	} else {
+		for _, id := range result.Partial.SucceededCommentIDs {
+			sent[id] = true
+		}
+		outcome.Posted = len(result.Partial.SucceededCommentIDs)
+		outcome.Unposted = len(a.Submit.SentCommentIDs) - outcome.Posted
 	}
 	for _, c := range a.Submit.ReviewComments {
 		sent[c.ID] = true
@@ -257,4 +341,5 @@ func (a *App) ApplySubmitSuccess(result *forge.SubmitResult, event forge.SubmitE
 	a.Submit = nil
 	a.Dirty = true
 	a.RebuildAnnotations()
+	return outcome
 }

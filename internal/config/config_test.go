@@ -540,8 +540,10 @@ forge = "forgejo"
 token_cmd = "pass show git.internal"
 insecure_skip_verify = true
 `)
-	if len(warnings) != 0 {
-		t.Fatalf("warnings = %q, want none", warnings)
+	// The only warning is the one insecure_skip_verify earns on every start.
+	if len(warnings) != 1 || !strings.Contains(warnings[0], "git.internal") ||
+		!strings.Contains(warnings[0], "insecure_skip_verify") {
+		t.Fatalf("warnings = %q, want exactly the insecure_skip_verify notice for git.internal", warnings)
 	}
 	f := cfg.Forge
 	if f.Default != "gitlab" || f.CommentTypePrefix || f.CLITokenFallback {
@@ -789,5 +791,31 @@ func TestDirAndLoad(t *testing.T) {
 	}
 	if cfg.Username != "xdg-user" {
 		t.Errorf("Username = %q, want xdg-user", cfg.Username)
+	}
+}
+
+func TestPlaintextAPIBaseWarns(t *testing.T) {
+	_, warnings := loadString(t, `
+[[forge.hosts]]
+host = "fixture.local"
+forge = "github"
+api_base = "http://fixture.local:8080/api/v3"
+`)
+	if len(warnings) != 1 || !strings.Contains(warnings[0], "plaintext http") ||
+		!strings.Contains(warnings[0], "fixture.local") {
+		t.Fatalf("warnings = %q, want the plaintext api_base notice", warnings)
+	}
+}
+
+func TestPatchReplyTemplateKey(t *testing.T) {
+	cfg, warnings := loadString(t, `
+[templates]
+patch_reply = "/abs/reply.txt.tmpl"
+`)
+	if len(warnings) != 0 {
+		t.Fatalf("warnings = %q", warnings)
+	}
+	if cfg.Templates.PatchReply != "/abs/reply.txt.tmpl" {
+		t.Fatalf("PatchReply = %q", cfg.Templates.PatchReply)
 	}
 }

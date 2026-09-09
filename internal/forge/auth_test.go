@@ -11,6 +11,8 @@ import (
 	"errors"
 	"math/big"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -70,8 +72,10 @@ func TestTokenEnvConventionsForSaaSHosts(t *testing.T) {
 			map[string]string{"GITHUB_TOKEN": "a", "GH_TOKEN": "b"}, "a"},
 		{"github.com GH_TOKEN fallback", "github.com", forgetypes.KindGitHub,
 			map[string]string{"GH_TOKEN": "b"}, "b"},
-		{"ghe host GH_ENTERPRISE_TOKEN", "ghe.corp.example", forgetypes.KindGitHub,
+		{"listed ghe host GH_ENTERPRISE_TOKEN", "ghe.corp.example", forgetypes.KindGitHub,
 			map[string]string{"GH_ENTERPRISE_TOKEN": "e", "GITHUB_TOKEN": "a"}, "e"},
+		{"unlisted ghe host gets nothing", "ghe.unlisted.example", forgetypes.KindGitHub,
+			map[string]string{"GH_ENTERPRISE_TOKEN": "e", "GITHUB_TOKEN": "a"}, ""},
 		{"gitlab.com GITLAB_TOKEN", "gitlab.com", forgetypes.KindGitLab,
 			map[string]string{"GITLAB_TOKEN": "g"}, "g"},
 		{"dev.azure.com AZURE_DEVOPS_EXT_PAT", "dev.azure.com", forgetypes.KindAzureDevOps,
@@ -87,6 +91,7 @@ func TestTokenEnvConventionsForSaaSHosts(t *testing.T) {
 			installAuthSeams(t, seams)
 			cfg := defaultForgeConfig()
 			cfg.CLITokenFallback = false
+			cfg.Hosts = []config.ForgeHost{{Host: "ghe.corp.example", Forge: "github"}}
 			got, err := TokenForHost(tc.host, tc.kind, cfg)
 			if err != nil {
 				t.Fatal(err)
@@ -105,6 +110,7 @@ func TestTokenEnvNeverLeaksToOnPremHosts(t *testing.T) {
 		"CODEBERG_TOKEN":       "cb",
 		"AZURE_DEVOPS_EXT_PAT": "ado",
 		"GITHUB_TOKEN":         "gh",
+		"GH_ENTERPRISE_TOKEN":  "ghe",
 	}}
 	installAuthSeams(t, seams)
 	cfg := defaultForgeConfig()
@@ -116,6 +122,9 @@ func TestTokenEnvNeverLeaksToOnPremHosts(t *testing.T) {
 		{"gitlab.corp.example", forgetypes.KindGitLab},
 		{"forgejo.corp.example", forgetypes.KindForgejo},
 		{"ado.corp.example", forgetypes.KindAzureDevOps},
+		// A /pull/N URL on any host parses as GitHub by shape; that shape
+		// must not be enough to send GH_ENTERPRISE_TOKEN there.
+		{"evil.example", forgetypes.KindGitHub},
 	} {
 		got, err := TokenForHost(tc.host, tc.kind, cfg)
 		if err != nil {
@@ -162,7 +171,7 @@ func TestTokenCmdCachedPerProcess(t *testing.T) {
 	cfg := defaultForgeConfig()
 	cfg.Hosts = []config.ForgeHost{{Host: "corp.example", Forge: "gitlab", TokenCmd: "pass show tok"}}
 
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		got, err := TokenForHost("corp.example", forgetypes.KindGitLab, cfg)
 		if err != nil {
 			t.Fatal(err)
@@ -192,6 +201,7 @@ func TestGhFallbackGatedByKindAndConfig(t *testing.T) {
 	seams := &authSeams{ghToken: "gh-tok"}
 	installAuthSeams(t, seams)
 	cfg := defaultForgeConfig()
+	cfg.Hosts = []config.ForgeHost{{Host: "ghe.corp.example", Forge: "github"}}
 	got, err := TokenForHost("ghe.corp.example", forgetypes.KindGitHub, cfg)
 	if err != nil || got != "gh-tok" {
 		t.Fatalf("token = %q err = %v", got, err)
@@ -331,4 +341,191 @@ func transportTLS(t *testing.T, client *http.Client) *tls.Config {
 		t.Fatalf("transport = %T, want *http.Transport with TLS config", client.Transport)
 	}
 	return transport.TLSClientConfig
+}
+
+func TestTokenOnlyForTrustedHosts(t *testing.T) {
+	env := map[string]string{"GH_ENTERPRISE_TOKEN": "e", "GITLAB_TOKEN": "gl"}
+
+	t.Run("listed host is trusted", func(t *testing.T) {
+		installAuthSeams(t, &authSeams{env: env})
+		cfg := defaultForgeConfig()
+		cfg.Hosts = []config.ForgeHost{{Host: "ghe.corp.example", Forge: "github"}}
+		got, err := TokenForHost("ghe.corp.example", forgetypes.KindGitHub, cfg)
+		if err != nil || got != "e" {
+			t.Fatalf("token = %q err = %v", got, err)
+		}
+	})
+
+	t.Run("unlisted host gets no env token", func(t *testing.T) {
+		installAuthSeams(t, &authSeams{env: env})
+		got, err := TokenForHost("ghe.corp.example", forgetypes.KindGitHub, defaultForgeConfig())
+		if err != nil || got != "" {
+			t.Fatalf("token = %q err = %v", got, err)
+		}
+	})
+
+	t.Run("unlisted host never consults gh", func(t *testing.T) {
+		seams := &authSeams{ghToken: "gh-tok"}
+		installAuthSeams(t, seams)
+		cfg := defaultForgeConfig()
+		cfg.CLITokenFallback = true
+		got, err := TokenForHost("ghe.corp.example", forgetypes.KindGitHub, cfg)
+		if err != nil || got != "" {
+			t.Fatalf("token = %q err = %v", got, err)
+		}
+		if seams.ghCalls != 0 {
+			t.Fatalf("gh called %d times for an unlisted host", seams.ghCalls)
+		}
+	})
+
+	t.Run("SaaS hosts are trusted without config", func(t *testing.T) {
+		installAuthSeams(t, &authSeams{env: env})
+		got, err := TokenForHost("gitlab.com", forgetypes.KindGitLab, defaultForgeConfig())
+		if err != nil || got != "gl" {
+			t.Fatalf("token = %q err = %v", got, err)
+		}
+	})
+}
+
+func TestHostTrusted(t *testing.T) {
+	cfg := defaultForgeConfig()
+	cfg.Hosts = []config.ForgeHost{{Host: "GHE.Corp.Example", Forge: "github"}}
+	for host, want := range map[string]bool{
+		"github.com":            true,
+		"dev.azure.com":         true,
+		"corp.visualstudio.com": true,
+		"ghe.corp.example":      true, // config entry, case-insensitive
+		"github.evil.example":   false,
+		"evil.example":          false,
+	} {
+		if got := HostTrusted(host, cfg); got != want {
+			t.Errorf("HostTrusted(%q) = %v, want %v", host, got, want)
+		}
+	}
+}
+
+// redirectPair is server A redirecting to server B; both are TLS servers
+// with self-signed certificates, so the client under test skips
+// verification — the property being tested is the redirect policy, not
+// certificate handling.
+func redirectPair(t *testing.T, location func(b *httptest.Server) string) (a, b *httptest.Server, bHits *int) {
+	t.Helper()
+	hits := 0
+	b = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hits++
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(b.Close)
+	a = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Redirect(w, &http.Request{URL: &url.URL{}}, location(b), http.StatusFound)
+	}))
+	t.Cleanup(a.Close)
+	return a, b, &hits
+}
+
+func TestBuildHTTPClientRefusesCrossHostRedirect(t *testing.T) {
+	a, _, bHits := redirectPair(t, func(b *httptest.Server) string { return b.URL + "/elsewhere" })
+	aHost := mustURL(t, a.URL).Host
+	client, err := BuildHTTPClient(HostConfig{Host: aHost, InsecureSkipVerify: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := client.Get(a.URL + "/start")
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
+	var refused *RedirectRefused
+	if !errors.As(err, &refused) {
+		t.Fatalf("err = %v, want *RedirectRefused", err)
+	}
+	if *bHits != 0 {
+		t.Fatalf("the other host was contacted %d times", *bHits)
+	}
+	if refused.From != aHost || refused.To == "" {
+		t.Fatalf("refusal = %+v", refused)
+	}
+}
+
+func TestBuildHTTPClientAllowsSameHostRedirect(t *testing.T) {
+	hits := 0
+	var srv *httptest.Server
+	srv = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/start" {
+			http.Redirect(w, r, srv.URL+"/final", http.StatusFound)
+			return
+		}
+		hits++
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(srv.Close)
+	client, err := BuildHTTPClient(HostConfig{Host: mustURL(t, srv.URL).Host, InsecureSkipVerify: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := client.Get(srv.URL + "/start")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusOK || hits != 1 {
+		t.Fatalf("status = %d hits = %d", resp.StatusCode, hits)
+	}
+}
+
+func TestBuildHTTPClientPinsToAPIBaseOrigin(t *testing.T) {
+	// With api_base on another origin, the redirect target that matches
+	// api_base is allowed even though it is not hc.Host.
+	a, b, bHits := redirectPair(t, func(b *httptest.Server) string { return b.URL + "/api/v3/x" })
+	client, err := BuildHTTPClient(HostConfig{
+		Host: "ghe.corp.example", APIBase: b.URL + "/api/v3", InsecureSkipVerify: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := client.Get(a.URL + "/start")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = resp.Body.Close()
+	if *bHits != 1 {
+		t.Fatalf("api_base origin hit %d times, want 1", *bHits)
+	}
+}
+
+func TestSameOriginRules(t *testing.T) {
+	allowed := mustURL(t, "https://ghe.corp.example")
+	for raw, want := range map[string]bool{
+		"https://ghe.corp.example/api/v3":     true,
+		"https://GHE.CORP.EXAMPLE:443/x":      true,
+		"https://ghe.corp.example:8443/x":     false,
+		"http://ghe.corp.example/x":           false, // downgrade
+		"https://ghe.corp.example.evil.tld/x": false,
+		"https://evil.tld/x":                  false,
+	} {
+		if got := sameOrigin(mustURL(t, raw), allowed); got != want {
+			t.Errorf("sameOrigin(%s) = %v, want %v", raw, got, want)
+		}
+	}
+	if !sameOrigin(mustURL(t, "http://fixture.local:8080/a"), mustURL(t, "http://fixture.local:8080")) {
+		t.Error("a plaintext api_base allows plaintext on the same origin")
+	}
+}
+
+func TestBuildHTTPClientHasTimeout(t *testing.T) {
+	client, err := BuildHTTPClient(HostConfig{Host: "github.com"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if client.Timeout == 0 {
+		t.Fatal("forge requests must not wait forever")
+	}
+}
+
+func mustURL(t *testing.T, raw string) *url.URL {
+	t.Helper()
+	u, err := url.Parse(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return u
 }

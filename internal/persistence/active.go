@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"time"
 
 	"github.com/infrashift/mrman/internal/model"
@@ -139,13 +140,39 @@ func (s *Store) MarkSessionActiveWithGrant(
 				kept = append(kept, e)
 			}
 		}
-		active.Sessions = append(kept, activeSessionEntry{
+		kept = append(kept, activeSessionEntry{
 			Pid:           pid,
 			Slug:          sl.String(),
 			Path:          normalized,
 			LastSeenAt:    nowFn(),
 			GrantedEvents: append([]string(nil), grantedEvents...),
 		})
+		active.Sessions = kept
+		return s.saveActiveSessionsUnlocked(&active)
+	})
+}
+
+// TouchActiveSession refreshes this process's heartbeat. Freshness is
+// bounded by activeSessionStaleAfter; a TUI left open past that would
+// otherwise vanish from `review list`, lose its agent-submit grant and be
+// reported as exited by `review watch` while still running.
+func (s *Store) TouchActiveSession() error {
+	if err := s.maybeMigrate(); err != nil {
+		return err
+	}
+	return s.withLock(func() error {
+		active := s.loadActiveSessionsOrDefault()
+		pid := os.Getpid()
+		touched := false
+		for i := range active.Sessions {
+			if active.Sessions[i].Pid == pid {
+				active.Sessions[i].LastSeenAt = nowFn()
+				touched = true
+			}
+		}
+		if !touched {
+			return nil
+		}
 		return s.saveActiveSessionsUnlocked(&active)
 	})
 }
@@ -212,10 +239,8 @@ func (s *Store) AgentSubmitGrant(path, event string) (granted []string, reason G
 		if len(e.GrantedEvents) == 0 {
 			continue
 		}
-		for _, allowed := range e.GrantedEvents {
-			if allowed == event {
-				return e.GrantedEvents, GrantOK, nil
-			}
+		if slices.Contains(e.GrantedEvents, event) {
+			return e.GrantedEvents, GrantOK, nil
 		}
 		return e.GrantedEvents, GrantEventNotAllowed, nil
 	}

@@ -345,7 +345,7 @@ func TestForgeResolverMemoizesFailure(t *testing.T) {
 			return nil, forgetypes.Repository{}, errors.New("no token")
 		},
 	}
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		if _, _, err := r.Get(); err == nil {
 			t.Fatal("expected the resolver failure")
 		}

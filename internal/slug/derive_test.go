@@ -34,8 +34,6 @@ func swapForSessionRunner(t *testing.T, r Runner) {
 	t.Cleanup(func() { forSessionRunner = old })
 }
 
-func strPtr(s string) *string { return &s }
-
 // localSession builds a minimal local review session for derivation tests.
 func localSession(branch *string, baseCommit string, source model.SessionDiffSource, commitRange []string) *model.ReviewSession {
 	return &model.ReviewSession{
@@ -186,7 +184,7 @@ func TestExecRunnerCapturesOutput(t *testing.T) {
 
 func TestForSessionWorktreeFromBranch(t *testing.T) {
 	swapForSessionRunner(t, originRunner)
-	slug, err := ForSession(localSession(strPtr("main"), "abcdef0123", model.SourceWorkingTree, nil))
+	slug, err := ForSession(localSession(new("main"), "abcdef0123", model.SourceWorkingTree, nil))
 	if err != nil {
 		t.Fatalf("ForSession error: %v", err)
 	}
@@ -197,7 +195,7 @@ func TestForSessionWorktreeFromBranch(t *testing.T) {
 
 func TestForSessionSanitizesBranch(t *testing.T) {
 	swapForSessionRunner(t, originRunner)
-	slug, err := ForSession(localSession(strPtr("feature/login"), "abcdef0123", model.SourceWorkingTree, nil))
+	slug, err := ForSession(localSession(new("feature/login"), "abcdef0123", model.SourceWorkingTree, nil))
 	if err != nil {
 		t.Fatalf("ForSession error: %v", err)
 	}
@@ -222,11 +220,11 @@ func TestForSessionChangesWhenHeadAdvances(t *testing.T) {
 	// HEADs must produce distinct slugs so the persisted session from the
 	// previous HEAD does not leak its comments into the new run.
 	swapForSessionRunner(t, originRunner)
-	before, err := ForSession(localSession(strPtr("main"), "abcdef0123", model.SourceWorkingTree, nil))
+	before, err := ForSession(localSession(new("main"), "abcdef0123", model.SourceWorkingTree, nil))
 	if err != nil {
 		t.Fatalf("ForSession error: %v", err)
 	}
-	after, err := ForSession(localSession(strPtr("main"), "9999999aaa", model.SourceWorkingTree, nil))
+	after, err := ForSession(localSession(new("main"), "9999999aaa", model.SourceWorkingTree, nil))
 	if err != nil {
 		t.Fatalf("ForSession error: %v", err)
 	}
@@ -243,7 +241,7 @@ func TestForSessionChangesWhenHeadAdvances(t *testing.T) {
 
 func TestForSessionUnbornHeadUsesNoneToken(t *testing.T) {
 	swapForSessionRunner(t, fakeRunner{err: errors.New("no origin")})
-	slug, err := ForSession(localSession(strPtr("main"), "", model.SourceWorkingTree, nil))
+	slug, err := ForSession(localSession(new("main"), "", model.SourceWorkingTree, nil))
 	if err != nil {
 		t.Fatalf("ForSession error: %v", err)
 	}
@@ -264,7 +262,7 @@ func TestForSessionLiveAndPristineSources(t *testing.T) {
 		{model.SourcePristine, "agavra/tuicr@main/pristine"},
 	}
 	for _, tt := range tests {
-		slug, err := ForSession(localSession(strPtr("main"), "abcdef0123", tt.source, nil))
+		slug, err := ForSession(localSession(new("main"), "abcdef0123", tt.source, nil))
 		if err != nil {
 			t.Fatalf("ForSession(%s) error: %v", tt.source, err)
 		}
@@ -287,7 +285,7 @@ func TestForSessionRangeSources(t *testing.T) {
 		{model.SourceStagedUnstagedAndCommits, "agavra/tuicr@main/staged-and-unstaged-and-commits/abc1234..def5678"},
 	}
 	for _, tt := range tests {
-		slug, err := ForSession(localSession(strPtr("main"), "def5678", tt.source, commitRange))
+		slug, err := ForSession(localSession(new("main"), "def5678", tt.source, commitRange))
 		if err != nil {
 			t.Fatalf("ForSession(%s) error: %v", tt.source, err)
 		}
@@ -299,7 +297,7 @@ func TestForSessionRangeSources(t *testing.T) {
 
 func TestForSessionRoundTripsThroughParse(t *testing.T) {
 	swapForSessionRunner(t, originRunner)
-	slug, err := ForSession(localSession(strPtr("feature/login"), "abcdef0123", model.SourceWorkingTree, nil))
+	slug, err := ForSession(localSession(new("feature/login"), "abcdef0123", model.SourceWorkingTree, nil))
 	if err != nil {
 		t.Fatalf("ForSession error: %v", err)
 	}
@@ -316,22 +314,22 @@ func TestForSessionErrors(t *testing.T) {
 		{"nil session", nil, ErrNilSession},
 		{
 			"missing commit range",
-			localSession(strPtr("main"), "def5678", model.SourceCommitRange, nil),
+			localSession(new("main"), "def5678", model.SourceCommitRange, nil),
 			ErrMissingCommitRange,
 		},
 		{
 			"empty commit range",
-			localSession(strPtr("main"), "def5678", model.SourceWorkingTreeAndCommits, []string{}),
+			localSession(new("main"), "def5678", model.SourceWorkingTreeAndCommits, []string{}),
 			ErrMissingCommitRange,
 		},
 		{
 			"pull request session without key",
-			localSession(strPtr("main"), "def5678", model.SourcePullRequest, nil),
+			localSession(new("main"), "def5678", model.SourcePullRequest, nil),
 			ErrMissingPrSessionKey,
 		},
 		{
 			"unknown diff source",
-			localSession(strPtr("main"), "def5678", model.SessionDiffSource("bogus"), nil),
+			localSession(new("main"), "def5678", model.SessionDiffSource("bogus"), nil),
 			ErrUnsupportedDiffSource,
 		},
 	}
@@ -347,7 +345,7 @@ func TestForSessionErrors(t *testing.T) {
 
 func TestForSessionNoRepoNamePropagates(t *testing.T) {
 	swapForSessionRunner(t, fakeRunner{err: errors.New("no git")})
-	session := localSession(strPtr("main"), "abc", model.SourceWorkingTree, nil)
+	session := localSession(new("main"), "abc", model.SourceWorkingTree, nil)
 	session.RepoPath = "/"
 	if _, err := ForSession(session); !errors.Is(err, ErrNoRepoName) {
 		t.Errorf("ForSession error = %v, want ErrNoRepoName", err)
@@ -357,7 +355,7 @@ func TestForSessionNoRepoNamePropagates(t *testing.T) {
 func TestForSessionDefaultRunnerFallsBackOutsideGit(t *testing.T) {
 	// Exercises the real execRunner path: git fails in a nonexistent
 	// directory, so the slug falls back to the directory basename.
-	session := localSession(strPtr("main"), "abcdef0123", model.SourceWorkingTree, nil)
+	session := localSession(new("main"), "abcdef0123", model.SourceWorkingTree, nil)
 	session.RepoPath = "/nonexistent/path/to/myrepo"
 	slug, err := ForSession(session)
 	if err != nil {

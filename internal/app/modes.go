@@ -1,5 +1,6 @@
 // modes.go ports tuicr's src/app/modes.rs: status-bar messages with TTLs
 // and the enter/exit transitions for the help, search, and command shells.
+
 package app
 
 import (

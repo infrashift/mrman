@@ -34,6 +34,8 @@ type TemplatesConfig struct {
 	Notes string
 	// ReviewBody is the path to the review/PR-body template file.
 	ReviewBody string
+	// PatchReply is the path to the :patch reply template file.
+	PatchReply string
 }
 
 // ForgeHost configures forge routing, authentication, and TLS for one host,

@@ -266,9 +266,9 @@ func TestExportDiffSkipsUnquotableComments(t *testing.T) {
 		files []model.DiffFile
 	}{
 		{"absent", nil},
-		{"binary", []model.DiffFile{{NewPath: strPtr("src/main.rs"), IsBinary: true}}},
-		{"too_large", []model.DiffFile{{NewPath: strPtr("src/main.rs"), IsTooLarge: true}}},
-		{"no_hunks", []model.DiffFile{{NewPath: strPtr("src/main.rs")}}},
+		{"binary", []model.DiffFile{{NewPath: new("src/main.rs"), IsBinary: true}}},
+		{"too_large", []model.DiffFile{{NewPath: new("src/main.rs"), IsTooLarge: true}}},
+		{"no_hunks", []model.DiffFile{{NewPath: new("src/main.rs")}}},
 		{"line_gone", files},
 	}
 	for _, tc := range unquotable {

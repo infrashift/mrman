@@ -118,7 +118,7 @@ func TestWatchDoesNotChurnOnUnchangedComments(t *testing.T) {
 
 	// Touch the file repeatedly without changing its content.
 	go func() {
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			time.Sleep(15 * time.Millisecond)
 			_, _ = store.SaveSession(session)
 		}
@@ -217,4 +217,73 @@ func eventNames(events []WatchEvent) []string {
 		out[i] = ev.Event
 	}
 	return out
+}
+
+// TestWatchIgnoresOtherSessionsTUIs pins the headless-agent loop: a session
+// no TUI ever held must not be reported as exited just because some other
+// review is open on the machine.
+func TestWatchIgnoresOtherSessionsTUIs(t *testing.T) {
+	store, _, path := watchSession(t)
+	other := model.NewReviewSession("/other", "def5678", nil, model.SourceWorkingTree)
+	otherPath, err := store.SaveSession(other)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.MarkSessionActive(other, otherPath); err != nil {
+		t.Fatal(err)
+	}
+
+	events := runWatch(t, store, path, WatchOptions{Timeout: 60 * time.Millisecond})
+	last := events[len(events)-1]
+	if last.Event != WatchClosed || last.Reason != ClosedTimeout {
+		t.Fatalf("watch ended with %+v, want a timeout — not tui_exited", last)
+	}
+}
+
+// TestWatchReportsTUIExitOnlyAsATransition: a session that was held by a
+// TUI and then released closes with tui_exited.
+func TestWatchReportsTUIExitOnlyAsATransition(t *testing.T) {
+	store, session, path := watchSession(t)
+	if err := store.MarkSessionActive(session, path); err != nil {
+		t.Fatal(err)
+	}
+	go func() {
+		time.Sleep(30 * time.Millisecond)
+		_ = store.ClearActiveSessionForPid()
+	}()
+	events := runWatch(t, store, path, WatchOptions{Timeout: 2 * time.Second})
+	last := events[len(events)-1]
+	if last.Event != WatchClosed || last.Reason != ClosedTUIExited {
+		t.Fatalf("watch ended with %+v, want tui_exited", last)
+	}
+}
+
+func TestWatchTimeoutIsNotRoundedUpToTheInterval(t *testing.T) {
+	store, _, path := watchSession(t)
+	start := time.Now()
+	events := runWatch(t, store, path, WatchOptions{Timeout: 50 * time.Millisecond, Interval: 5 * time.Second})
+	elapsed := time.Since(start)
+	last := events[len(events)-1]
+	if last.Reason != ClosedTimeout {
+		t.Fatalf("ended with %+v", last)
+	}
+	if elapsed > time.Second {
+		t.Fatalf("timeout of 50ms took %v: the poll interval must not delay the deadline", elapsed)
+	}
+}
+
+func TestWatchIntervalDefaultsFromConfig(t *testing.T) {
+	old := configWatchInterval
+	configWatchInterval = func() time.Duration { return 7 * time.Millisecond }
+	t.Cleanup(func() { configWatchInterval = old })
+	store, _, path := watchSession(t)
+	var out bytes.Buffer
+	// Interval 0 must resolve through the config seam; the timeout proves
+	// the loop ran at all.
+	if err := Watch(store, Options{Session: path}, WatchOptions{Timeout: 20 * time.Millisecond}, &out); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), `"reason":"timeout"`) {
+		t.Fatalf("output = %s", out.String())
+	}
 }

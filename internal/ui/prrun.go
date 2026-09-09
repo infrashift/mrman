@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -79,6 +80,9 @@ func openPullRequest(target string, opts cli.TuiOptions) (*prOpen, error) {
 		return nil, fmt.Errorf("cannot determine the repository for '%s': run inside a checkout or pass owner/repo#%d", target, parsed.Number)
 	}
 
+	if !forge.HostTrusted(repo.Host, cfg.Forge) {
+		warnings = append(warnings, forge.UntrustedHostWarning(repo.Host))
+	}
 	backend, err := forge.ForRepository(*repo, cfg.Forge)
 	if err != nil {
 		return nil, err
@@ -141,16 +145,19 @@ func RunPr(target string, opts cli.TuiOptions) error {
 		a.SetWarning(w)
 	}
 	a.SetMessage(fmt.Sprintf("Reviewing %s#%d · %s", repo.Slug(), details.Number, details.Title))
+	if w := lifecycle.activationWarning(len(opts.GrantedEvents) > 0); w != "" {
+		a.SetStickyWarning(w)
+	}
 	// After the greeting, so a stale anchor is not buried under it.
 	reportAnchorValidation(a)
 
 	prog := tea.NewProgram(m)
 	_, err = prog.Run()
 	if m.session != nil {
-		m.session.finish(a)
+		m.shutdown(a)
 	}
 	if m.PendingStdout != "" {
-		fmt.Print(m.PendingStdout)
+		_, _ = io.WriteString(os.Stdout, m.PendingStdout)
 	}
 	return err
 }
@@ -188,7 +195,8 @@ func openPrSession(
 			lc.path = path
 			lc.snapshot = session.Clone()
 			lc.fileState = statFile(path)
-			_ = store.MarkSessionActiveWithGrant(session, path, grantedEvents)
+			lc.lastHeartbeatAt = time.Now()
+			lc.activateErr = store.MarkSessionActiveWithGrant(session, path, grantedEvents)
 		}
 	}
 	announceSession(session)
@@ -252,6 +260,9 @@ func RunPrHeadless(target string, opts cli.TuiOptions, out io.Writer) error {
 	opened, err := openPullRequest(target, opts)
 	if err != nil {
 		return err
+	}
+	for _, w := range opened.warnings {
+		fmt.Fprintf(os.Stderr, "mrman: %s\n", w)
 	}
 	details := opened.load.Details
 

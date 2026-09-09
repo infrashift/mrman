@@ -20,7 +20,7 @@ func commentedModel(t *testing.T, snapshot string) string {
 	}
 	side := model.LineSideNew
 	c := model.NewComment("needs work", model.CommentTypeFromID("issue"), &side)
-	c.LineContext = &model.LineContext{NewLine: lineno(3), Content: snapshot}
+	c.LineContext = &model.LineContext{NewLine: new(uint32(3)), Content: snapshot}
 	review.AddLineComment(3, c)
 
 	a.ValidateCommentAnchors()

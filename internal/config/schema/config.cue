@@ -34,6 +34,7 @@ package schema
 #Templates: {
 	notes?:       string
 	review_body?: string
+	patch_reply?: string
 }
 
 // #Config is the top-level config.toml schema. comment_types entries are

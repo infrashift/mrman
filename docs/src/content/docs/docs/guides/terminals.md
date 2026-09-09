@@ -81,6 +81,22 @@ terminal. Set it to `false` if your theme's background is load-bearing.
 Themes pick their own syntax highlighting style; if colors look wrong, your
 terminal is probably not in truecolor mode. See [Themes](../../reference/themes/).
 
+## Clipboard
+
+`y`, `:clip` and a visual-mode `y` copy through the first of these that works:
+
+| Where | How |
+|---|---|
+| macOS | `pbcopy` |
+| Under tmux, over SSH, or in Zellij (`TMUX`, `SSH_TTY`, `ZELLIJ` set) | OSC 52, so the text lands in *your* terminal's clipboard; under tmux via `tmux load-buffer -w` |
+| Wayland desktop (`XDG_SESSION_TYPE=wayland`) | `wl-copy` |
+| X11 desktop (`XDG_SESSION_TYPE=x11`) | `xclip -selection clipboard` |
+| Anything else | OSC 52 written to `/dev/tty` |
+
+OSC 52 needs a terminal on the other end: with no `/dev/tty` and stdout
+redirected, the copy fails rather than writing an escape sequence into a
+pipe. `--stdout` prints the export when you quit instead.
+
 ## Things that do not work
 
 **Piping mrman's stdin.** `script -qec "mrman pr 1" /dev/null` hangs: Bubble

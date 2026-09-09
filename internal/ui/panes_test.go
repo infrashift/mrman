@@ -201,7 +201,7 @@ func TestTabCyclesEveryVisiblePane(t *testing.T) {
 	m.App.FocusPanel(app.PanelDiff)
 
 	seen := map[app.FocusedPanel]bool{}
-	for i := 0; i < 4; i++ {
+	for range 4 {
 		press(m, "", tea.KeyTab, 0)
 		seen[m.App.FocusedPanel] = true
 	}

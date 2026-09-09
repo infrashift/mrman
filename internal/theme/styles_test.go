@@ -2,6 +2,7 @@ package theme
 
 import (
 	"image/color"
+	"slices"
 	"testing"
 
 	lipgloss "charm.land/lipgloss/v2"
@@ -114,18 +115,12 @@ func TestFileStatusColor(t *testing.T) {
 func TestAuthorColorForDeterminism(t *testing.T) {
 	for _, author := range []string{"alice", "bob", "some-agent"} {
 		first := AuthorColorFor(author)
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			if got := AuthorColorFor(author); got != first {
 				t.Fatalf("AuthorColorFor(%q) not deterministic: %v vs %v", author, got, first)
 			}
 		}
-		found := false
-		for _, c := range authorPalette {
-			if c == first {
-				found = true
-				break
-			}
-		}
+		found := slices.Contains(authorPalette, first)
 		if !found {
 			t.Errorf("AuthorColorFor(%q) = %v not in palette", author, first)
 		}

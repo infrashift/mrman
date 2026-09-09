@@ -204,7 +204,7 @@ func (b *Backend) ResolveRevisionRange(revset string) (vcs.ResolvedRevisionRange
 	}
 
 	var commitIDs []string
-	for _, line := range strings.Split(out, "\n") {
+	for line := range strings.SplitSeq(out, "\n") {
 		if line = strings.TrimSpace(line); line != "" {
 			commitIDs = append(commitIDs, line)
 		}
@@ -328,7 +328,7 @@ func (b *Backend) showBatch(rev string, paths []string) (map[string]string, erro
 // Malformed records are skipped; unparsable timestamps fall back to now.
 func parseCommitRecords(out string) []vcs.CommitInfo {
 	var commits []vcs.CommitInfo
-	for _, record := range strings.Split(out, "\x01") {
+	for record := range strings.SplitSeq(out, "\x01") {
 		record = strings.TrimSpace(record)
 		if record == "" {
 			continue
@@ -390,5 +390,5 @@ func splitLines(content string) []string {
 
 // countLines counts lines with str::lines semantics.
 func countLines(content string) uint32 {
-	return uint32(len(splitLines(content)))
+	return uint32(len(splitLines(content))) //nolint:gosec // G115: line numbers fit uint32
 }

@@ -43,20 +43,16 @@ func (d *Driver) wrap(op string, err error) error {
 	if err == nil {
 		return nil
 	}
-	var fe *forge.Error
-	if errors.As(err, &fe) {
+	if _, ok := errors.AsType[*forge.Error](err); ok {
 		return err
 	}
-	var rateErr *github.RateLimitError
-	if errors.As(err, &rateErr) {
+	if _, ok := errors.AsType[*github.RateLimitError](err); ok {
 		return d.err(op, forge.ErrorRateLimited, http.StatusForbidden, hintRateLimited, err)
 	}
-	var abuseErr *github.AbuseRateLimitError
-	if errors.As(err, &abuseErr) {
+	if _, ok := errors.AsType[*github.AbuseRateLimitError](err); ok {
 		return d.err(op, forge.ErrorRateLimited, http.StatusForbidden, hintRateLimited, err)
 	}
-	var ghErr *github.ErrorResponse
-	if errors.As(err, &ghErr) {
+	if ghErr, ok := errors.AsType[*github.ErrorResponse](err); ok {
 		status := 0
 		if ghErr.Response != nil {
 			status = ghErr.Response.StatusCode

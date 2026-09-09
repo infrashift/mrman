@@ -2,6 +2,7 @@ package slug
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"os/exec"
@@ -37,7 +38,7 @@ type execRunner struct{}
 
 // Run executes name with args in dir, capturing stdout and stderr.
 func (execRunner) Run(dir string, name string, args ...string) ([]byte, []byte, error) {
-	cmd := exec.Command(name, args...)
+	cmd := exec.CommandContext(context.Background(), name, args...)
 	cmd.Dir = dir
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -232,7 +233,7 @@ func parsePathSegments(s string) (owner, repo string, ok bool) {
 		return "", "", false
 	}
 	var segments []string
-	for _, seg := range strings.Split(strings.Trim(path, "/"), "/") {
+	for seg := range strings.SplitSeq(strings.Trim(path, "/"), "/") {
 		if seg != "" {
 			segments = append(segments, seg)
 		}

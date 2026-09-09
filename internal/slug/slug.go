@@ -42,6 +42,7 @@ package slug
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -279,10 +280,8 @@ func parsePr(forge forgetypes.Kind, rest string) (PrSlug, error) {
 	if prKeyword != "pr" && prKeyword != "mr" {
 		return PrSlug{}, fmt.Errorf("%w: %s", ErrInvalidShape, rest)
 	}
-	for _, part := range parts[:len(parts)-1] {
-		if part == "" {
-			return PrSlug{}, fmt.Errorf("%w: %s", ErrInvalidShape, rest)
-		}
+	if slices.Contains(parts[:len(parts)-1], "") {
+		return PrSlug{}, fmt.Errorf("%w: %s", ErrInvalidShape, rest)
 	}
 	number, err := strconv.ParseUint(parts[len(parts)-1], 10, 64)
 	if err != nil {

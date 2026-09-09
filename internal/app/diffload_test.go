@@ -26,8 +26,8 @@ func TestStagedAndUnstagedEntriesAreSpecial(t *testing.T) {
 	assertEq(t, isUnstagedCommit(&unstaged), true, "unstaged detected")
 	assertEq(t, isSpecialCommit(&staged), true, "staged is special")
 	assertEq(t, isSpecialCommit(&unstaged), true, "unstaged is special")
-	real := commit("abc")
-	assertEq(t, isSpecialCommit(&real), false, "real commit is not special")
+	regular := commit("abc")
+	assertEq(t, isSpecialCommit(&regular), false, "regular commit is not special")
 }
 
 func TestInsertCommitMessageIfSingleBuildsPseudoFile(t *testing.T) {
@@ -36,8 +36,8 @@ func TestInsertCommitMessageIfSingleBuildsPseudoFile(t *testing.T) {
 	c.Summary = "Add feature"
 	c.Body = &body
 
-	real := makeFileWithHunks("x.go", []model.DiffHunk{makeHunk(1, 1)})
-	files := InsertCommitMessageIfSingle([]model.DiffFile{real}, []vcs.CommitInfo{c})
+	regular := makeFileWithHunks("x.go", []model.DiffHunk{makeHunk(1, 1)})
+	files := InsertCommitMessageIfSingle([]model.DiffFile{regular}, []vcs.CommitInfo{c})
 
 	assertEq(t, len(files), 2, "pseudo-file prepended")
 	msg := &files[0]
@@ -54,7 +54,7 @@ func TestInsertCommitMessageIfSingleBuildsPseudoFile(t *testing.T) {
 	for i, content := range want {
 		assertEq(t, hunk.Lines[i].Content, content, "line content")
 		assertEq(t, hunk.Lines[i].Origin, model.OriginContext, "context origin")
-		assertLineno(t, hunk.Lines[i].NewLineno, uint32(i)+1, "new lineno") //nolint:gosec // tiny
+		assertLineno(t, hunk.Lines[i].NewLineno, uint32(i)+1, "new lineno")
 		if hunk.Lines[i].OldLineno != nil {
 			t.Error("old lineno must be nil")
 		}
@@ -65,7 +65,7 @@ func TestInsertCommitMessageIfSingleBuildsPseudoFile(t *testing.T) {
 	assertEq(t, hunk.NewCount, uint32(4), "new count")
 	assertEq(t, msg.ContentHash, model.ComputeContentHash(msg.Hunks), "content hash")
 
-	assertEq(t, files[1].DisplayPath(), "x.go", "real file kept after the pseudo-file")
+	assertEq(t, files[1].DisplayPath(), "x.go", "regular file kept after the pseudo-file")
 }
 
 func TestInsertCommitMessageIfSingleWithoutBodyUsesSummaryOnly(t *testing.T) {
@@ -81,13 +81,13 @@ func TestInsertCommitMessageIfSingleWithoutBodyUsesSummaryOnly(t *testing.T) {
 
 func TestInsertCommitMessageIfSingleStripsPreviousPseudoFile(t *testing.T) {
 	stale := InsertCommitMessageIfSingle(nil, []vcs.CommitInfo{commit("old")})
-	real := makeFileWithHunks("x.go", []model.DiffHunk{makeHunk(1, 1)})
-	files := append(stale, real)
+	regular := makeFileWithHunks("x.go", []model.DiffHunk{makeHunk(1, 1)})
+	files := append(append([]model.DiffFile(nil), stale...), regular)
 
 	// No commit selected: the stale pseudo-file disappears.
 	got := InsertCommitMessageIfSingle(files, nil)
 	assertEq(t, len(got), 1, "stale pseudo-file stripped")
-	assertEq(t, got[0].DisplayPath(), "x.go", "real file kept")
+	assertEq(t, got[0].DisplayPath(), "x.go", "regular file kept")
 
 	// A different single commit replaces it.
 	got = InsertCommitMessageIfSingle(files, []vcs.CommitInfo{commit("new")})
@@ -96,12 +96,12 @@ func TestInsertCommitMessageIfSingleStripsPreviousPseudoFile(t *testing.T) {
 }
 
 func TestInsertCommitMessageIfSingleSkipsSpecialAndMulti(t *testing.T) {
-	real := makeFileWithHunks("x.go", []model.DiffHunk{makeHunk(1, 1)})
+	regular := makeFileWithHunks("x.go", []model.DiffHunk{makeHunk(1, 1)})
 
-	got := InsertCommitMessageIfSingle([]model.DiffFile{real}, []vcs.CommitInfo{stagedCommitEntry()})
+	got := InsertCommitMessageIfSingle([]model.DiffFile{regular}, []vcs.CommitInfo{stagedCommitEntry()})
 	assertEq(t, len(got), 1, "special commit gets no message file")
 
-	got = InsertCommitMessageIfSingle([]model.DiffFile{real}, dummyCommits("a", "b"))
+	got = InsertCommitMessageIfSingle([]model.DiffFile{regular}, dummyCommits("a", "b"))
 	assertEq(t, len(got), 1, "multi-commit selection gets no message file")
 }
 

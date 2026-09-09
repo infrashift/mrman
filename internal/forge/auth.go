@@ -6,10 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/infrashift/mrman/internal/config"
 	"github.com/infrashift/mrman/internal/forge/forgetypes"
@@ -20,10 +23,14 @@ import (
 var (
 	// lookupEnv reads an environment variable.
 	lookupEnv = os.LookupEnv
-	// runTokenCmd executes a config token_cmd via `sh -c` and returns
-	// the first stdout line.
+	// runTokenCmd executes a config token_cmd via `sh -c` (`cmd /C` on
+	// Windows) and returns the first stdout line.
 	runTokenCmd = func(command string) (string, error) {
-		out, err := exec.Command("sh", "-c", command).Output()
+		shell, flag := "sh", "-c"
+		if runtime.GOOS == "windows" {
+			shell, flag = "cmd", "/C"
+		}
+		out, err := exec.Command(shell, flag, command).Output()
 		if err != nil {
 			var exitErr *exec.ExitError
 			if errors.As(err, &exitErr) && len(exitErr.Stderr) > 0 {
@@ -73,8 +80,18 @@ func resetTokenCmdCache() {
 //  4. `gh auth token --hostname <host>` for github-kind hosts when
 //     cfg.CLITokenFallback allows it; failures fall through.
 //
+// Before any of that, the host must be trusted (HostTrusted): a credential
+// never goes to a host mrman merely guessed the forge kind for. A merge
+// request URL on an arbitrary host parses as GitHub by shape, and a
+// hostname containing "github" is assumed GitHub — neither is grounds to
+// hand over GH_ENTERPRISE_TOKEN. Untrusted hosts get unauthenticated access
+// and a warning naming the config entry that would change that.
+//
 // An empty result with nil error means unauthenticated access.
 func TokenForHost(host string, kind forgetypes.Kind, cfg config.ForgeConfig) (string, error) {
+	if !HostTrusted(host, cfg) {
+		return "", nil
+	}
 	if token := envToken(host, kind); token != "" {
 		return token, nil
 	}
@@ -100,6 +117,34 @@ func TokenForHost(host string, kind forgetypes.Kind, cfg config.ForgeConfig) (st
 		}
 	}
 	return "", nil
+}
+
+// HostTrusted reports whether host may receive credentials: it is a
+// built-in SaaS host, a registered driver's default host, or the user
+// listed it under [[forge.hosts]]. Kind detection is deliberately not
+// enough — heuristics decide how to talk to a host, never whether to
+// trust it with a token.
+func HostTrusted(host string, cfg config.ForgeConfig) bool {
+	if _, ok := configHostEntry(host, cfg); ok {
+		return true
+	}
+	if _, ok := builtinKindForHost(strings.ToLower(host)); ok {
+		return true
+	}
+	for _, d := range registry {
+		for _, dh := range d.DefaultHosts {
+			if strings.EqualFold(dh, host) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// UntrustedHostWarning is the one-line notice shown when a host runs
+// unauthenticated because nothing vouches for it. It names the remedy.
+func UntrustedHostWarning(host string) string {
+	return fmt.Sprintf("%s is not in [[forge.hosts]]: connecting without credentials; add a host entry to authenticate", host)
 }
 
 // envToken applies the SaaS-scoped environment conventions.
@@ -180,12 +225,42 @@ func cachedTokenCmd(command string) (string, error) {
 	return token, nil
 }
 
+// requestTimeout bounds every forge request, body included. Forge calls
+// run on the TUI's async path, where a hung server would otherwise leave a
+// spinner up forever with no way to cancel short of quitting.
+const requestTimeout = 90 * time.Second
+
+// maxRedirects mirrors net/http's own default ceiling.
+const maxRedirects = 10
+
+// RedirectRefused is returned when a forge answers with a redirect to a
+// different origin. Following it would carry the host's credentials along:
+// the oauth2 transport re-attaches the bearer token on every hop, and the
+// GitLab, Forgejo and Azure DevOps SDKs set their auth headers per request.
+type RedirectRefused struct {
+	From string
+	To   string
+}
+
+func (e *RedirectRefused) Error() string {
+	return fmt.Sprintf("refusing redirect from %s to %s: credentials stay on the configured host", e.From, e.To)
+}
+
 // BuildHTTPClient builds the *http.Client injected into every forge SDK,
 // honoring the host's TLS overrides: CAFile appends a PEM bundle to the
 // system pool, InsecureSkipVerify disables verification (last resort).
+//
+// Every client refuses cross-origin redirects (see RedirectRefused) and
+// carries a request timeout. The oauth2 wrapper the GitHub driver applies
+// copies CheckRedirect from this client, and the other SDKs call Do on it
+// directly, so this is the one place the policy lives.
 func BuildHTTPClient(hc HostConfig) (*http.Client, error) {
+	client := &http.Client{
+		Timeout:       requestTimeout,
+		CheckRedirect: pinnedRedirectPolicy(allowedOrigin(hc)),
+	}
 	if hc.CAFile == "" && !hc.InsecureSkipVerify {
-		return &http.Client{}, nil
+		return client, nil
 	}
 
 	tlsConfig := &tls.Config{InsecureSkipVerify: hc.InsecureSkipVerify} //nolint:gosec // explicit per-host opt-in
@@ -211,5 +286,52 @@ func BuildHTTPClient(hc HostConfig) (*http.Client, error) {
 		transport = transport.Clone()
 	}
 	transport.TLSClientConfig = tlsConfig
-	return &http.Client{Transport: transport}, nil
+	client.Transport = transport
+	return client, nil
+}
+
+// allowedOrigin is the scheme://host[:port] a host's requests may land on:
+// api_base when configured, else https on the host itself.
+func allowedOrigin(hc HostConfig) *url.URL {
+	if hc.APIBase != "" {
+		if u, err := url.Parse(hc.APIBase); err == nil && u.Host != "" {
+			return u
+		}
+	}
+	return &url.URL{Scheme: "https", Host: hc.Host}
+}
+
+// pinnedRedirectPolicy follows redirects only within the allowed origin,
+// and never from https down to http.
+func pinnedRedirectPolicy(allowed *url.URL) func(*http.Request, []*http.Request) error {
+	return func(req *http.Request, via []*http.Request) error {
+		if len(via) >= maxRedirects {
+			return fmt.Errorf("stopped after %d redirects", maxRedirects)
+		}
+		if !sameOrigin(req.URL, allowed) {
+			return &RedirectRefused{From: via[0].URL.Host, To: req.URL.Host}
+		}
+		return nil
+	}
+}
+
+// sameOrigin compares host and port case-insensitively, defaulting the
+// port from the scheme, and treats an https→http downgrade as a change of
+// origin regardless of host.
+func sameOrigin(u, allowed *url.URL) bool {
+	if strings.EqualFold(allowed.Scheme, "https") && !strings.EqualFold(u.Scheme, "https") {
+		return false
+	}
+	return strings.EqualFold(u.Hostname(), allowed.Hostname()) &&
+		portOf(u) == portOf(allowed)
+}
+
+func portOf(u *url.URL) string {
+	if p := u.Port(); p != "" {
+		return p
+	}
+	if strings.EqualFold(u.Scheme, "http") {
+		return "80"
+	}
+	return "443"
 }

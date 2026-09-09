@@ -259,10 +259,7 @@ func (p *DiffPane) buildRow(a *app.App, ann *app.AnnotatedLine, idx, lw, width i
 		return p.remoteBoxRow(a, ann, idx, ind, width)
 	case app.AnnReviewCommentsHeader:
 		text := "═══ Review Comments "
-		fillWidth := width - render.StringWidth(text) - render.StringWidth(ind.Text)
-		if fillWidth < 0 {
-			fillWidth = 0
-		}
+		fillWidth := max(width-render.StringWidth(text)-render.StringWidth(ind.Text), 0)
 		return render.LogicalLine{Kind: render.RowFileHeader, Ann: idx, Spans: []render.Span{
 			ind,
 			{Text: text + strings.Repeat("═", fillWidth), Style: render.Style{Fg: t.FgPrimary, Bold: true}},
@@ -310,11 +307,9 @@ func (p *DiffPane) fileHeaderRow(a *app.App, ann *app.AnnotatedLine, ind render.
 	text := b.String()
 	// Fill the rest of the row with ═ to the right edge.
 	fillWidth := width - render.StringWidth(text) - render.StringWidth(ind.Text)
-	fill := ""
+	fill := headerRule
 	if fillWidth > 0 {
 		fill = strings.Repeat("═", fillWidth)
-	} else {
-		fill = headerRule
 	}
 	return render.LogicalLine{Kind: render.RowFileHeader, Ann: 0, Spans: []render.Span{
 		ind,
@@ -487,10 +482,7 @@ func (p *DiffPane) expanderRow(a *app.App, ann *app.AnnotatedLine, ind render.Sp
 		arrow = "↑"
 	}
 	remaining, _ := a.GapSize(ann.GapID)
-	count := int(remaining)
-	if count > app.GapExpandBatch {
-		count = app.GapExpandBatch
-	}
+	count := min(int(remaining), app.GapExpandBatch)
 	return render.LogicalLine{Kind: render.RowExpander, Spans: []render.Span{
 		ind,
 		{Text: fmt.Sprintf("       ... %s expand (%d lines) ...", arrow, count), Style: render.Style{Fg: t.FgDim}},

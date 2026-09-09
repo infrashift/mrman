@@ -10,6 +10,8 @@ import (
 	"strings"
 
 	"github.com/infrashift/mrman/internal/config"
+	"github.com/infrashift/mrman/internal/textsafe"
+
 	"github.com/infrashift/mrman/internal/errs"
 	"github.com/infrashift/mrman/internal/model"
 	"github.com/infrashift/mrman/internal/persistence"
@@ -85,8 +87,10 @@ func Add(store *persistence.Store, opts Options, out io.Writer) error {
 	var added *model.Comment
 	_, err = store.UpdateSession(path, func(session *model.ReviewSession) error {
 		added, err = AddCommentToSession(session, AddCommentRequest{
-			Target:      target,
-			Content:     content,
+			Target: target,
+			// An agent's comment is input from a process the user does
+			// not read before it lands on their screen.
+			Content:     textsafe.Sanitize(content),
 			CommentType: model.CommentTypeFromID(commentType),
 			Author:      resolveAuthor(username),
 		})
@@ -193,89 +197,116 @@ type targetPayload struct {
 	Side       *string `json:"side"`
 }
 
-func buildAddRequest(opts Options) (target CommentTarget, content, commentType, username string, err error) {
-	commentType = opts.Type
-	if commentType == "" {
-		commentType = "none"
+// addInputs is everything `review add` needs, gathered from the flags and
+// then overridden by the JSON payload, field by field.
+type addInputs struct {
+	file          string
+	line, endLine *uint32
+	side          string
+	content       string
+	commentType   string
+	username      string
+	// explicit is a target the payload spelled out in full, which wins
+	// over the file/line fields.
+	explicit *CommentTarget
+}
+
+func addInputsFromFlags(opts Options) addInputs {
+	in := addInputs{
+		file: opts.TargetFile, side: opts.Side, content: opts.Comment,
+		commentType: opts.Type, username: opts.Username,
 	}
-	content = opts.Comment
-	username = opts.Username
-	file := opts.TargetFile
-	var line, endLine *uint32
+	if in.commentType == "" {
+		in.commentType = "none"
+	}
+	if in.side == "" {
+		in.side = "new"
+	}
 	if opts.Line != 0 {
 		l := opts.Line
-		line = &l
+		in.line = &l
 	}
 	if opts.EndLine != 0 {
 		l := opts.EndLine
-		endLine = &l
+		in.endLine = &l
 	}
-	side := opts.Side
-	if side == "" {
-		side = "new"
-	}
-	var explicitTarget *CommentTarget
+	return in
+}
 
+// applyPayload overlays the JSON payload. Both spellings of each aliased
+// field are accepted (type/comment_type, username/author, target/file+line).
+func (in *addInputs) applyPayload(payload *addPayload) error {
+	if payload.CommentType != nil {
+		in.commentType = *payload.CommentType
+	} else if payload.Type != nil {
+		in.commentType = *payload.Type
+	}
+	if payload.Content != nil {
+		in.content = *payload.Content
+	}
+	if payload.Username != nil {
+		in.username = *payload.Username
+	} else if payload.Author != nil {
+		in.username = *payload.Author
+	}
+	if payload.Target != nil {
+		t, err := payload.Target.toCommentTarget()
+		if err != nil {
+			return err
+		}
+		in.explicit = &t
+		return nil
+	}
+	if payload.File != nil {
+		in.file = *payload.File
+	}
+	if payload.Line != nil {
+		in.line = payload.Line
+	} else if payload.StartLine != nil {
+		in.line = payload.StartLine
+	}
+	if payload.EndLine != nil {
+		in.endLine = payload.EndLine
+	}
+	if payload.Side != nil {
+		in.side = *payload.Side
+	}
+	return nil
+}
+
+// readAddPayload reads and decodes the --input payload.
+func readAddPayload(input string) (addPayload, error) {
+	raw, err := readJSONInput(input)
+	if err != nil {
+		return addPayload{}, err
+	}
+	var payload addPayload
+	if err := json.Unmarshal([]byte(raw), &payload); err != nil {
+		return addPayload{}, &errs.InvalidInput{Detail: "invalid JSON review payload: " + err.Error()}
+	}
+	return payload, nil
+}
+
+func buildAddRequest(opts Options) (CommentTarget, string, string, string, error) {
+	in := addInputsFromFlags(opts)
 	if opts.Input != "" {
-		raw, readErr := readJSONInput(opts.Input)
-		if readErr != nil {
-			err = readErr
-			return
+		payload, err := readAddPayload(opts.Input)
+		if err != nil {
+			return CommentTarget{}, "", "", "", err
 		}
-		var payload addPayload
-		if jsonErr := json.Unmarshal([]byte(raw), &payload); jsonErr != nil {
-			err = &errs.InvalidInput{Detail: "invalid JSON review payload: " + jsonErr.Error()}
-			return
-		}
-		if payload.CommentType != nil {
-			commentType = *payload.CommentType
-		} else if payload.Type != nil {
-			commentType = *payload.Type
-		}
-		if payload.Content != nil {
-			content = *payload.Content
-		}
-		if payload.Username != nil {
-			username = *payload.Username
-		} else if payload.Author != nil {
-			username = *payload.Author
-		}
-		if payload.Target != nil {
-			t, targetErr := payload.Target.toCommentTarget()
-			if targetErr != nil {
-				err = targetErr
-				return
-			}
-			explicitTarget = &t
-		} else {
-			if payload.File != nil {
-				file = *payload.File
-			}
-			if payload.Line != nil || payload.StartLine != nil {
-				line = payload.Line
-				if line == nil {
-					line = payload.StartLine
-				}
-			}
-			if payload.EndLine != nil {
-				endLine = payload.EndLine
-			}
-			if payload.Side != nil {
-				side = *payload.Side
-			}
+		if err := in.applyPayload(&payload); err != nil {
+			return CommentTarget{}, "", "", "", err
 		}
 	}
-
-	if strings.TrimSpace(content) == "" {
-		err = &errs.InvalidInput{Detail: "comment text is required either as COMMENT or JSON field `content`"}
-		return
+	if strings.TrimSpace(in.content) == "" {
+		return CommentTarget{}, "", "", "", &errs.InvalidInput{
+			Detail: "comment text is required either as COMMENT or JSON field `content`"}
 	}
-	if explicitTarget != nil {
-		target = *explicitTarget
-		return
+	if in.explicit != nil {
+		return *in.explicit, in.content, in.commentType, in.username, nil
 	}
-	target, err = buildCommentTarget(file, line, endLine, side)
-	return
+	target, err := buildCommentTarget(in.file, in.line, in.endLine, in.side)
+	return target, in.content, in.commentType, in.username, err
 }
 
 func readJSONInput(input string) (string, error) {

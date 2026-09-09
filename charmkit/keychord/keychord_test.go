@@ -106,7 +106,7 @@ func TestZeroOnlyExtendsACount(t *testing.T) {
 
 func TestCountIsCappedAgainstAHeldKey(t *testing.T) {
 	r := New(Config{Counts: true, MaxCount: 100})
-	for i := 0; i < 20; i++ {
+	for range 20 {
 		r.Feed("9")
 	}
 	ev := r.Feed("j")

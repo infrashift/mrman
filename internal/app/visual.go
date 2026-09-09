@@ -3,6 +3,7 @@
 // line-range projection used to anchor range comments, and char-accurate
 // copy extraction. The app layer returns the selected text; putting it on
 // the clipboard is the UI's job.
+
 package app
 
 import (

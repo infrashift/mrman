@@ -13,8 +13,6 @@ import (
 	"github.com/infrashift/mrman/internal/model"
 )
 
-func line(n uint32) *uint32 { return &n }
-
 func TestBuildCommentTargetForms(t *testing.T) {
 	// Review by default.
 	target, err := buildCommentTarget("", nil, nil, "new")
@@ -27,12 +25,12 @@ func TestBuildCommentTargetForms(t *testing.T) {
 		t.Fatalf("got %+v, %v", target, err)
 	}
 	// Line.
-	target, err = buildCommentTarget("a.go", line(10), nil, "old")
+	target, err = buildCommentTarget("a.go", new(uint32(10)), nil, "old")
 	if err != nil || target.Kind != TargetLine || target.Line != 10 || target.Side != model.LineSideOld {
 		t.Fatalf("got %+v, %v", target, err)
 	}
 	// Range — reversed bounds normalize (tuicr parity: 12,10 → 10..12).
-	target, err = buildCommentTarget("a.go", line(12), line(10), "old")
+	target, err = buildCommentTarget("a.go", new(uint32(12)), new(uint32(10)), "old")
 	if err != nil || target.Kind != TargetLineRange ||
 		target.Range.Start != 10 || target.Range.End != 12 {
 		t.Fatalf("got %+v, %v", target, err)
@@ -46,12 +44,12 @@ func TestBuildCommentTargetErrors(t *testing.T) {
 		side       string
 		wantSubstr string
 	}{
-		{"a.go", line(0), nil, "new", "--line must be greater than zero"},
-		{"a.go", line(1), line(0), "new", "--end-line must be greater than zero"},
-		{"", line(5), nil, "new", "--line requires --target-file"},
-		{"", nil, line(5), "new", "--end-line requires --line and --target-file"},
-		{"a.go", nil, line(5), "new", "--end-line requires --line"},
-		{"a.go", line(1), nil, "sideways", "unknown side"},
+		{"a.go", new(uint32(0)), nil, "new", "--line must be greater than zero"},
+		{"a.go", new(uint32(1)), new(uint32(0)), "new", "--end-line must be greater than zero"},
+		{"", new(uint32(5)), nil, "new", "--line requires --target-file"},
+		{"", nil, new(uint32(5)), "new", "--end-line requires --line and --target-file"},
+		{"a.go", nil, new(uint32(5)), "new", "--end-line requires --line"},
+		{"a.go", new(uint32(1)), nil, "sideways", "unknown side"},
 	}
 	for _, c := range cases {
 		_, err := buildCommentTarget(c.file, c.line, c.end, c.side)
@@ -186,8 +184,7 @@ func TestAddCommentToSessionTargets(t *testing.T) {
 		Target:  CommentTarget{Kind: TargetFile, Path: "missing.go"},
 		Content: "x", CommentType: model.CommentTypeFromID("note"), Author: "ryan",
 	})
-	var invalid *errs.InvalidInput
-	if !errors.As(err, &invalid) {
+	if _, ok := errors.AsType[*errs.InvalidInput](err); !ok {
 		t.Fatalf("unknown file must yield InvalidInput, got %v", err)
 	}
 

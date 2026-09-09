@@ -118,11 +118,14 @@ func runSubmit(store *persistence.Store, opts reviewcli.Options, args *cli.Args)
 		Options: opts,
 		Event:   args.Review.Event,
 	}, os.Stdout)
-	var denied *agentsubmit.SubmitDenied
-	if errors.As(err, &denied) {
+	if denied, ok := errors.AsType[*agentsubmit.SubmitDenied](err); ok {
 		if writeErr := agentsubmit.WriteDenial(os.Stdout, denied); writeErr != nil {
 			return writeErr
 		}
+		os.Exit(1)
+	}
+	if errors.Is(err, agentsubmit.ErrPartialSubmit) {
+		// The JSON on stdout already says what landed and what did not.
 		os.Exit(1)
 	}
 	return err

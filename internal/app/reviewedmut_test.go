@@ -167,7 +167,7 @@ func (s *stagingVcs) StageFile(path string) error {
 
 func buildStagingApp(t *testing.T, kind DiffSourceKind) (*App, *stagingVcs) {
 	t.Helper()
-	info := &vcs.Info{RootPath: "/tmp", HeadCommit: "abc123", BranchName: strPtr("main"), Type: vcs.TypeGit}
+	info := &vcs.Info{RootPath: "/tmp", HeadCommit: "abc123", BranchName: new("main"), Type: vcs.TypeGit}
 	backend := &stagingVcs{mockVcs: mockVcs{info: info, totalLines: 20}}
 	session := model.NewReviewSession(info.RootPath, info.HeadCommit, info.BranchName, model.SourceUnstaged)
 	files := []model.DiffFile{
@@ -220,7 +220,7 @@ func buildEditorApp(t *testing.T) *App {
 	if err := os.WriteFile(filepath.Join(root, "test.rs"), []byte("fn main() {}\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	info := &vcs.Info{RootPath: root, HeadCommit: "abc123", BranchName: strPtr("main"), Type: vcs.TypeGit}
+	info := &vcs.Info{RootPath: root, HeadCommit: "abc123", BranchName: new("main"), Type: vcs.TypeGit}
 	session := model.NewReviewSession(info.RootPath, info.HeadCommit, info.BranchName, model.SourceWorkingTree)
 	files := []model.DiffFile{makeFileWithHunks("test.rs", []model.DiffHunk{makeHunk(1, 3)})}
 	return NewApp(&mockVcs{info: info, totalLines: 20}, info, files, session, DiffSource{Kind: DiffSourceWorkingTree})

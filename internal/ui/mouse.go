@@ -6,6 +6,7 @@
 // frame; the handlers below hit-test against those. The rects describe the
 // pane *body* — inside the borders — so a click on a border resolves to no
 // pane rather than to the row next to it.
+
 package ui
 
 import (
@@ -16,7 +17,6 @@ import (
 	"github.com/infrashift/mrman/internal/app"
 	"github.com/infrashift/mrman/internal/input"
 	"github.com/infrashift/mrman/internal/model"
-	"github.com/infrashift/mrman/internal/output"
 )
 
 // Wheel step sizes, matching tuicr's WHEEL_LINES / WHEEL_COLS.
@@ -351,10 +351,7 @@ func diffCharOffset(a *app.App, rect paneRect, row, screenX int) (int, model.Lin
 			gutter, side = right, model.LineSideNew
 		}
 	}
-	col := screenX - rect.X - gutter + a.DiffState.ScrollX
-	if col < 0 {
-		col = 0
-	}
+	col := max(screenX-rect.X-gutter+a.DiffState.ScrollX, 0)
 	content, ok := a.ContentForSide(row, side)
 	if !ok {
 		return 0, side
@@ -415,7 +412,7 @@ func (m *Model) yankMouseSelection() bool {
 		// nothing is selected.
 		return false
 	}
-	if _, copyErr := output.CopyText(text); copyErr != nil {
+	if _, copyErr := copyText(text); copyErr != nil {
 		a.SetError("Clipboard failed: " + copyErr.Error())
 	} else {
 		a.SetMessage(fmt.Sprintf("Yanked %d character(s)", chars))

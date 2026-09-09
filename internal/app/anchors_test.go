@@ -22,8 +22,8 @@ func hunkWithContents(newStart uint32, contents ...string) model.DiffHunk {
 		lines = append(lines, model.DiffLine{
 			Origin:    model.OriginContext,
 			Content:   content,
-			OldLineno: u32(no),
-			NewLineno: u32(no),
+			OldLineno: new(no),
+			NewLineno: new(no),
 		})
 	}
 	count := uint32(len(contents))
@@ -51,13 +51,13 @@ func commentedAppWith(t *testing.T, line uint32, snapshot string,
 	prep func(*model.Comment), contents ...string) (*App, *model.Comment) {
 	t.Helper()
 	const path = "src/x.go"
-	info := &vcs.Info{RootPath: "/tmp", HeadCommit: "abc123", BranchName: strPtr("main"), Type: vcs.TypeGit}
+	info := &vcs.Info{RootPath: "/tmp", HeadCommit: "abc123", BranchName: new("main"), Type: vcs.TypeGit}
 	session := model.NewReviewSession(info.RootPath, info.HeadCommit, info.BranchName, model.SourceWorkingTree)
 	session.Files[path] = model.NewFileReview(path, model.StatusModified, 0)
 
 	side := model.LineSideNew
 	c := model.NewComment("needs work", model.CommentTypeFromID("issue"), &side)
-	c.LineContext = &model.LineContext{NewLine: u32(line), OldLine: u32(line), Content: snapshot}
+	c.LineContext = &model.LineContext{NewLine: new(line), OldLine: new(line), Content: snapshot}
 	if prep != nil {
 		prep(c)
 	}
@@ -230,7 +230,7 @@ func TestAnchorUnverifiedWhenFileOutsideDiff(t *testing.T) {
 
 	side := model.LineSideNew
 	other := model.NewComment("elsewhere", model.CommentTypeFromID("note"), &side)
-	other.LineContext = &model.LineContext{NewLine: u32(9), OldLine: u32(9), Content: "not on screen"}
+	other.LineContext = &model.LineContext{NewLine: new(uint32(9)), OldLine: new(uint32(9)), Content: "not on screen"}
 	a.Session.Files["src/hidden.go"] = model.NewFileReview("src/hidden.go", model.StatusModified, 0)
 	a.Session.Files["src/hidden.go"].AddLineComment(9, other)
 
@@ -279,13 +279,13 @@ func TestReanchorClampsRangeStart(t *testing.T) {
 // numbering would compare the wrong column entirely.
 func TestOldSideAnchorValidatesAgainstOldLinenos(t *testing.T) {
 	const path = "src/x.go"
-	info := &vcs.Info{RootPath: "/tmp", HeadCommit: "abc123", BranchName: strPtr("main"), Type: vcs.TypeGit}
+	info := &vcs.Info{RootPath: "/tmp", HeadCommit: "abc123", BranchName: new("main"), Type: vcs.TypeGit}
 	session := model.NewReviewSession(info.RootPath, info.HeadCommit, info.BranchName, model.SourceWorkingTree)
 	session.Files[path] = model.NewFileReview(path, model.StatusModified, 0)
 
 	side := model.LineSideOld
 	c := model.NewComment("about the removed line", model.CommentTypeFromID("issue"), &side)
-	c.LineContext = &model.LineContext{OldLine: u32(2), Content: "removed"}
+	c.LineContext = &model.LineContext{OldLine: new(uint32(2)), Content: "removed"}
 	session.Files[path].AddLineComment(2, c)
 
 	// One added line (new-side only) then the removed line at old 4: the
@@ -293,8 +293,8 @@ func TestOldSideAnchorValidatesAgainstOldLinenos(t *testing.T) {
 	hunk := model.DiffHunk{
 		Header: "@@ -3,2 +3,2 @@",
 		Lines: []model.DiffLine{
-			{Origin: model.OriginAddition, Content: "added", NewLineno: u32(3)},
-			{Origin: model.OriginDeletion, Content: "removed", OldLineno: u32(4)},
+			{Origin: model.OriginAddition, Content: "added", NewLineno: new(uint32(3))},
+			{Origin: model.OriginDeletion, Content: "removed", OldLineno: new(uint32(4))},
 		},
 		OldStart: 3, OldCount: 2, NewStart: 3, NewCount: 2,
 	}
@@ -326,7 +326,7 @@ func TestPeekPanelFlagsOutdatedAnchor(t *testing.T) {
 	a := buildAppWithFiles([]model.DiffFile{file}, 20)
 	side := model.LineSideNew
 	c := model.NewComment("needs a guard", model.CommentTypeFromID("issue"), &side)
-	c.LineContext = &model.LineContext{NewLine: u32(2), Content: "a line since deleted"}
+	c.LineContext = &model.LineContext{NewLine: new(uint32(2)), Content: "a line since deleted"}
 	a.Session.File("test.rs").AddLineComment(2, c)
 	a.ValidateCommentAnchors()
 	if !a.HasOutdatedAnchor(c.ID) {
@@ -401,7 +401,7 @@ func TestAnchorVerdictLabels(t *testing.T) {
 func TestOutdatedAnchorRefusedInlineAtSubmit(t *testing.T) {
 	a := prTestApp(t, allCaps())
 	c := addLineComment(t, a, "src/x.go", 2, "this is about the old line 2")
-	c.LineContext = &model.LineContext{NewLine: u32(2), OldLine: u32(2), Content: "long gone"}
+	c.LineContext = &model.LineContext{NewLine: new(uint32(2)), OldLine: new(uint32(2)), Content: "long gone"}
 	a.ValidateCommentAnchors()
 	if !a.HasOutdatedAnchor(c.ID) {
 		t.Fatal("precondition: the anchor must be outdated")

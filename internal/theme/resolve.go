@@ -160,42 +160,41 @@ func Resolve(
 		}
 	}
 
-	switch {
-	case themeDark != nil && themeLight != nil:
-		switch appearance {
-		case AppearanceDark:
-			return themeDark, warnings, nil
-		case AppearanceLight:
-			return themeLight, warnings, nil
-		default: // AppearanceSystem
-			if systemDark() {
-				return themeDark, warnings, nil
-			}
-			return themeLight, warnings, nil
-		}
-	case themeDark != nil:
-		if appearanceSet {
-			warnings = append(warnings,
-				"Warning: Appearance setting is ignored when only theme_dark is configured")
-		}
-		return themeDark, warnings, nil
-	case themeLight != nil:
-		if appearanceSet {
-			warnings = append(warnings,
-				"Warning: Appearance setting is ignored when only theme_light is configured")
-		}
-		return themeLight, warnings, nil
+	t, warning := pickByAppearance(appearance, appearanceSet, systemDark, themeDark, themeLight)
+	if warning != "" {
+		warnings = append(warnings, warning)
 	}
+	return t, warnings, nil
+}
 
-	switch appearance {
-	case AppearanceDark:
-		return Dark(), warnings, nil
-	case AppearanceLight:
-		return Light(), warnings, nil
-	default: // AppearanceSystem
-		if systemDark() {
-			return Dark(), warnings, nil
+// pickByAppearance chooses between the configured dark and light themes —
+// or the bundled pair when neither is set — by the resolved appearance.
+// With only one of the pair configured there is nothing to choose, and an
+// explicit appearance setting earns a warning saying so.
+func pickByAppearance(
+	appearance Appearance, appearanceSet bool, systemDark func() bool, dark, light *Theme,
+) (*Theme, string) {
+	switch {
+	case dark != nil && light == nil:
+		if appearanceSet {
+			return dark, "Warning: Appearance setting is ignored when only theme_dark is configured"
 		}
-		return Light(), warnings, nil
+		return dark, ""
+	case light != nil && dark == nil:
+		if appearanceSet {
+			return light, "Warning: Appearance setting is ignored when only theme_light is configured"
+		}
+		return light, ""
+	case dark == nil && light == nil:
+		dark, light = Dark(), Light()
 	}
+	switch {
+	case appearance == AppearanceDark:
+		return dark, ""
+	case appearance == AppearanceLight:
+		return light, ""
+	case systemDark():
+		return dark, ""
+	}
+	return light, ""
 }

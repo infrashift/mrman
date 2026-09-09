@@ -30,9 +30,9 @@ func nearest(idx int) FindSourceLineResult {
 func TestShouldFindExactMatch(t *testing.T) {
 	annotations := []AnnotatedLine{
 		{Kind: AnnFileHeader, FileIdx: 0},
-		fslDiffLine(0, u32(10)),
-		fslDiffLine(0, u32(11)),
-		fslDiffLine(0, u32(12)),
+		fslDiffLine(0, new(uint32(10))),
+		fslDiffLine(0, new(uint32(11))),
+		fslDiffLine(0, new(uint32(12))),
 	}
 
 	result := findSourceLine(annotations, 0, 11, model.LineSideNew)
@@ -41,9 +41,9 @@ func TestShouldFindExactMatch(t *testing.T) {
 
 func TestShouldFindNearestWhenNoExactMatch(t *testing.T) {
 	annotations := []AnnotatedLine{
-		fslDiffLine(0, u32(10)),
-		fslDiffLine(0, u32(15)),
-		fslDiffLine(0, u32(20)),
+		fslDiffLine(0, new(uint32(10))),
+		fslDiffLine(0, new(uint32(15))),
+		fslDiffLine(0, new(uint32(20))),
 	}
 
 	// Target 12 is closest to line 10 (dist=2) vs 15 (dist=3) vs 20 (dist=8).
@@ -53,9 +53,9 @@ func TestShouldFindNearestWhenNoExactMatch(t *testing.T) {
 
 func TestShouldFindNearestAboveTarget(t *testing.T) {
 	annotations := []AnnotatedLine{
-		fslDiffLine(0, u32(10)),
-		fslDiffLine(0, u32(15)),
-		fslDiffLine(0, u32(20)),
+		fslDiffLine(0, new(uint32(10))),
+		fslDiffLine(0, new(uint32(15))),
+		fslDiffLine(0, new(uint32(20))),
 	}
 
 	// Target 18 is closest to line 20 (dist=2) vs 15 (dist=3) vs 10 (dist=8).
@@ -69,7 +69,7 @@ func TestShouldReturnNotFoundForEmptyAnnotations(t *testing.T) {
 }
 
 func TestShouldReturnNotFoundWhenNoLinesInCurrentFile(t *testing.T) {
-	annotations := []AnnotatedLine{fslDiffLine(1, u32(10)), fslDiffLine(1, u32(20))}
+	annotations := []AnnotatedLine{fslDiffLine(1, new(uint32(10))), fslDiffLine(1, new(uint32(20)))}
 
 	// File 0 has no lines.
 	result := findSourceLine(annotations, 0, 10, model.LineSideNew)
@@ -78,9 +78,9 @@ func TestShouldReturnNotFoundWhenNoLinesInCurrentFile(t *testing.T) {
 
 func TestShouldSkipLinesFromOtherFiles(t *testing.T) {
 	annotations := []AnnotatedLine{
-		fslDiffLine(0, u32(100)), // file 0, line 100
-		fslDiffLine(1, u32(42)),  // file 1, exact match but wrong file
-		fslDiffLine(0, u32(50)),  // file 0, line 50
+		fslDiffLine(0, new(uint32(100))), // file 0, line 100
+		fslDiffLine(1, new(uint32(42))),  // file 1, exact match but wrong file
+		fslDiffLine(0, new(uint32(50))),  // file 0, line 50
 	}
 
 	// Searching file 0 for line 42 — nearest (50, dist=8), not file 1's exact.
@@ -93,7 +93,7 @@ func TestShouldSkipNonDiffLineAnnotations(t *testing.T) {
 		{Kind: AnnFileHeader, FileIdx: 0},
 		{Kind: AnnHunkHeader, FileIdx: 0, HunkIdx: 0},
 		{Kind: AnnSpacing},
-		fslDiffLine(0, u32(42)),
+		fslDiffLine(0, new(uint32(42))),
 	}
 
 	result := findSourceLine(annotations, 0, 42, model.LineSideNew)
@@ -102,7 +102,7 @@ func TestShouldSkipNonDiffLineAnnotations(t *testing.T) {
 
 func TestShouldSkipDiffLinesWithNoNewLineno(t *testing.T) {
 	// Deletion-only lines have new_lineno = nil.
-	annotations := []AnnotatedLine{fslDiffLine(0, nil), fslDiffLine(0, u32(20))}
+	annotations := []AnnotatedLine{fslDiffLine(0, nil), fslDiffLine(0, new(uint32(20)))}
 
 	result := findSourceLine(annotations, 0, 5, model.LineSideNew)
 	assertEq(t, result, nearest(1), "skip nil new lineno")
@@ -110,9 +110,9 @@ func TestShouldSkipDiffLinesWithNoNewLineno(t *testing.T) {
 
 func TestShouldWorkWithSideBySideLines(t *testing.T) {
 	annotations := []AnnotatedLine{
-		fslSbsLine(0, u32(10)),
-		fslSbsLine(0, u32(20)),
-		fslSbsLine(0, u32(30)),
+		fslSbsLine(0, new(uint32(10))),
+		fslSbsLine(0, new(uint32(20))),
+		fslSbsLine(0, new(uint32(30))),
 	}
 
 	result := findSourceLine(annotations, 0, 20, model.LineSideNew)
@@ -121,9 +121,9 @@ func TestShouldWorkWithSideBySideLines(t *testing.T) {
 
 func TestShouldHandleMixedDiffAndSbsLines(t *testing.T) {
 	annotations := []AnnotatedLine{
-		fslDiffLine(0, u32(10)),
-		fslSbsLine(0, u32(20)),
-		fslDiffLine(0, u32(30)),
+		fslDiffLine(0, new(uint32(10))),
+		fslSbsLine(0, new(uint32(20))),
+		fslDiffLine(0, new(uint32(30))),
 	}
 
 	// Nearest is line 20 (dist=5) or line 30 (dist=5), first match wins.
@@ -144,9 +144,9 @@ func TestShouldReturnNotFoundWhenOnlyNonLineAnnotations(t *testing.T) {
 
 func TestShouldPreferExactMatchOverEarlierNearest(t *testing.T) {
 	annotations := []AnnotatedLine{
-		fslDiffLine(0, u32(41)), // dist=1 from target 42
-		fslDiffLine(0, u32(42)), // exact match
-		fslDiffLine(0, u32(43)), // dist=1 from target 42
+		fslDiffLine(0, new(uint32(41))), // dist=1 from target 42
+		fslDiffLine(0, new(uint32(42))), // exact match
+		fslDiffLine(0, new(uint32(43))), // dist=1 from target 42
 	}
 
 	result := findSourceLine(annotations, 0, 42, model.LineSideNew)
@@ -156,7 +156,7 @@ func TestShouldPreferExactMatchOverEarlierNearest(t *testing.T) {
 func TestShouldFindNearestForTargetZero(t *testing.T) {
 	// target = 0 is out-of-range (lines are 1-indexed) but should still
 	// return the nearest line rather than panicking.
-	annotations := []AnnotatedLine{fslDiffLine(0, u32(1)), fslDiffLine(0, u32(5))}
+	annotations := []AnnotatedLine{fslDiffLine(0, new(uint32(1))), fslDiffLine(0, new(uint32(5)))}
 
 	result := findSourceLine(annotations, 0, 0, model.LineSideNew)
 	assertEq(t, result, nearest(0), "target zero")
@@ -165,9 +165,9 @@ func TestShouldFindNearestForTargetZero(t *testing.T) {
 func TestShouldTieBreakNearestByIterationOrder(t *testing.T) {
 	// When two lines are equidistant, the first one encountered wins.
 	annotations := []AnnotatedLine{
-		fslDiffLine(0, u32(30)),
-		fslDiffLine(0, u32(50)),
-		fslDiffLine(0, u32(10)),
+		fslDiffLine(0, new(uint32(30))),
+		fslDiffLine(0, new(uint32(50))),
+		fslDiffLine(0, new(uint32(10))),
 	}
 
 	result := findSourceLine(annotations, 0, 20, model.LineSideNew)
@@ -178,9 +178,9 @@ func TestShouldMatchOldLinenoWhenSideIsOld(t *testing.T) {
 	// Deletion-only lines carry old_lineno but no new_lineno. :o<n> must
 	// match those.
 	annotations := []AnnotatedLine{
-		fslDiffLineWithOld(0, u32(5), nil),
-		fslDiffLineWithOld(0, u32(10), nil),
-		fslDiffLine(0, u32(50)), // new-side line — ignored when side=Old
+		fslDiffLineWithOld(0, new(uint32(5)), nil),
+		fslDiffLineWithOld(0, new(uint32(10)), nil),
+		fslDiffLine(0, new(uint32(50))), // new-side line — ignored when side=Old
 	}
 
 	assertEq(t, findSourceLine(annotations, 0, 10, model.LineSideOld), exact(1), "old exact")
@@ -190,7 +190,7 @@ func TestShouldMatchOldLinenoWhenSideIsOld(t *testing.T) {
 func TestShouldNotMatchNewLinenoWhenSideIsOld(t *testing.T) {
 	// A pure-addition line has no old_lineno; searching old-side should not
 	// fall back to its new_lineno.
-	annotations := []AnnotatedLine{fslDiffLine(0, u32(42))}
+	annotations := []AnnotatedLine{fslDiffLine(0, new(uint32(42)))}
 
 	result := findSourceLine(annotations, 0, 42, model.LineSideOld)
 	assertEq(t, result.Kind, FindNotFound, "no old fallback to new")

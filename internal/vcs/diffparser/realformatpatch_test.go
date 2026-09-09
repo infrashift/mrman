@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -158,10 +159,5 @@ func rowsByPath(t *testing.T, files []model.DiffFile) map[string][]string {
 }
 
 func containsRow(rows []string, want string) bool {
-	for _, r := range rows {
-		if r == want {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(rows, want)
 }

@@ -3,6 +3,7 @@
 // HelpState, and the read-only reviewed-state helpers from
 // src/app/reviewed.rs. Pure state — no rendering or theme imports; the ui
 // layer renders from this.
+
 package app
 
 import (
@@ -24,8 +25,9 @@ const (
 	DiffSourceStagedAndUnstaged
 	DiffSourceCommitRange
 	DiffSourceStagedUnstagedAndCommits
-	// DiffSourcePullRequest is a stub in M3: the PR identity payload lands
-	// with the forge milestone.
+	// DiffSourcePullRequest reviews a forge pull request; the session
+	// carries its identity in PrSessionKey and the app its live state in
+	// PrState.
 	DiffSourcePullRequest
 	// DiffSourcePatch reviews a standalone patch artifact — a .patch file, a
 	// mail message, or an mbox series — with no repository behind it.

@@ -72,8 +72,7 @@ func TestDetectKinds(t *testing.T) {
 // them hunting for an empty diff.
 func TestLoadRejectsNonPatch(t *testing.T) {
 	_, err := LoadFile(filepath.Join("testdata", "notapatch.txt"), Options{})
-	var invalid *errs.InvalidInput
-	if !errors.As(err, &invalid) {
+	if _, ok := errors.AsType[*errs.InvalidInput](err); !ok {
 		t.Fatalf("err = %v, want *errs.InvalidInput", err)
 	}
 	if !strings.Contains(err.Error(), "not a patch") {

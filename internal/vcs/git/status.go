@@ -129,7 +129,7 @@ func countLines(content string) uint32 {
 	if !strings.HasSuffix(content, "\n") {
 		n++
 	}
-	return uint32(n)
+	return uint32(n) //nolint:gosec // G115: line numbers fit uint32
 }
 
 // hasDiffChanges runs a `git diff --quiet` probe: exit 0 means no changes,
@@ -195,7 +195,7 @@ func (b *Backend) sparseCheckoutUntrackedPathspecs() ([]string, error) {
 	out := string(stdout)
 
 	var pathspecs []string
-	for _, line := range strings.Split(out, "\n") {
+	for line := range strings.SplitSeq(out, "\n") {
 		pattern := strings.TrimSpace(line)
 		if pattern == "" {
 			continue
@@ -226,7 +226,7 @@ func appendPathspecs(args, pathspecs []string) []string {
 // `git diff -z --name-only`), skipping empty entries.
 func splitNulPaths(out string) []string {
 	var paths []string
-	for _, chunk := range strings.Split(out, "\x00") {
+	for chunk := range strings.SplitSeq(out, "\x00") {
 		if chunk != "" {
 			paths = append(paths, chunk)
 		}

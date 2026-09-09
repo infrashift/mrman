@@ -50,6 +50,13 @@ This scoping is deliberate. `GITHUB_TOKEN` is read **only** for github.com, so
 a token in your shell for public work never leaks to your employer's
 on-premise instance, and vice versa.
 
+The `[[forge.hosts]]` entry above is required for *any* credential, not just
+for `api_base`: `GH_ENTERPRISE_TOKEN` is read only for hosts you have listed.
+Without an entry mrman still recognises the host as GitHub — from the URL,
+or from a hostname containing "github" — but connects unauthenticated and
+warns, so a pasted link to a look-alike domain can never be handed your
+enterprise token.
+
 Resolution order for a GHE host, first hit wins:
 
 1. `GH_ENTERPRISE_TOKEN`
@@ -60,7 +67,7 @@ Resolution order for a GHE host, first hit wins:
 
 ### Keeping the token out of your config file
 
-`token_cmd` runs through `sh -c` and its result is cached for the process, so a
+`token_cmd` runs through `sh -c` (`cmd /C` on Windows) and its result is cached for the process, so a
 password manager works cleanly:
 
 ```toml
@@ -77,6 +84,11 @@ environment lookup, a failing `token_cmd` is fatal rather than skipped: you
 configured it on purpose, so silently falling through to anonymous access would
 be the wrong kindness.
 
+A `token_cmd` that exits 0 with **empty output** is treated as "no token" rather than
+an error, and resolution falls through to `gh auth token` and then to anonymous
+access — so a secret-manager command that prints nothing is easy to mistake for
+a working one. Run it yourself and check it prints the token.
+
 ## TLS
 
 `ca_file` adds your organization's certificate authority for that host only.
@@ -88,7 +100,9 @@ ca_file = "/etc/ssl/corp-root.pem"
 
 There is also `insecure_skip_verify = true` per host. It exists because
 sometimes you need to get work done, and it should stay a last resort — it
-disables certificate verification for that host entirely.
+disables certificate verification for that host entirely. mrman reminds you
+it is on with a warning at every start, so it does not outlive the outage
+that justified it.
 
 ## SSH remotes
 

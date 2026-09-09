@@ -77,7 +77,7 @@ func TestShouldExpandUpFromFirstHunk(t *testing.T) {
 	gapID := GapID{FileIdx: 0, HunkIdx: 0}
 
 	// when: expand Up with limit 20 (reveals lines closest to hunk)
-	if err := a.ExpandGap(gapID, ExpandUp, intPtr(20)); err != nil {
+	if err := a.ExpandGap(gapID, ExpandUp, new(20)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -109,7 +109,7 @@ func TestShouldExpandDownFromUpperHunk(t *testing.T) {
 	a := buildAppWithFiles([]model.DiffFile{file}, 100)
 	gapID := GapID{FileIdx: 0, HunkIdx: 1}
 
-	if err := a.ExpandGap(gapID, ExpandDown, intPtr(10)); err != nil {
+	if err := a.ExpandGap(gapID, ExpandDown, new(10)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -124,7 +124,7 @@ func TestShouldExpandUpFromLowerHunk(t *testing.T) {
 	a := buildAppWithFiles([]model.DiffFile{file}, 100)
 	gapID := GapID{FileIdx: 0, HunkIdx: 1}
 
-	if err := a.ExpandGap(gapID, ExpandUp, intPtr(10)); err != nil {
+	if err := a.ExpandGap(gapID, ExpandUp, new(10)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -138,11 +138,11 @@ func TestShouldAppendOnSubsequentDownExpand(t *testing.T) {
 	file := makeFileWithHunks("test.rs", []model.DiffHunk{makeHunk(1, 5), makeHunk(50, 5)})
 	a := buildAppWithFiles([]model.DiffFile{file}, 100)
 	gapID := GapID{FileIdx: 0, HunkIdx: 1}
-	if err := a.ExpandGap(gapID, ExpandDown, intPtr(20)); err != nil {
+	if err := a.ExpandGap(gapID, ExpandDown, new(20)); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := a.ExpandGap(gapID, ExpandDown, intPtr(20)); err != nil {
+	if err := a.ExpandGap(gapID, ExpandDown, new(20)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -156,11 +156,11 @@ func TestShouldPrependOnSubsequentUpExpand(t *testing.T) {
 	file := makeFileWithHunks("test.rs", []model.DiffHunk{makeHunk(1, 5), makeHunk(50, 5)})
 	a := buildAppWithFiles([]model.DiffFile{file}, 100)
 	gapID := GapID{FileIdx: 0, HunkIdx: 1}
-	if err := a.ExpandGap(gapID, ExpandUp, intPtr(10)); err != nil {
+	if err := a.ExpandGap(gapID, ExpandUp, new(10)); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := a.ExpandGap(gapID, ExpandUp, intPtr(10)); err != nil {
+	if err := a.ExpandGap(gapID, ExpandUp, new(10)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -176,12 +176,12 @@ func TestShouldCapAtGapBoundaries(t *testing.T) {
 	file := makeFileWithHunks("test.rs", []model.DiffHunk{makeHunk(51, 5)})
 	a := buildAppWithFiles([]model.DiffFile{file}, 100)
 	gapID := GapID{FileIdx: 0, HunkIdx: 0}
-	if err := a.ExpandGap(gapID, ExpandUp, intPtr(40)); err != nil {
+	if err := a.ExpandGap(gapID, ExpandUp, new(40)); err != nil {
 		t.Fatal(err)
 	}
 
 	// when: expand Up 20 more (only 10 remain)
-	if err := a.ExpandGap(gapID, ExpandUp, intPtr(20)); err != nil {
+	if err := a.ExpandGap(gapID, ExpandUp, new(20)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -195,7 +195,7 @@ func TestShouldShowUpExpanderForTopOfFilePartial(t *testing.T) {
 	file := makeFileWithHunks("test.rs", []model.DiffHunk{makeHunk(51, 5)})
 	a := buildAppWithFiles([]model.DiffFile{file}, 100)
 	gapID := GapID{FileIdx: 0, HunkIdx: 0}
-	if err := a.ExpandGap(gapID, ExpandUp, intPtr(20)); err != nil {
+	if err := a.ExpandGap(gapID, ExpandUp, new(20)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -268,7 +268,7 @@ func TestShouldExpandGapInCorrectFileNotAdjacentFile(t *testing.T) {
 
 	gapIDFile1 := GapID{FileIdx: 1, HunkIdx: 0}
 
-	if err := a.ExpandGap(gapIDFile1, ExpandUp, intPtr(10)); err != nil {
+	if err := a.ExpandGap(gapIDFile1, ExpandUp, new(10)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -294,7 +294,7 @@ func TestShouldNoopWhenAlreadyFullyExpanded(t *testing.T) {
 	}
 	lenBefore := len(a.ExpandedTop[gapID])
 
-	if err := a.ExpandGap(gapID, ExpandUp, intPtr(20)); err != nil {
+	if err := a.ExpandGap(gapID, ExpandUp, new(20)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -307,7 +307,7 @@ func TestShouldExpandSmallGapFullyEvenWithLargeLimit(t *testing.T) {
 	a := buildAppWithFiles([]model.DiffFile{file}, 100)
 	gapID := GapID{FileIdx: 0, HunkIdx: 0}
 
-	if err := a.ExpandGap(gapID, ExpandUp, intPtr(20)); err != nil {
+	if err := a.ExpandGap(gapID, ExpandUp, new(20)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -324,7 +324,7 @@ func TestShouldMergeToBothWhenRemainingDropsBelowBatch(t *testing.T) {
 	file := makeFileWithHunks("test.rs", []model.DiffHunk{makeHunk(1, 5), makeHunk(36, 5)})
 	a := buildAppWithFiles([]model.DiffFile{file}, 100)
 	gapID := GapID{FileIdx: 0, HunkIdx: 1}
-	if err := a.ExpandGap(gapID, ExpandDown, intPtr(20)); err != nil {
+	if err := a.ExpandGap(gapID, ExpandDown, new(20)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -456,7 +456,7 @@ func TestShouldExpandDownAtEndOfFile(t *testing.T) {
 	a := buildAppWithFiles([]model.DiffFile{file}, 100)
 	eofGapID := GapID{FileIdx: 0, HunkIdx: 1}
 
-	if err := a.ExpandGap(eofGapID, ExpandDown, intPtr(20)); err != nil {
+	if err := a.ExpandGap(eofGapID, ExpandDown, new(20)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -484,11 +484,11 @@ func TestShouldHandleSubsequentEofExpansions(t *testing.T) {
 	file := makeFileWithHunks("test.rs", []model.DiffHunk{makeHunk(1, 5)})
 	a := buildAppWithFiles([]model.DiffFile{file}, 50)
 	eofGapID := GapID{FileIdx: 0, HunkIdx: 1}
-	if err := a.ExpandGap(eofGapID, ExpandDown, intPtr(20)); err != nil {
+	if err := a.ExpandGap(eofGapID, ExpandDown, new(20)); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := a.ExpandGap(eofGapID, ExpandDown, intPtr(20)); err != nil {
+	if err := a.ExpandGap(eofGapID, ExpandDown, new(20)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -533,7 +533,7 @@ func TestShouldNotShowEofGapForDeletedFiles(t *testing.T) {
 	// given: a deleted file with hunks (old-side content)
 	hunks := []model.DiffHunk{makeHunk(1, 5)}
 	file := model.DiffFile{
-		OldPath:     strPtr("deleted.rs"),
+		OldPath:     new("deleted.rs"),
 		Status:      model.StatusDeleted,
 		Hunks:       hunks,
 		ContentHash: model.ComputeContentHash(hunks),

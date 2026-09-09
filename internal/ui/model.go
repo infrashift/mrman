@@ -10,14 +10,9 @@ import (
 
 	"github.com/infrashift/mrman/charmkit/keychord"
 	"github.com/infrashift/mrman/internal/app"
-	"github.com/infrashift/mrman/internal/forge"
-	"github.com/infrashift/mrman/internal/forge/forgetypes"
 	"github.com/infrashift/mrman/internal/input"
-	"github.com/infrashift/mrman/internal/model"
-	"github.com/infrashift/mrman/internal/output"
 	"github.com/infrashift/mrman/internal/persistence"
 	"github.com/infrashift/mrman/internal/theme"
-	"github.com/infrashift/mrman/internal/version"
 )
 
 // tickMsg drives message expiry and periodic housekeeping (100ms heartbeat).
@@ -69,6 +64,12 @@ type Model struct {
 	// forge lazily resolves the driver backing the selector's Pull
 	// Requests tab; nil in tests and when no forge remote exists.
 	forge *forgeResolver
+
+	// inflight holds the cancel for each replaceable async family. A new
+	// request in a family cancels the previous one, and shutdown cancels
+	// them all, so an abandoned forge call stops instead of running to
+	// completion behind a generation check that will discard it anyway.
+	inflight inflightRequests
 	// queuedCmd holds async work started deep in the dispatch tree — a ":"
 	// command that reaches the forge, say. handleKey drains it after
 	// dispatching, so every dispatch handler need not return a tea.Cmd.
@@ -192,35 +193,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if cmd, handled := m.handleTerminalEvent(msg); handled {
+		return m, cmd
+	}
 	switch msg := msg.(type) {
-	case tea.WindowSizeMsg:
-		m.width, m.height = msg.Width, msg.Height
-		m.syncViewport()
-		if msg.Width < 100 {
-			m.App.ShowFileList = false
-		}
-	case tea.KeyboardEnhancementsMsg:
-		m.App.SupportsKeyboardEnhancement = msg.SupportsEventTypes()
-	case tea.KeyReleaseMsg:
-		k := tea.Key(msg)
-		if k.Code == 'j' || k.Code == tea.KeyDown {
-			m.App.DownReleasedSinceArm = true
-		}
-		if k.Code == 'k' || k.Code == tea.KeyUp {
-			m.App.UpReleasedSinceArm = true
-		}
-	case tickMsg:
-		m.App.ClearExpiredMessage()
-		if !m.pendingCtrlC.IsZero() && time.Since(m.pendingCtrlC) > ctrlCWindow {
-			m.pendingCtrlC = time.Time{}
-		}
-		if m.session != nil {
-			composing := m.App.InputMode == input.ModeComment
-			if merged := m.session.pollExternalChanges(m.App, composing); merged > 0 {
-				m.App.SetMessage(fmt.Sprintf("Merged %d external change(s)", merged))
-			}
-		}
-		return m, tick()
 	case tea.KeyPressMsg:
 		return m.handleKey(tea.Key(msg))
 	case tea.PasteMsg:
@@ -249,6 +225,45 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// handleTerminalEvent takes the messages that come from the terminal and
+// the clock rather than from the user's keys or an async result: resize,
+// keyboard-protocol negotiation, key release, and the tick.
+func (m *Model) handleTerminalEvent(msg tea.Msg) (tea.Cmd, bool) {
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width, m.height = msg.Width, msg.Height
+		m.syncViewport()
+		if msg.Width < 100 {
+			m.App.ShowFileList = false
+		}
+	case tea.KeyboardEnhancementsMsg:
+		m.App.SupportsKeyboardEnhancement = msg.SupportsEventTypes()
+	case tea.KeyReleaseMsg:
+		k := tea.Key(msg)
+		if k.Code == 'j' || k.Code == tea.KeyDown {
+			m.App.DownReleasedSinceArm = true
+		}
+		if k.Code == 'k' || k.Code == tea.KeyUp {
+			m.App.UpReleasedSinceArm = true
+		}
+	case tickMsg:
+		m.App.ClearExpiredMessage()
+		if !m.pendingCtrlC.IsZero() && time.Since(m.pendingCtrlC) > ctrlCWindow {
+			m.pendingCtrlC = time.Time{}
+		}
+		if m.session != nil {
+			composing := m.App.InputMode == input.ModeComment
+			if merged := m.session.pollExternalChanges(m.App, composing); merged > 0 {
+				m.App.SetMessage(fmt.Sprintf("Merged %d external change(s)", merged))
+			}
+		}
+		return tick(), true
+	default:
+		return nil, false
+	}
+	return nil, true
+}
+
 // handlePaste routes bracketed-paste text to the active input surface.
 func (m *Model) handlePaste(text string) {
 	a := m.App
@@ -269,10 +284,9 @@ func (m *Model) handlePaste(text string) {
 }
 
 func (m *Model) syncViewport() {
-	innerH := m.height - 4 // header + status + diff borders
-	if innerH < 1 {
-		innerH = 1
-	}
+	innerH := max(
+		// header + status + diff borders
+		m.height-4, 1)
 	m.App.DiffState.ViewportHeight = innerH
 	m.App.SyncViewportWidth(m.diffInnerWidth())
 }
@@ -293,133 +307,39 @@ func (m *Model) fileListWidth() int {
 	return m.width / 5
 }
 
+// handleKey is the key pipeline: Ctrl-C guard, comment-vim routing, chord
+// feeding, keymap lookup, count prefix, modal dispatch, then the normal
+// dispatch. Each stage that consumes the key returns early.
 func (m *Model) handleKey(k tea.Key) (tea.Model, tea.Cmd) {
 	a := m.App
 
-	// 1. Ctrl-C twice to exit.
-	if k.Mod == tea.ModCtrl && k.Code == 'c' {
-		if !m.pendingCtrlC.IsZero() && time.Since(m.pendingCtrlC) <= ctrlCWindow {
-			return m, tea.Quit
-		}
-		m.pendingCtrlC = time.Now()
-		a.SetWarning("Press Ctrl+C again to exit")
-		return m, nil
+	if done, cmd := m.handleCtrlC(k); done {
+		return m, cmd
 	}
-	m.pendingCtrlC = time.Time{}
-
-	// 2. Comment-vim routing intercepts everything while composing.
 	if a.InputMode == input.ModeComment && m.vim != nil {
-		m.chords.Reset()
-		switch m.vim.handleKey(a, k) {
-		case vimSave:
-			m.saveComment()
-		case vimCancel:
-			m.vim = nil
-			a.ExitCommentMode()
-		case vimCycleType:
-			a.CycleCommentType()
-		case vimCycleTypeReverse:
-			a.CycleCommentTypeReverse()
+		m.routeVimComment(k)
+		return m, nil
+	}
+	if done, quit := m.feedChord(k); done {
+		if quit {
+			return m, tea.Quit
 		}
 		return m, nil
 	}
 
-	// 3. Chords. Every prefix comes from the normal-mode keymap, so a
-	// half-typed chord must be abandoned the moment input goes anywhere
-	// else — otherwise it would complete against a text field.
-	if a.InputMode != input.ModeNormal {
-		m.chords.Reset()
-	} else if r, ok := printable(k); ok {
-		ev := m.chords.Feed(string(r))
-		if ev.Consumed {
-			// Starting a chord abandons any count typed before it: "5zz"
-			// centers the view, it does not center it five times and then
-			// apply the 5 to whatever comes next.
-			a.PendingCount = nil
-			return m, nil
-		}
-		if ev.IsChord() {
-			quit, handled := m.dispatchChord(ev)
-			if quit {
-				return m, tea.Quit
-			}
-			if handled {
-				return m, nil
-			}
-			// An unrecognized chord is a mistyped prefix, not a mistyped
-			// key: let the second key act on its own, as it did before the
-			// prefix was pressed.
-		}
-	} else {
-		// A non-printable key cannot complete a chord; drop the prefix and
-		// let the keymap have the key.
-		m.chords.Reset()
-	}
-
-	// 4. Keymap lookup.
 	action := input.MapKey(k, a.InputMode, m.leader)
-
-	// 6. Count prefix. Normal mode and the help popup both take one — the
-	// popup is a scrollable document, and it was the one mode where a
-	// typed count was silently dropped.
-	if a.InputMode == input.ModeNormal || a.InputMode == input.ModeHelp {
-		if action.Kind == input.Digit {
-			n := 0
-			if a.PendingCount != nil {
-				n = *a.PendingCount
-			}
-			n = n*10 + action.N
-			if n > 999_999 {
-				n = 999_999
-			}
-			a.PendingCount = &n
-			return m, nil
-		}
-		if a.PendingCount != nil {
-			count := *a.PendingCount
-			a.PendingCount = nil
-			switch action.Kind {
-			case input.GoToBottom:
-				// {N}G jumps to a source line, which the help popup does
-				// not have; there a count leaves G meaning "to the end".
-				if a.InputMode == input.ModeNormal {
-					a.GoToSourceLine(uint32(count), "new")
-					return m, nil
-				}
-			case input.CursorDown, input.CursorUp, input.ScrollLeft, input.ScrollRight,
-				input.ScrollViewDown, input.ScrollViewUp:
-				action.N *= count
-			case input.NextFile, input.PrevFile, input.NextHunk, input.PrevHunk:
-				for i := 0; i < count-1; i++ {
-					m.dispatch(action)
-				}
-			}
-		}
+	action, consumed := m.applyCountPrefix(action)
+	if consumed {
+		return m, nil
 	}
 
-	// 7. Submit modals may spawn async work.
-	switch a.InputMode {
-	case input.ModeSubmitActionPicker:
-		quit, cmd := m.dispatchSubmitPicker(action)
-		if quit {
-			return m, tea.Quit
-		}
-		return m, cmd
-	case input.ModeSubmitResolver:
-		return m, m.dispatchSubmitResolver(action)
-	case input.ModeSubmitConfirm:
-		return m, m.dispatchSubmitConfirm(action)
-	case input.ModeCommitSelect:
-		// The target selector reaches the forge: listing, paging and
-		// opening a PR all spawn async work.
-		quit, cmd := m.dispatchSelector(k, action)
+	if cmd, quit, handled := m.dispatchModal(k, action); handled {
 		if quit {
 			return m, tea.Quit
 		}
 		return m, cmd
 	}
 
-	// 8. Dispatch.
 	if quit := m.dispatch(action); quit {
 		return m, tea.Quit
 	}
@@ -427,6 +347,138 @@ func (m *Model) handleKey(k tea.Key) (tea.Model, tea.Cmd) {
 	// machine; Update drains it with everything else.
 	m.queue(m.drainPrContextRequest())
 	return m, nil
+}
+
+// handleCtrlC implements Ctrl-C twice to exit. done is true when the key
+// was Ctrl-C, whether it quit or only armed the second press.
+func (m *Model) handleCtrlC(k tea.Key) (done bool, cmd tea.Cmd) {
+	if k.Mod != tea.ModCtrl || k.Code != 'c' {
+		m.pendingCtrlC = time.Time{}
+		return false, nil
+	}
+	if !m.pendingCtrlC.IsZero() && time.Since(m.pendingCtrlC) <= ctrlCWindow {
+		return true, tea.Quit
+	}
+	m.pendingCtrlC = time.Now()
+	m.App.SetWarning("Press Ctrl+C again to exit")
+	return true, nil
+}
+
+// routeVimComment hands a key to the comment editor's vim layer, which
+// intercepts everything while composing.
+func (m *Model) routeVimComment(k tea.Key) {
+	a := m.App
+	m.chords.Reset()
+	switch m.vim.handleKey(a, k) {
+	case vimSave:
+		m.saveComment()
+	case vimCancel:
+		m.vim = nil
+		a.ExitCommentMode()
+	case vimCycleType:
+		a.CycleCommentType()
+	case vimCycleTypeReverse:
+		a.CycleCommentTypeReverse()
+	}
+}
+
+// feedChord runs the chord recognizer. Every prefix comes from the
+// normal-mode keymap, so a half-typed chord is abandoned the moment input
+// goes anywhere else — otherwise it would complete against a text field.
+// done is true when the key was consumed (as a prefix or a chord).
+func (m *Model) feedChord(k tea.Key) (done, quit bool) {
+	a := m.App
+	if a.InputMode != input.ModeNormal {
+		m.chords.Reset()
+		return false, false
+	}
+	r, ok := printable(k)
+	if !ok {
+		// A non-printable key cannot complete a chord; drop the prefix and
+		// let the keymap have the key.
+		m.chords.Reset()
+		return false, false
+	}
+	ev := m.chords.Feed(string(r))
+	if ev.Consumed {
+		// Starting a chord abandons any count typed before it: "5zz"
+		// centers the view, it does not center it five times and then
+		// apply the 5 to whatever comes next.
+		a.PendingCount = nil
+		return true, false
+	}
+	if ev.IsChord() {
+		quit, handled := m.dispatchChord(ev)
+		if quit || handled {
+			return true, quit
+		}
+		// An unrecognized chord is a mistyped prefix, not a mistyped key:
+		// let the second key act on its own, as it did before the prefix
+		// was pressed.
+	}
+	return false, false
+}
+
+// applyCountPrefix accumulates a typed count and applies it to the action
+// it precedes. Normal mode and the help popup both take one — the popup is
+// a scrollable document. consumed is true when the key was a digit.
+func (m *Model) applyCountPrefix(action input.Action) (input.Action, bool) {
+	a := m.App
+	if a.InputMode != input.ModeNormal && a.InputMode != input.ModeHelp {
+		return action, false
+	}
+	if action.Kind == input.Digit {
+		n := 0
+		if a.PendingCount != nil {
+			n = *a.PendingCount
+		}
+		n = min(n*10+action.N, 999_999)
+		a.PendingCount = &n
+		return action, true
+	}
+	if a.PendingCount == nil {
+		return action, false
+	}
+	count := *a.PendingCount
+	a.PendingCount = nil
+	switch action.Kind {
+	case input.GoToBottom:
+		// {N}G jumps to a source line, which the help popup does not
+		// have; there a count leaves G meaning "to the end".
+		if a.InputMode == input.ModeNormal {
+			a.GoToSourceLine(uint32(count), "new") //nolint:gosec // G115: line numbers fit uint32
+			return action, true
+		}
+	case input.CursorDown, input.CursorUp, input.ScrollLeft, input.ScrollRight,
+		input.ScrollViewDown, input.ScrollViewUp:
+		action.N *= count
+	case input.NextFile, input.PrevFile, input.NextHunk, input.PrevHunk:
+		for range count - 1 {
+			m.dispatch(action)
+		}
+	}
+	return action, false
+}
+
+// dispatchModal routes the modes whose handlers may spawn async work: the
+// submit modals and the target selector. handled is false for every other
+// mode.
+func (m *Model) dispatchModal(k tea.Key, action input.Action) (cmd tea.Cmd, quit, handled bool) {
+	switch m.App.InputMode {
+	case input.ModeSubmitActionPicker:
+		quit, cmd = m.dispatchSubmitPicker(action)
+		return cmd, quit, true
+	case input.ModeSubmitResolver:
+		return m.dispatchSubmitResolver(action), false, true
+	case input.ModeSubmitConfirm:
+		return m.dispatchSubmitConfirm(action), false, true
+	case input.ModeCommitSelect:
+		// The target selector reaches the forge: listing, paging and
+		// opening a PR all spawn async work.
+		quit, cmd = m.dispatchSelector(k, action)
+		return cmd, quit, true
+	}
+	return nil, false, false
 }
 
 // queue records async work for handleKey to return once dispatch unwinds.
@@ -593,127 +645,14 @@ func (m *Model) dispatchCommand(action input.Action) bool {
 	return false
 }
 
+// runCommand executes a parsed `:` command; true means quit.
 func (m *Model) runCommand(cmd input.Command) bool {
-	a := m.App
-	switch cmd.Kind {
-	case input.CmdQuit:
-		// tuicr's dirty guard: unsaved comments block :q; reviewed-only
-		// dirt just quits (the session was saved by toggles or discards).
-		if a.Dirty && a.Session.HasComments() {
-			a.SetError("No write since last change (add ! to override)")
-			return false
-		}
-		return true
-	case input.CmdForceQuit:
-		return true
-	case input.CmdWrite:
-		if err := m.saveSession(); err != nil {
-			a.SetError("Save failed: " + err.Error())
-		} else {
-			a.SetMessage("Session saved")
-		}
-	case input.CmdWriteQuit:
-		if err := m.saveSession(); err != nil {
-			a.SetError("Save failed: " + err.Error())
-			return false
-		}
-		return true
-	case input.CmdToggleWrap:
-		a.ToggleDiffWrap()
-	case input.CmdSetWrap:
-		a.SetDiffWrap(true)
-	case input.CmdDiff:
-		a.ToggleDiffViewMode()
-	case input.CmdHelp:
-		a.ToggleHelp()
-	case input.CmdFocus:
-		a.ToggleSingleFileView()
-	case input.CmdGotoLine:
-		a.GoToSourceLine(cmd.N, "new")
-	case input.CmdGotoLineOld:
-		a.GoToSourceLine(cmd.N, "old")
-	case input.CmdExport:
-		if out := m.exportToClipboard(); out != "" {
-			m.PendingStdout = out
-		}
-	case input.CmdExportPatch:
-		if out := m.patchReplyToClipboard(); out != "" {
-			m.PendingStdout = out
-		}
-	case input.CmdClear:
-		cleared, unreviewed := a.Session.ClearComments(model.ClearCommentsAndReviewed)
-		a.Dirty = true
-		a.RebuildAnnotations()
-		a.SetMessage(fmt.Sprintf("Cleared %d comment(s), unreviewed %d file(s)", cleared, unreviewed))
-	case input.CmdClearCommentsOnly:
-		cleared, _ := a.Session.ClearComments(model.ClearCommentsOnly)
-		a.Dirty = true
-		a.RebuildAnnotations()
-		a.SetMessage(fmt.Sprintf("Cleared %d comment(s)", cleared))
-	case input.CmdStage:
-		if !a.CanStage() {
-			a.SetMessage("Staging is only available for unstaged reviews in git")
-			break
-		}
-		staged := a.StageReviewedFiles()
-		a.SetMessage(fmt.Sprintf("Staged %d reviewed file(s)", staged))
-	case input.CmdSubmitPicker:
-		a.StartSubmitPicker()
-	case input.CmdSubmitComment:
-		a.StartSubmitWith(forge.SubmitComment, false)
-	case input.CmdSubmitApprove:
-		a.StartSubmitWith(forge.SubmitApprove, false)
-	case input.CmdSubmitRequestChanges:
-		a.StartSubmitWith(forge.SubmitRequestChanges, false)
-	case input.CmdSubmitDraft:
-		a.StartSubmitWith(forge.SubmitDraft, false)
-	case input.CmdToggleVim:
-		m.CommentVimMode = !m.CommentVimMode
-		a.SetMessage(fmt.Sprintf("Comment vim mode: %v (next comment)", m.CommentVimMode))
-	case input.CmdSetVim:
-		m.CommentVimMode = true
-		a.SetMessage("Comment vim mode: on (next comment)")
-	case input.CmdSetNoVim:
-		m.CommentVimMode = false
-		a.SetMessage("Comment vim mode: off")
-	case input.CmdTargetsLocal:
-		m.openTargetSelector(app.TargetTabLocal)
-	case input.CmdTargetsPatches:
-		m.openTargetSelector(app.TargetTabPatches)
-	case input.CmdTargetsPrs:
-		m.openTargetSelector(app.TargetTabPullRequests)
-	case input.CmdCommentsUnresolved:
-		m.setRemoteCommentsVisibility(forgetypes.VisibilityUnresolved)
-	case input.CmdCommentsAll:
-		m.setRemoteCommentsVisibility(forgetypes.VisibilityAll)
-	case input.CmdCommentsHide:
-		m.setRemoteCommentsVisibility(forgetypes.VisibilityHide)
-	case input.CmdReload:
-		m.queue(m.reloadDiff())
-	case input.CmdSetCommitsVisible:
-		m.setCommitSelectorVisible(true)
-	case input.CmdSetCommitsHidden:
-		m.setCommitSelectorVisible(false)
-	case input.CmdToggleCommits:
-		a.ToggleCommitSelector()
-	case input.CmdSetMouse:
-		m.setMouseEnabled(true)
-	case input.CmdSetNoMouse:
-		m.setMouseEnabled(false)
-	case input.CmdToggleMouse:
-		m.setMouseEnabled(!m.mouseEnabled)
-	case input.CmdEdit:
-		m.queue(m.openInEditor())
-	case input.CmdVersion:
-		a.SetMessage("mrman " + version.String())
-	case input.CmdAgentStatus:
-		m.reportAgentGrant()
-	case input.CmdAgentOff:
-		m.revokeAgentGrant()
-	default:
-		a.SetError("Unknown command: " + cmd.Raw)
+	handler, ok := commandTable[cmd.Kind]
+	if !ok {
+		m.App.SetError("Unknown command: " + cmd.Raw)
+		return false
 	}
-	return false
+	return handler(m, cmd)
 }
 
 // dispatchCommitSelect handles the full-screen target selector.
@@ -909,7 +848,7 @@ func (m *Model) dispatchVisual(action input.Action) bool {
 			a.SetError("Copy failed: " + err.Error())
 			break
 		}
-		if _, copyErr := output.CopyText(text); copyErr != nil {
+		if _, copyErr := copyText(text); copyErr != nil {
 			a.SetError("Clipboard failed: " + copyErr.Error())
 		} else {
 			a.SetMessage(fmt.Sprintf("Yanked %d character(s)", chars))
@@ -1039,118 +978,16 @@ func (m *Model) dispatchCommitStrip(action input.Action) bool {
 	return true
 }
 
+// dispatchNormal runs a normal-mode action; true means quit. Esc with
+// nothing typed and nothing loaded reopens the selector the review came
+// from rather than stranding the user on an empty pane.
 func (m *Model) dispatchNormal(action input.Action) bool {
-	a := m.App
-	switch action.Kind {
-	case input.Quit:
-		return true
-	case input.ExitMode:
-		// Esc discards a half-typed count, as in vim. With nothing typed
-		// and nothing loaded it would otherwise do nothing at all — which
-		// is exactly the state Esc out of the startup selector lands in,
-		// an empty pane with no key that leads anywhere. Reopen the
-		// selector the review came from instead of stranding the user.
-		switch {
-		case a.PendingCount != nil:
-			a.PendingCount = nil
-		case len(a.DiffFiles) == 0:
-			m.openTargetSelector(a.SelectorTabForReview())
-		}
-	case input.CursorDown:
-		a.CursorDown(action.N)
-	case input.CursorUp:
-		a.CursorUp(action.N)
-	case input.HalfPageDown:
-		a.ScrollDown(a.DiffState.EffectiveVisibleLines() / 2)
-	case input.HalfPageUp:
-		a.ScrollUp(a.DiffState.EffectiveVisibleLines() / 2)
-	case input.PageDown:
-		a.ScrollDown(a.DiffState.EffectiveVisibleLines())
-	case input.PageUp:
-		a.ScrollUp(a.DiffState.EffectiveVisibleLines())
-	case input.ScrollViewDown:
-		a.ScrollViewDown(action.N)
-	case input.ScrollViewUp:
-		a.ScrollViewUp(action.N)
-	case input.ScrollLeft:
-		a.ScrollLeft(action.N)
-	case input.ScrollRight:
-		a.ScrollRight(action.N)
-	case input.GoToTop:
-		a.MoveCursorToAnnotation(0)
-		a.DiffState.ScrollOffset = 0
-	case input.GoToBottom:
-		a.JumpToBottom()
-	case input.NextFile:
-		a.NextFile()
-	case input.PrevFile:
-		a.PrevFile()
-	case input.NextHunk:
-		a.NextHunk()
-	case input.PrevHunk:
-		a.PrevHunk()
-	case input.ToggleFocus:
-		m.cycleFocus(1)
-	case input.ToggleFocusReverse:
-		m.cycleFocus(-1)
-	case input.ToggleExpand, input.SelectFile, input.SelectFileFull:
-		// tuicr expands context gaps with Enter; mrman shipped Space.
-		// Both work: Enter for muscle memory, Space because it is already
-		// documented. They never collide — Enter in the file tree is
-		// dispatched by that pane's overlay before reaching here.
-		m.queue(m.expandGapAtCursor())
-	case input.CycleCommitNext:
-		m.queue(m.cycleCommit(true))
-	case input.CycleCommitPrev:
-		m.queue(m.cycleCommit(false))
-	case input.EnterCommandMode:
-		a.EnterCommandMode()
-	case input.EnterSearchMode:
-		a.EnterSearchMode()
-	case input.ToggleHelp:
-		a.ToggleHelp()
-	case input.SearchNext:
-		if !a.SearchNextInDiff() {
-			a.SetWarning("Pattern not found")
-		}
-	case input.SearchPrev:
-		if !a.SearchPrevInDiff() {
-			a.SetWarning("Pattern not found")
-		}
-	case input.ExportToClipboard:
-		// A live mouse drag makes y mean "copy what I highlighted", the
-		// same as in visual mode; with nothing highlighted it exports the
-		// whole review.
-		if m.yankMouseSelection() {
-			break
-		}
-		if out := m.exportToClipboard(); out != "" {
-			m.PendingStdout = out
-		}
-	case input.ToggleReviewed:
-		a.ToggleReviewed()
-		m.autosave()
-	case input.ToggleHunkReviewed:
-		a.ToggleHunkReviewed()
-		m.autosave()
-	case input.AddLineComment:
-		a.EnterCommentMode(false)
-		m.enterComposeMode()
-	case input.AddFileComment:
-		a.EnterCommentMode(true)
-		m.enterComposeMode()
-	case input.EditComment:
-		a.EnterEditMode(false)
-		m.enterComposeMode()
-	case input.EditCommentAtEnd:
-		a.EnterEditMode(true)
-		m.enterComposeMode()
-	case input.EnterVisualMode:
-		a.EnterVisualModeAtCursor()
-	case input.NextComment:
-		a.NextComment()
-	case input.PrevComment:
-		a.PrevComment()
+	if action.Kind == input.ExitMode && m.App.PendingCount == nil && len(m.App.DiffFiles) == 0 {
+		m.openTargetSelector(m.App.SelectorTabForReview())
+		return false
+	}
+	if handler, ok := normalActions[action.Kind]; ok {
+		return handler(m, action)
 	}
 	return false
 }
@@ -1165,10 +1002,7 @@ func (m *Model) View() tea.View {
 		return tea.NewView("")
 	}
 	a := m.App
-	innerH := m.height - 4
-	if innerH < 1 {
-		innerH = 1
-	}
+	innerH := max(m.height-4, 1)
 
 	if a.InputMode == input.ModeHelp {
 		return m.helpView()
@@ -1367,14 +1201,8 @@ func (m *Model) helpView() tea.View {
 	content := helpContent(m.leader)
 	m.App.HelpState.TotalLines = len(content)
 	m.App.HelpState.ViewportHeight = m.height - 2
-	start := m.App.HelpState.ScrollOffset
-	if start > len(content) {
-		start = len(content)
-	}
-	end := start + m.App.HelpState.ViewportHeight
-	if end > len(content) {
-		end = len(content)
-	}
+	start := min(m.App.HelpState.ScrollOffset, len(content))
+	end := min(start+m.App.HelpState.ViewportHeight, len(content))
 	body := strings.Join(content[start:end], "\n")
 	frame := lipgloss.JoinVertical(lipgloss.Left,
 		Header(m.App, m.Theme, m.width),

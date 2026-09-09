@@ -20,8 +20,14 @@ make check     # the full gate
 make check
 ```
 
-Runs, in order: `fmt` (gofmt + goimports) → `vet` → `lint` (golangci-lint) →
-`test` → `cover-check` → `check-charmkit`.
+Runs, in order: `fmt` (gofmt + goimports) → `vet` (host and a `GOOS=windows`
+cross-vet) → `lint` (golangci-lint, including `gosec`) → `test` →
+`cover-check` → `check-charmkit`. `make vuln` runs `govulncheck` over both
+modules; it is not part of `check` because it needs the network.
+
+The same gate runs in CI (`.github/workflows/ci.yml`) on every push and pull
+request, on Linux and macOS, plus a Windows build and `govulncheck`. A pull
+request that fails it is not mergeable.
 
 **Coverage is gated at 85%** and the gate is not advisory — `make check` fails
 below it:
@@ -57,13 +63,25 @@ mrman's behavior *should* be, the ported test is usually the answer.
 | `internal/ui/` | The Bubble Tea model, rendering and command dispatch |
 | `internal/input/` | Key and `:` command parsing |
 | `internal/forge/` | The four-forge layer — see below |
-| `internal/vcs/` | git, Jujutsu, file and pristine backends |
+| `internal/vcs/` | git, Jujutsu, file, pristine, patch, two-path and merge-request (no-op) backends |
 | `internal/config/` | TOML loading and CUE validation |
 | `internal/theme/` | Bundled and local themes, chroma styles |
 | `internal/output/` | Markdown export and review-body templating |
 | `internal/persistence/` | Session storage |
 | `internal/reviewcli/` | The `mrman review` JSON surface |
 | `internal/agentsubmit/` | The agent-submit grant and interlock |
+| `internal/cli/` | The command line: cobra tree, flag rules, `--auto` parsing |
+| `internal/model/` | Sessions, comments, diff types — the persisted shapes |
+| `internal/patch/` | `.patch`, `.diff` and mbox loading, header parsing, path normalisation |
+| `internal/prload/` | The network round of opening a merge request, shared by TUI and CLI |
+| `internal/slug/` | Session slugs and repository coordinates |
+| `internal/diffgen/` | Myers diff for forges that serve no patch (Azure DevOps) and `mrman diff` |
+| `internal/editor/` | `$EDITOR` invocations for `:edit` |
+| `internal/errs/` | The error taxonomy every layer shares |
+| `internal/ignore/` | `.gitignore` / `.mrmanignore` filtering |
+| `internal/syntax/` | chroma highlighting |
+| `internal/textsafe/` | Scrubbing terminal control sequences from untrusted text |
+| `internal/version/` | Build metadata for `--version` |
 | `charmkit/` | Reusable Bubble Tea layers, a separate module |
 | `skills/mrman/` | The packaged agent skill and multiplexer wrappers |
 

@@ -34,7 +34,7 @@ func Load(root string) *Filter {
 		if err != nil {
 			continue
 		}
-		for _, line := range strings.Split(string(data), "\n") {
+		for line := range strings.SplitSeq(string(data), "\n") {
 			trimmed := strings.TrimSpace(line)
 			if trimmed == "" || strings.HasPrefix(trimmed, "#") {
 				continue

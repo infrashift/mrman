@@ -226,7 +226,7 @@ func TestGapAtCursorHits(t *testing.T) {
 	file := makeFileWithHunks("test.rs", []model.DiffHunk{makeHunk(1, 2), makeHunk(40, 2)})
 	a := buildAppWithFiles([]model.DiffFile{file}, 41) // EOF exactly covered: no EOF gap
 	gapID := GapID{FileIdx: 0, HunkIdx: 1}
-	if err := a.ExpandGap(gapID, ExpandDown, intPtr(5)); err != nil {
+	if err := a.ExpandGap(gapID, ExpandDown, new(5)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -252,7 +252,7 @@ func TestCollapseGapAndClearExpandedGaps(t *testing.T) {
 	file := makeFileWithHunks("test.rs", []model.DiffHunk{makeHunk(30, 5)})
 	a := buildAppWithFiles([]model.DiffFile{file}, 100)
 	gapID := GapID{FileIdx: 0, HunkIdx: 0}
-	if err := a.ExpandGap(gapID, ExpandUp, intPtr(10)); err != nil {
+	if err := a.ExpandGap(gapID, ExpandUp, new(10)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -266,7 +266,7 @@ func TestCollapseGapAndClearExpandedGaps(t *testing.T) {
 		t.Error("collapsed gap should render an expander again")
 	}
 
-	if err := a.ExpandGap(gapID, ExpandDown, intPtr(3)); err != nil {
+	if err := a.ExpandGap(gapID, ExpandDown, new(3)); err != nil {
 		t.Fatal(err)
 	}
 	a.ClearExpandedGaps()
@@ -290,11 +290,11 @@ func TestGoToSourceLineMessages(t *testing.T) {
 		Header:   "@@ -0,0 +1,2 @@",
 		OldStart: 0, OldCount: 0, NewStart: 1, NewCount: 2,
 		Lines: []model.DiffLine{
-			{Origin: model.OriginAddition, Content: "a", NewLineno: u32(1)},
-			{Origin: model.OriginAddition, Content: "b", NewLineno: u32(2)},
+			{Origin: model.OriginAddition, Content: "a", NewLineno: new(uint32(1))},
+			{Origin: model.OriginAddition, Content: "b", NewLineno: new(uint32(2))},
 		},
 	}
-	added := model.DiffFile{NewPath: strPtr("new.rs"), Status: model.StatusAdded, Hunks: []model.DiffHunk{addHunk}}
+	added := model.DiffFile{NewPath: new("new.rs"), Status: model.StatusAdded, Hunks: []model.DiffHunk{addHunk}}
 	b := buildAppWithFiles([]model.DiffFile{added}, 0)
 	// Drop the (zero) line-count cache entry so no phantom EOF gap is
 	// probed for the old side of a pure-addition file.
@@ -309,13 +309,13 @@ func TestDiffStatCountsAdditionsAndDeletions(t *testing.T) {
 		Header:   "@@ -1,3 +1,3 @@",
 		OldStart: 1, OldCount: 3, NewStart: 1, NewCount: 3,
 		Lines: []model.DiffLine{
-			{Origin: model.OriginContext, Content: "ctx", OldLineno: u32(1), NewLineno: u32(1)},
-			{Origin: model.OriginDeletion, Content: "old", OldLineno: u32(2)},
-			{Origin: model.OriginAddition, Content: "new", NewLineno: u32(2)},
-			{Origin: model.OriginAddition, Content: "new2", NewLineno: u32(3)},
+			{Origin: model.OriginContext, Content: "ctx", OldLineno: new(uint32(1)), NewLineno: new(uint32(1))},
+			{Origin: model.OriginDeletion, Content: "old", OldLineno: new(uint32(2))},
+			{Origin: model.OriginAddition, Content: "new", NewLineno: new(uint32(2))},
+			{Origin: model.OriginAddition, Content: "new2", NewLineno: new(uint32(3))},
 		},
 	}
-	file := model.DiffFile{NewPath: strPtr("test.rs"), Status: model.StatusModified, Hunks: []model.DiffHunk{hunk}}
+	file := model.DiffFile{NewPath: new("test.rs"), Status: model.StatusModified, Hunks: []model.DiffHunk{hunk}}
 	a := buildAppWithFiles([]model.DiffFile{file}, 0)
 
 	files, adds, dels := a.DiffStat()
@@ -530,5 +530,38 @@ func TestGapSizeVariants(t *testing.T) {
 
 	if _, ok := a.GapSize(GapID{FileIdx: 9, HunkIdx: 0}); ok {
 		t.Error("out-of-range file has no gap")
+	}
+}
+
+// TestFileRenderBodyHeightMatchesAnnotations pins the property the shared
+// walk exists for: the height arithmetic and the annotation list agree to
+// the row, in both view modes, with file and line comments present.
+func TestFileRenderBodyHeightMatchesAnnotations(t *testing.T) {
+	for _, mode := range []DiffViewMode{ViewUnified, ViewSideBySide} {
+		a := newTestApp(t)
+		a.DiffViewMode = mode
+		a.DiffState.ViewportWidth = 80
+		file := &a.DiffFiles[0]
+		path := file.DisplayPath()
+		review := a.Session.File(path)
+		if review == nil {
+			t.Fatalf("file %s missing from session", path)
+		}
+		review.AddFileComment(model.NewComment("file level", model.CommentTypeFromID("note"), nil))
+		side := model.LineSideNew
+		review.AddLineComment(3, model.NewComment("on line three\nsecond line", model.CommentTypeFromID("issue"), &side))
+		a.RebuildAnnotations()
+
+		// Body rows are everything after this file's header.
+		body := 0
+		for i, ann := range a.LineAnnotations {
+			if ann.Kind == AnnFileHeader && ann.FileIdx == 0 {
+				body = len(a.LineAnnotations) - i - 1
+				break
+			}
+		}
+		if got := a.fileRenderBodyHeight(0, file); got != body {
+			t.Errorf("mode %v: fileRenderBodyHeight = %d, annotations after the header = %d", mode, got, body)
+		}
 	}
 }

@@ -33,7 +33,7 @@ func (d *Driver) GetPullRequest(ctx context.Context, target forge.Target) (*forg
 			fmt.Errorf("merge request target %q does not include a valid number", target.Original))
 	}
 	mr, _, err := d.client.MergeRequests.GetMergeRequest(projectID(*target.Repository),
-		int64(target.Number), nil, gitlab.WithContext(ctx))
+		int64(target.Number), nil, gitlab.WithContext(ctx)) //nolint:gosec // G115: pull request numbers are small forge-assigned integers
 	if err != nil {
 		return nil, d.wrap(op, err)
 	}
@@ -60,7 +60,7 @@ func (d *Driver) GetPullRequest(ctx context.Context, target forge.Target) (*forg
 	return &forge.PullRequestDetails{
 		PullRequestSummary: forge.PullRequestSummary{
 			Repository:  *target.Repository,
-			Number:      uint64(mr.IID),
+			Number:      uint64(mr.IID), //nolint:gosec // G115: the forge never returns a negative id
 			Title:       mr.Title,
 			Author:      author,
 			HeadRefName: mr.SourceBranch,
@@ -89,7 +89,7 @@ func (d *Driver) GetDiff(ctx context.Context, pr *forge.PullRequestDetails) (str
 	page := int64(1)
 	for range maxDiffPages {
 		rows, resp, err := d.client.MergeRequests.ListMergeRequestDiffs(
-			projectID(pr.Repository), int64(pr.Number),
+			projectID(pr.Repository), int64(pr.Number), //nolint:gosec // G115: pull request numbers are small forge-assigned integers
 			&gitlab.ListMergeRequestDiffsOptions{
 				ListOptions: gitlab.ListOptions{Page: page, PerPage: 100},
 			}, gitlab.WithContext(ctx))
@@ -126,7 +126,7 @@ func (d *Driver) GetCommitRangeDiff(ctx context.Context, pr *forge.PullRequestDe
 		return diff, nil
 	}
 	compare, _, err := d.client.Repositories.Compare(projectID(pr.Repository),
-		&gitlab.CompareOptions{From: gitlab.Ptr(startSHA), To: gitlab.Ptr(endSHA)},
+		&gitlab.CompareOptions{From: new(startSHA), To: new(endSHA)},
 		gitlab.WithContext(ctx))
 	if err != nil {
 		return "", d.wrap(op, err)
@@ -174,7 +174,7 @@ func (d *Driver) ListCommits(ctx context.Context, pr *forge.PullRequestDetails) 
 	page := int64(1)
 	for range maxCommitPages {
 		rows, resp, err := d.client.MergeRequests.GetMergeRequestCommits(
-			projectID(pr.Repository), int64(pr.Number),
+			projectID(pr.Repository), int64(pr.Number), //nolint:gosec // G115: pull request numbers are small forge-assigned integers
 			&gitlab.GetMergeRequestCommitsOptions{
 				ListOptions: gitlab.ListOptions{Page: page, PerPage: 100},
 			}, gitlab.WithContext(ctx))

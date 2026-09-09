@@ -186,6 +186,14 @@ jump to, `Enter` on one of those rows opens a read-only peek panel — the
 commented line with a little context, and the comment — leaving the file
 folded.
 
+## Jujutsu repositories
+
+A `jj` checkout is detected automatically and `-r` takes a revset instead of
+a git range. jj has no staging area, so the parts of mrman built on one are
+unavailable there: the *staged* / *unstaged* targets in the selector, `:stage`,
+and `-A` (pristine mode, which is git-only). Working-tree and revset reviews,
+comments, sessions and exports all work the same.
+
 ## Staging what you reviewed
 
 ```
@@ -212,7 +220,9 @@ rendered, so there is no flag left to re-run it with.
 `.gitignore` is honored automatically. A `.mrmanignore` at the repository root
 layers on top of it with the same syntax — `!` negation included — and
 excludes matching files from every review diff. Generated code, lockfiles and
-vendored trees belong here.
+vendored trees belong here. Only the two files at the repository root are
+consulted; nested `.gitignore` files are not. A merge request's diff is
+filtered only when you open it from inside a checkout.
 
 ## Exporting
 

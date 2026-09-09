@@ -64,143 +64,124 @@ func MapKey(k tea.Key, mode Mode, leader rune) Action {
 	return act(None)
 }
 
+// binding is one keymap row: the keys it matches and the action they map
+// to. Rows are tried in order, so a more specific row (Shift-Enter) goes
+// before the general one (Enter).
+type binding struct {
+	match  func(tea.Key) bool
+	action Action
+}
+
+// lookup returns the first row that matches k.
+func lookup(rows []binding, k tea.Key) (Action, bool) {
+	for _, row := range rows {
+		if row.match(k) {
+			return row.action, true
+		}
+	}
+	return Action{}, false
+}
+
+// Row constructors, named for how the key reads in the keybindings table.
+func ctrlKey(letter rune, a Action) binding {
+	return binding{func(k tea.Key) bool { return ctrl(k, letter) }, a}
+}
+
+func altKey(code rune, a Action) binding {
+	return binding{func(k tea.Key) bool { return alt(k, code) }, a}
+}
+
+// plainKey matches a key code with no modifier at all.
+func plainKey(code rune, a Action) binding {
+	return binding{func(k tea.Key) bool { return k.Code == code && k.Mod == 0 }, a}
+}
+
+// anyModKey matches a key code under any modifier.
+func anyModKey(code rune, a Action) binding {
+	return binding{func(k tea.Key) bool { return k.Code == code }, a}
+}
+
+// modKey matches a key code when any of the given modifier bits is set.
+func modKey(code rune, mods tea.KeyMod, a Action) binding {
+	return binding{func(k tea.Key) bool { return k.Code == code && k.Mod&mods != 0 }, a}
+}
+
+var backTab = binding{isBackTab, act(ToggleFocusReverse)}
+
+// normalBindings are the modifier and special-key rows of normal mode;
+// normalRunes are its plain printable keys.
+var normalBindings = []binding{
+	ctrlKey('e', actN(ScrollViewDown, 1)),
+	ctrlKey('y', actN(ScrollViewUp, 1)),
+	ctrlKey('d', act(HalfPageDown)),
+	ctrlKey('u', act(HalfPageUp)),
+	ctrlKey('f', act(PageDown)),
+	ctrlKey('b', act(PageUp)),
+	backTab,
+	plainKey(tea.KeyDown, actN(CursorDown, 1)),
+	plainKey(tea.KeyUp, actN(CursorUp, 1)),
+	anyModKey(tea.KeyPgDown, act(PageDown)),
+	anyModKey(tea.KeyPgUp, act(PageUp)),
+	plainKey(tea.KeyTab, act(ToggleFocus)),
+	modKey(tea.KeyEnter, tea.ModShift, act(SelectFileFull)),
+	plainKey(tea.KeyEnter, act(SelectFile)),
+	plainKey(tea.KeyLeft, actN(ScrollLeft, 4)),
+	plainKey(tea.KeyRight, actN(ScrollRight, 4)),
+	plainKey(tea.KeyEscape, act(ExitMode)),
+	plainKey(tea.KeySpace, act(ToggleExpand)),
+}
+
+var normalRunes = map[rune]Action{
+	'j': actN(CursorDown, 1),
+	'k': actN(CursorUp, 1),
+	'g': act(GoToTop),
+	'G': act(GoToBottom),
+	'z': act(PendingZCommand),
+	'Z': act(PendingShiftZCommand),
+	'}': act(NextFile),
+	'{': act(PrevFile),
+	']': act(NextHunk),
+	'[': act(PrevHunk),
+	'm': act(NextComment),
+	'M': act(PrevComment),
+	')': act(CycleCommitNext),
+	'(': act(CycleCommitPrev),
+	'h': actN(ScrollLeft, 4),
+	'l': actN(ScrollRight, 4),
+	'r': act(ToggleReviewed),
+	'R': act(ToggleHunkReviewed),
+	'c': act(AddLineComment),
+	'C': act(AddFileComment),
+	'i': act(EditComment),
+	'A': act(EditCommentAtEnd),
+	'd': act(PendingDCommand),
+	'v': act(EnterVisualMode),
+	'V': act(EnterVisualMode),
+	'y': act(ExportToClipboard),
+	'n': act(SearchNext),
+	'N': act(SearchPrev),
+	':': act(EnterCommandMode),
+	'/': act(EnterSearchMode),
+	'?': act(ToggleHelp),
+	'q': act(Quit),
+	'o': act(ExpandAll),
+	'O': act(CollapseAll),
+}
+
 func mapNormal(k tea.Key, leader rune) Action {
 	// Leader is matched first so a remapped leader beats every other arm.
 	if r, ok := ch(k); ok && r == leader {
 		return act(PendingLeaderCommand)
 	}
-
-	switch {
-	case ctrl(k, 'e'):
-		return actN(ScrollViewDown, 1)
-	case ctrl(k, 'y'):
-		return actN(ScrollViewUp, 1)
-	case ctrl(k, 'd'):
-		return act(HalfPageDown)
-	case ctrl(k, 'u'):
-		return act(HalfPageUp)
-	case ctrl(k, 'f'):
-		return act(PageDown)
-	case ctrl(k, 'b'):
-		return act(PageUp)
+	if a, ok := lookup(normalBindings, k); ok {
+		return a
 	}
-
-	if isBackTab(k) {
-		return act(ToggleFocusReverse)
-	}
-	switch k.Code {
-	case tea.KeyDown:
-		if k.Mod == 0 {
-			return actN(CursorDown, 1)
-		}
-	case tea.KeyUp:
-		if k.Mod == 0 {
-			return actN(CursorUp, 1)
-		}
-	case tea.KeyPgDown:
-		return act(PageDown)
-	case tea.KeyPgUp:
-		return act(PageUp)
-	case tea.KeyTab:
-		if k.Mod == 0 {
-			return act(ToggleFocus)
-		}
-	case tea.KeyEnter:
-		if k.Mod&tea.ModShift != 0 {
-			return act(SelectFileFull)
-		}
-		if k.Mod == 0 {
-			return act(SelectFile)
-		}
-	case tea.KeyLeft:
-		if k.Mod == 0 {
-			return actN(ScrollLeft, 4)
-		}
-	case tea.KeyRight:
-		if k.Mod == 0 {
-			return actN(ScrollRight, 4)
-		}
-	case tea.KeyEscape:
-		if k.Mod == 0 {
-			return act(ExitMode)
-		}
-	case tea.KeySpace:
-		if k.Mod == 0 {
-			return act(ToggleExpand)
-		}
-	}
-
 	r, ok := ch(k)
 	if !ok {
 		return act(None)
 	}
-	switch r {
-	case 'j':
-		return actN(CursorDown, 1)
-	case 'k':
-		return actN(CursorUp, 1)
-	case 'g':
-		return act(GoToTop)
-	case 'G':
-		return act(GoToBottom)
-	case 'z':
-		return act(PendingZCommand)
-	case 'Z':
-		return act(PendingShiftZCommand)
-	case '}':
-		return act(NextFile)
-	case '{':
-		return act(PrevFile)
-	case ']':
-		return act(NextHunk)
-	case '[':
-		return act(PrevHunk)
-	case 'm':
-		return act(NextComment)
-	case 'M':
-		return act(PrevComment)
-	case ')':
-		return act(CycleCommitNext)
-	case '(':
-		return act(CycleCommitPrev)
-	case 'h':
-		return actN(ScrollLeft, 4)
-	case 'l':
-		return actN(ScrollRight, 4)
-	case 'r':
-		return act(ToggleReviewed)
-	case 'R':
-		return act(ToggleHunkReviewed)
-	case 'c':
-		return act(AddLineComment)
-	case 'C':
-		return act(AddFileComment)
-	case 'i':
-		return act(EditComment)
-	case 'A':
-		return act(EditCommentAtEnd)
-	case 'd':
-		return act(PendingDCommand)
-	case 'v', 'V':
-		return act(EnterVisualMode)
-	case 'y':
-		return act(ExportToClipboard)
-	case 'n':
-		return act(SearchNext)
-	case 'N':
-		return act(SearchPrev)
-	case ':':
-		return act(EnterCommandMode)
-	case '/':
-		return act(EnterSearchMode)
-	case '?':
-		return act(ToggleHelp)
-	case 'q':
-		return act(Quit)
-	case 'o':
-		return act(ExpandAll)
-	case 'O':
-		return act(CollapseAll)
+	if a, ok := normalRunes[r]; ok {
+		return a
 	}
 	// Digits only unshifted (shifted digits produce symbols and never reach
 	// here as digits).
@@ -244,76 +225,42 @@ func mapCommand(k tea.Key, withCompletion bool) Action {
 	return act(None)
 }
 
+// commentBindings are the comment editor's rows. The modified Enter family
+// inserts a newline; Ctrl-J/Ctrl-K are aliases that survive terminals
+// without the kitty protocol.
+var commentBindings = []binding{
+	ctrlKey('s', act(SubmitInput)),
+	ctrlKey('j', Action{Kind: InsertChar, Ch: '\n'}),
+	ctrlKey('k', Action{Kind: InsertChar, Ch: '\n'}),
+	ctrlKey('a', act(TextCursorLineStart)),
+	ctrlKey('e', act(TextCursorLineEnd)),
+	ctrlKey('w', act(DeleteWord)),
+	ctrlKey('u', act(ClearLine)),
+	altKey('b', act(TextCursorWordLeft)),
+	altKey('f', act(TextCursorWordRight)),
+	altKey(tea.KeyBackspace, act(DeleteWord)),
+	altKey(tea.KeyLeft, act(TextCursorWordLeft)),
+	altKey(tea.KeyRight, act(TextCursorWordRight)),
+	modKey(tea.KeyLeft, tea.ModCtrl, act(TextCursorWordLeft)),
+	modKey(tea.KeyRight, tea.ModCtrl, act(TextCursorWordRight)),
+	modKey(tea.KeyLeft, tea.ModSuper|tea.ModMeta, act(TextCursorLineStart)),
+	modKey(tea.KeyRight, tea.ModSuper|tea.ModMeta, act(TextCursorLineEnd)),
+	modKey(tea.KeyBackspace, tea.ModSuper|tea.ModMeta, act(DeleteWord)),
+	{isBackTab, act(CycleCommentTypeReverse)},
+	anyModKey(tea.KeyEscape, act(ExitMode)),
+	modKey(tea.KeyEnter, tea.ModShift|tea.ModAlt, Action{Kind: InsertChar, Ch: '\n'}),
+	anyModKey(tea.KeyEnter, act(SubmitInput)),
+	anyModKey(tea.KeyTab, act(CycleCommentType)),
+	anyModKey(tea.KeyHome, act(TextCursorLineStart)),
+	anyModKey(tea.KeyEnd, act(TextCursorLineEnd)),
+	plainKey(tea.KeyLeft, act(TextCursorLeft)),
+	plainKey(tea.KeyRight, act(TextCursorRight)),
+	plainKey(tea.KeyBackspace, act(DeleteChar)),
+}
+
 func mapComment(k tea.Key) Action {
-	// Modified Enter family: newline inserts. Ctrl-J/Ctrl-K are aliases
-	// that survive terminals without the kitty protocol.
-	switch {
-	case ctrl(k, 's'):
-		return act(SubmitInput)
-	case ctrl(k, 'j'), ctrl(k, 'k'):
-		return Action{Kind: InsertChar, Ch: '\n'}
-	case ctrl(k, 'a'):
-		return act(TextCursorLineStart)
-	case ctrl(k, 'e'):
-		return act(TextCursorLineEnd)
-	case ctrl(k, 'w'):
-		return act(DeleteWord)
-	case ctrl(k, 'u'):
-		return act(ClearLine)
-	case alt(k, 'b'):
-		return act(TextCursorWordLeft)
-	case alt(k, 'f'):
-		return act(TextCursorWordRight)
-	case alt(k, tea.KeyBackspace):
-		return act(DeleteWord)
-	case alt(k, tea.KeyLeft):
-		return act(TextCursorWordLeft)
-	case alt(k, tea.KeyRight):
-		return act(TextCursorWordRight)
-	case k.Mod&tea.ModCtrl != 0 && k.Code == tea.KeyLeft:
-		return act(TextCursorWordLeft)
-	case k.Mod&tea.ModCtrl != 0 && k.Code == tea.KeyRight:
-		return act(TextCursorWordRight)
-	case k.Mod&(tea.ModSuper|tea.ModMeta) != 0 && k.Code == tea.KeyLeft:
-		return act(TextCursorLineStart)
-	case k.Mod&(tea.ModSuper|tea.ModMeta) != 0 && k.Code == tea.KeyRight:
-		return act(TextCursorLineEnd)
-	case k.Mod&(tea.ModSuper|tea.ModMeta) != 0 && k.Code == tea.KeyBackspace:
-		return act(DeleteWord)
-	}
-	if isBackTab(k) {
-		return act(CycleCommentTypeReverse)
-	}
-	switch k.Code {
-	case tea.KeyEscape:
-		return act(ExitMode)
-	case tea.KeyEnter:
-		switch {
-		case k.Mod&tea.ModShift != 0, k.Mod&tea.ModAlt != 0:
-			return Action{Kind: InsertChar, Ch: '\n'}
-		case k.Mod&tea.ModCtrl != 0:
-			return act(SubmitInput)
-		default:
-			return act(SubmitInput)
-		}
-	case tea.KeyTab:
-		return act(CycleCommentType)
-	case tea.KeyHome:
-		return act(TextCursorLineStart)
-	case tea.KeyEnd:
-		return act(TextCursorLineEnd)
-	case tea.KeyLeft:
-		if k.Mod == 0 {
-			return act(TextCursorLeft)
-		}
-	case tea.KeyRight:
-		if k.Mod == 0 {
-			return act(TextCursorRight)
-		}
-	case tea.KeyBackspace:
-		if k.Mod == 0 {
-			return act(DeleteChar)
-		}
+	if a, ok := lookup(commentBindings, k); ok {
+		return a
 	}
 	if r, ok := ch(k); ok {
 		return Action{Kind: InsertChar, Ch: r}

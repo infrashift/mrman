@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"runtime"
@@ -39,13 +40,13 @@ func isTerminal(f *os.File) bool {
 func osDarkPreference() (dark, ok bool) {
 	switch runtime.GOOS {
 	case "darwin":
-		out, err := exec.Command("defaults", "read", "-g", "AppleInterfaceStyle").Output()
+		out, err := exec.CommandContext(context.Background(), "defaults", "read", "-g", "AppleInterfaceStyle").Output()
 		if err != nil {
 			return false, true // key absent = light mode
 		}
 		return strings.TrimSpace(string(out)) == "Dark", true
 	case "linux":
-		out, err := exec.Command("gsettings", "get", "org.gnome.desktop.interface", "color-scheme").Output()
+		out, err := exec.CommandContext(context.Background(), "gsettings", "get", "org.gnome.desktop.interface", "color-scheme").Output()
 		if err == nil {
 			scheme := strings.TrimSpace(string(out))
 			if strings.Contains(scheme, "prefer-dark") {
@@ -55,7 +56,7 @@ func osDarkPreference() (dark, ok bool) {
 				return false, true
 			}
 		}
-		out, err = exec.Command("gsettings", "get", "org.gnome.desktop.interface", "gtk-theme").Output()
+		out, err = exec.CommandContext(context.Background(), "gsettings", "get", "org.gnome.desktop.interface", "gtk-theme").Output()
 		if err == nil {
 			return strings.Contains(strings.ToLower(string(out)), "dark"), true
 		}

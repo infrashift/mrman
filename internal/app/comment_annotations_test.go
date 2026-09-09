@@ -17,13 +17,13 @@ func makeMixedHunk() model.DiffHunk {
 	return model.DiffHunk{
 		Header: "@@ -1,4 +1,5 @@",
 		Lines: []model.DiffLine{
-			{Origin: model.OriginContext, Content: "ctx one", OldLineno: u32(1), NewLineno: u32(1)},
-			{Origin: model.OriginDeletion, Content: "old two", OldLineno: u32(2)},
-			{Origin: model.OriginDeletion, Content: "old three", OldLineno: u32(3)},
-			{Origin: model.OriginAddition, Content: "new two", NewLineno: u32(2)},
-			{Origin: model.OriginAddition, Content: "new three", NewLineno: u32(3)},
-			{Origin: model.OriginAddition, Content: "new four", NewLineno: u32(4)},
-			{Origin: model.OriginContext, Content: "ctx five", OldLineno: u32(4), NewLineno: u32(5)},
+			{Origin: model.OriginContext, Content: "ctx one", OldLineno: new(uint32(1)), NewLineno: new(uint32(1))},
+			{Origin: model.OriginDeletion, Content: "old two", OldLineno: new(uint32(2))},
+			{Origin: model.OriginDeletion, Content: "old three", OldLineno: new(uint32(3))},
+			{Origin: model.OriginAddition, Content: "new two", NewLineno: new(uint32(2))},
+			{Origin: model.OriginAddition, Content: "new three", NewLineno: new(uint32(3))},
+			{Origin: model.OriginAddition, Content: "new four", NewLineno: new(uint32(4))},
+			{Origin: model.OriginContext, Content: "ctx five", OldLineno: new(uint32(4)), NewLineno: new(uint32(5))},
 		},
 		OldStart: 1, OldCount: 4, NewStart: 1, NewCount: 5,
 	}

@@ -61,6 +61,12 @@ The merge request's existing review threads and review summaries render
 or rewrites them — `dd` on one answers *"Existing forge comments are
 read-only"*.
 
+Everything the forge sends — titles, branch names, author logins, comment
+bodies, file contents — is scrubbed of terminal escape sequences and other
+control characters before it is drawn, so a comment cannot restyle the
+review, hide text under a hyperlink, or ring the bell. The same scrub runs
+on patch files and on comments an agent writes with `mrman review add`.
+
 Resolved threads are hidden by default:
 
 | Command | Shows |

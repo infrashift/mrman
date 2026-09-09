@@ -1,25 +1,107 @@
 version: "2"
 
+run:
+  timeout: 5m
+
+issues:
+  # Report everything; a capped list hides the tail of a sweep.
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
 linters:
   default: standard
   enable:
-    - errorlint
+    - bodyclose
     - copyloopvar
+    - dogsled
+    - dupl
+    - errchkjson
+    - errorlint
+    - forbidigo
+    - gocognit
+    - gocritic
+    - gocyclo
+    - gosec
     - misspell
+    - mirror
+    - modernize
+    - nakedret
+    - nestif
+    - nilerr
+    - noctx
     - nolintlint
+    - predeclared
     - revive
     - unconvert
     - unparam
     - usestdlibvars
+    - wastedassign
   settings:
+    # Complexity ceilings start where the code is today and tighten as the
+    # dispatch tables and parser split land (see the audit plan, workstream D).
+    gocyclo:
+      min-complexity: 25
+    gocognit:
+      min-complexity: 35
+    nestif:
+      min-complexity: 8
+    dupl:
+      threshold: 150
+    nakedret:
+      max-func-lines: 30
+    gosec:
+      excludes:
+        # G204/G304: mrman runs the user's own $EDITOR, token_cmd and
+        # clipboard tools, and reads paths the user configured — by design.
+        - G204
+        - G304
+    forbidigo:
+      forbid:
+        - pattern: ^(fmt\.Print(|f|ln)|print|println)$
+          msg: write to an explicit io.Writer
     revive:
       rules:
         - name: exported
           arguments: ["checkPrivateReceivers"]
+        - name: package-comments
+        - name: unused-parameter
+    nolintlint:
+      require-explanation: true
+      require-specific: true
   exclusions:
     generated: lax
     paths:
       - .reference
+      - dist
+      - docs
+    rules:
+      # Test code: fixtures are long, repetitive, write temp files, and
+      # shell out or fetch without a context to cancel.
+      - path: _test\.go
+        linters:
+          - dogsled
+          - dupl
+          - errchkjson
+          - forbidigo
+          - gocognit
+          - gocyclo
+          - gosec
+          - nakedret
+          - nestif
+          - noctx
+      # Built-in themes are struct literals that share a shape; that is
+      # the data, not duplicated logic.
+      - path: internal/theme/builtin.*\.go
+        linters:
+          - dupl
+      # Tracked complexity debt: the dispatch tables, parser split and
+      # annotation/height iterator refactors (audit plan, workstream D-2)
+      # bring these under the ceilings. Remove a path here as it lands.
+      - path: (internal/(ui/filelist|ui/commentvim|app/search|app/reviewedmut|reviewcli/watch)|vimtext/normal)\.go
+        linters:
+          - gocognit
+          - gocyclo
+          - nestif
 
 formatters:
   enable:

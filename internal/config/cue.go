@@ -33,7 +33,7 @@ const forgeKindMessage = `must be "github", "gitlab", "azuredevops", or "forgejo
 
 // keyMessages maps config key paths to human-readable constraint messages
 // used when CUE validation rejects the key.
-var keyMessages = map[string]string{
+var keyMessages = map[string]string{ //nolint:gosec // G101: key names and their constraint text, not credentials
 	"theme":                     "must be a string",
 	"theme_dark":                "must be a string",
 	"theme_light":               "must be a string",
@@ -63,6 +63,7 @@ var keyMessages = map[string]string{
 	"templates":                 "must be a table",
 	"templates.notes":           "must be a string",
 	"templates.review_body":     "must be a string",
+	"templates.patch_reply":     "must be a string",
 	"forge":                     "must be a table",
 	"forge.default":             forgeKindMessage,
 	"forge.comment_type_prefix": "must be true or false",
@@ -95,7 +96,7 @@ func vetConfig(raw map[string]any, warnings *[]string) {
 		return
 	}
 	ctx := cuecontext.New()
-	for pass := 0; pass < maxVetPasses; pass++ {
+	for range maxVetPasses {
 		data := ctx.Encode(raw)
 		if err := data.Err(); err != nil {
 			clearMap(raw)

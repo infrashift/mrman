@@ -88,7 +88,7 @@ func (d *Driver) ReviewMetadata(ctx context.Context, pr *forge.PullRequestDetail
 	if err != nil {
 		return nil, err
 	}
-	prID := int(pr.Number)
+	prID := int(pr.Number) //nolint:gosec // G115: pull request numbers are small forge-assigned integers
 	project, _ := d.coords(pr.Repository)
 	record, err := d.gitClient.GetPullRequestById(ctx, git.GetPullRequestByIdArgs{
 		PullRequestId: &prID,
@@ -115,7 +115,7 @@ func (d *Driver) ReviewMetadata(ctx context.Context, pr *forge.PullRequestDetail
 // threads fetches all comment threads for the PR.
 func (d *Driver) threads(ctx context.Context, op string, pr *forge.PullRequestDetails) ([]git.GitPullRequestCommentThread, error) {
 	project, repoName := d.coords(pr.Repository)
-	prID := int(pr.Number)
+	prID := int(pr.Number) //nolint:gosec // G115: pull request numbers are small forge-assigned integers
 	rows, err := d.gitClient.GetThreads(ctx, git.GetThreadsArgs{
 		RepositoryId:  &repoName,
 		Project:       &project,
@@ -211,10 +211,10 @@ func threadAnchor(tc *git.CommentThreadContext) (forge.Side, *uint32, *uint32) {
 	if end == nil || end.Line == nil {
 		return side, nil, nil
 	}
-	line := uint32(*end.Line)
+	line := uint32(*end.Line) //nolint:gosec // G115: line numbers fit uint32
 	var startLine *uint32
 	if start != nil && start.Line != nil && *start.Line < *end.Line {
-		s := uint32(*start.Line)
+		s := uint32(*start.Line) //nolint:gosec // G115: line numbers fit uint32
 		startLine = &s
 	}
 	return side, &line, startLine

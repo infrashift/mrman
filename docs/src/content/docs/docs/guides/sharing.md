@@ -127,6 +127,10 @@ remote machine's clipboard daemon. Reviewing on a server and pasting into a
 local chat window works, provided your terminal honours OSC 52 — most do, some
 need it enabled. See [Terminal Setup](../terminals/).
 
+OSC 52 needs a terminal to talk to. With no controlling terminal and stdout
+redirected to a pipe or file, the copy fails with *"no controlling terminal
+for OSC 52"* instead of writing an escape sequence into that stream.
+
 If it does not, `--stdout` prints the export to the terminal when you quit so
 you can copy it by hand, and `mrman review comments --session <slug>` gets you
 the same review as JSON without opening the TUI at all.

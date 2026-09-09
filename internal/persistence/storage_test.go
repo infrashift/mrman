@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -23,8 +24,6 @@ func newTestStore(t *testing.T) *Store {
 	t.Helper()
 	return &Store{ReviewsDir: filepath.Join(t.TempDir(), "reviews")}
 }
-
-func strp(s string) *string { return &s }
 
 func makeRepo(t *testing.T) string {
 	t.Helper()
@@ -82,7 +81,7 @@ func makePrKey(number uint64, headSHA string) *forgetypes.PrSessionKey {
 func makePrSession(key *forgetypes.PrSessionKey) *model.ReviewSession {
 	s := model.NewReviewSession(
 		fmt.Sprintf("forge:%s/%s/%s", key.Repository.Host, key.Repository.Owner, key.Repository.Name),
-		key.HeadSHA, strp("reviews"), model.SourcePullRequest)
+		key.HeadSHA, new("reviews"), model.SourcePullRequest)
 	k := *key
 	s.PrSessionKey = &k
 	return s
@@ -110,7 +109,7 @@ func fileExists(t *testing.T, path string) bool {
 
 func TestRoundtripLocalSession(t *testing.T) {
 	store := newTestStore(t)
-	sess := makeLocalSession(t, makeRepo(t), "abc1234", strp("main"), model.SourceWorkingTree, nil)
+	sess := makeLocalSession(t, makeRepo(t), "abc1234", new("main"), model.SourceWorkingTree, nil)
 
 	path := mustSave(t, store, sess)
 	loaded, err := store.LoadSession(path)
@@ -126,7 +125,7 @@ func TestRoundtripLocalSession(t *testing.T) {
 func TestDeleteEmptySessionAndManifestEntry(t *testing.T) {
 	store := newTestStore(t)
 	repo := makeRepo(t)
-	sess := makeLocalSession(t, repo, "abc1234", strp("main"), model.SourceWorkingTree, nil)
+	sess := makeLocalSession(t, repo, "abc1234", new("main"), model.SourceWorkingTree, nil)
 	path := mustSave(t, store, sess)
 
 	deleted, err := store.DeleteSessionIfEmpty(path)
@@ -137,7 +136,7 @@ func TestDeleteEmptySessionAndManifestEntry(t *testing.T) {
 	if fileExists(t, path) {
 		t.Fatal("session file should be gone")
 	}
-	_, _, found, err := store.LoadLatestSessionForContext(repo, strp("main"), "abc1234", model.SourceWorkingTree, nil)
+	_, _, found, err := store.LoadLatestSessionForContext(repo, new("main"), "abc1234", model.SourceWorkingTree, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -148,7 +147,7 @@ func TestDeleteEmptySessionAndManifestEntry(t *testing.T) {
 
 func TestDeleteReviewedOnlySessionUnconditionally(t *testing.T) {
 	store := newTestStore(t)
-	sess := makeLocalSession(t, makeRepo(t), "abc1234", strp("main"), model.SourceWorkingTree, nil)
+	sess := makeLocalSession(t, makeRepo(t), "abc1234", new("main"), model.SourceWorkingTree, nil)
 	// Mark the file reviewed: DeleteSessionIfEmpty refuses this, but
 	// DeleteSession discards it anyway.
 	sess.Files["src/main.go"].Reviewed = true
@@ -185,7 +184,7 @@ func TestDeleteMissingSessionReportsFalse(t *testing.T) {
 
 func TestKeepSessionWithCommentsWhenDeletingIfEmpty(t *testing.T) {
 	store := newTestStore(t)
-	sess := makeLocalSession(t, makeRepo(t), "abc1234", strp("main"), model.SourceWorkingTree, nil)
+	sess := makeLocalSession(t, makeRepo(t), "abc1234", new("main"), model.SourceWorkingTree, nil)
 	sess.ReviewComments = append(sess.ReviewComments,
 		model.NewComment("keep me", model.CommentTypeFromID("note"), nil))
 	path := mustSave(t, store, sess)
@@ -201,7 +200,7 @@ func TestKeepSessionWithCommentsWhenDeletingIfEmpty(t *testing.T) {
 
 func TestKeepSessionWithReviewedHunksWhenDeletingIfEmpty(t *testing.T) {
 	store := newTestStore(t)
-	sess := makeLocalSession(t, makeRepo(t), "abc1234", strp("main"), model.SourceWorkingTree, nil)
+	sess := makeLocalSession(t, makeRepo(t), "abc1234", new("main"), model.SourceWorkingTree, nil)
 	sess.Files["src/main.go"].ToggleHunkReviewed("stable-hunk")
 	path := mustSave(t, store, sess)
 
@@ -237,7 +236,7 @@ func assertHashSuffix(t *testing.T, path string) {
 
 func TestSaveUnderFlatSessionsDirForLocal(t *testing.T) {
 	store := newTestStore(t)
-	sess := makeLocalSession(t, makeRepo(t), "abc1234", strp("main"), model.SourceWorkingTree, nil)
+	sess := makeLocalSession(t, makeRepo(t), "abc1234", new("main"), model.SourceWorkingTree, nil)
 
 	path := mustSave(t, store, sess)
 
@@ -281,7 +280,7 @@ func TestLocalAndPrSessionsShareARepoGlob(t *testing.T) {
 	repo := makeRepoWithOrigin(t, "https://github.com/agavra/tuicr.git")
 
 	localPath := mustSave(t, store,
-		makeLocalSession(t, repo, "abc1234", strp("main"), model.SourceWorkingTree, nil))
+		makeLocalSession(t, repo, "abc1234", new("main"), model.SourceWorkingTree, nil))
 	prPath := mustSave(t, store, makePrSession(makePrKey(125, "abcdef0123456789")))
 
 	matches, err := filepath.Glob(
@@ -311,7 +310,7 @@ func TestDistinctPathsForDifferentPrHeads(t *testing.T) {
 func TestUpdateManifestOnSave(t *testing.T) {
 	store := newTestStore(t)
 	repo := makeRepo(t)
-	sess := makeLocalSession(t, repo, "abc1234", strp("main"), model.SourceWorkingTree, nil)
+	sess := makeLocalSession(t, repo, "abc1234", new("main"), model.SourceWorkingTree, nil)
 	mustSave(t, store, sess)
 
 	manifest, err := LoadManifest(store.ReviewsDir)
@@ -339,7 +338,7 @@ func TestUpdateManifestOnSave(t *testing.T) {
 
 func TestSessionPathMatchesSaveLocation(t *testing.T) {
 	store := newTestStore(t)
-	sess := makeLocalSession(t, makeRepo(t), "abc1234", strp("main"), model.SourceWorkingTree, nil)
+	sess := makeLocalSession(t, makeRepo(t), "abc1234", new("main"), model.SourceWorkingTree, nil)
 
 	predicted, err := store.SessionPath(sess)
 	if err != nil {
@@ -356,7 +355,7 @@ func TestSessionPathMatchesSaveLocation(t *testing.T) {
 func TestReturnNotFoundForUnknownContext(t *testing.T) {
 	store := newTestStore(t)
 	_, _, found, err := store.LoadLatestSessionForContext(
-		makeRepo(t), strp("main"), "head", model.SourceWorkingTree, nil)
+		makeRepo(t), new("main"), "head", model.SourceWorkingTree, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -368,11 +367,11 @@ func TestReturnNotFoundForUnknownContext(t *testing.T) {
 func TestLoadSessionWhenHeadMatches(t *testing.T) {
 	store := newTestStore(t)
 	repo := makeRepo(t)
-	sess := makeLocalSession(t, repo, "abc1234", strp("main"), model.SourceWorkingTree, nil)
+	sess := makeLocalSession(t, repo, "abc1234", new("main"), model.SourceWorkingTree, nil)
 	mustSave(t, store, sess)
 
 	_, loaded, found, err := store.LoadLatestSessionForContext(
-		repo, strp("main"), "abc1234", model.SourceWorkingTree, nil)
+		repo, new("main"), "abc1234", model.SourceWorkingTree, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -397,10 +396,10 @@ func TestNotLoadWorktreeSessionAfterHeadAdvances(t *testing.T) {
 	// by accident.
 	store := newTestStore(t)
 	repo := makeRepo(t)
-	mustSave(t, store, makeLocalSession(t, repo, "abc1234", strp("main"), model.SourceWorkingTree, nil))
+	mustSave(t, store, makeLocalSession(t, repo, "abc1234", new("main"), model.SourceWorkingTree, nil))
 
 	_, _, found, err := store.LoadLatestSessionForContext(
-		repo, strp("main"), "new-head", model.SourceWorkingTree, nil)
+		repo, new("main"), "new-head", model.SourceWorkingTree, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -412,10 +411,10 @@ func TestNotLoadWorktreeSessionAfterHeadAdvances(t *testing.T) {
 func TestIgnoreSessionsWithDifferentDiffSource(t *testing.T) {
 	store := newTestStore(t)
 	repo := makeRepo(t)
-	mustSave(t, store, makeLocalSession(t, repo, "abc1234", strp("main"), model.SourceWorkingTree, nil))
+	mustSave(t, store, makeLocalSession(t, repo, "abc1234", new("main"), model.SourceWorkingTree, nil))
 
 	_, _, found, err := store.LoadLatestSessionForContext(
-		repo, strp("main"), "abc1234", model.SourceStaged, nil)
+		repo, new("main"), "abc1234", model.SourceStaged, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -427,7 +426,7 @@ func TestIgnoreSessionsWithDifferentDiffSource(t *testing.T) {
 func TestPullRequestSourceContextLookupReturnsNotFound(t *testing.T) {
 	store := newTestStore(t)
 	_, _, found, err := store.LoadLatestSessionForContext(
-		makeRepo(t), strp("main"), "head", model.SourcePullRequest, nil)
+		makeRepo(t), new("main"), "head", model.SourcePullRequest, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -442,13 +441,13 @@ func TestRequireCommitRangeMatch(t *testing.T) {
 	rangeA := []string{"c1", "c0"}
 	rangeB := []string{"c3", "c2"}
 
-	sessA := makeLocalSession(t, repo, "c1", strp("main"), model.SourceCommitRange, rangeA)
+	sessA := makeLocalSession(t, repo, "c1", new("main"), model.SourceCommitRange, rangeA)
 	mustSave(t, store, sessA)
-	sessB := makeLocalSession(t, repo, "c3", strp("main"), model.SourceCommitRange, rangeB)
+	sessB := makeLocalSession(t, repo, "c3", new("main"), model.SourceCommitRange, rangeB)
 	mustSave(t, store, sessB)
 
 	_, loadedA, foundA, err := store.LoadLatestSessionForContext(
-		repo, strp("main"), "c1", model.SourceCommitRange, rangeA)
+		repo, new("main"), "c1", model.SourceCommitRange, rangeA)
 	if err != nil || !foundA {
 		t.Fatalf("range A lookup: found=%v err=%v", foundA, err)
 	}
@@ -457,7 +456,7 @@ func TestRequireCommitRangeMatch(t *testing.T) {
 	}
 
 	_, loadedB, foundB, err := store.LoadLatestSessionForContext(
-		repo, strp("main"), "c3", model.SourceCommitRange, rangeB)
+		repo, new("main"), "c3", model.SourceCommitRange, rangeB)
 	if err != nil || !foundB {
 		t.Fatalf("range B lookup: found=%v err=%v", foundB, err)
 	}
@@ -480,8 +479,8 @@ func TestDisambiguateTwoCheckoutsWithSameRepoName(t *testing.T) {
 	// Same branch *and* same HEAD in both checkouts: this is the collision
 	// the manifest's canonical_repo_path must break, since the slug itself
 	// is identical.
-	sessA := makeLocalSession(t, repoA, "head-x", strp("main"), model.SourceWorkingTree, nil)
-	sessB := makeLocalSession(t, repoB, "head-x", strp("main"), model.SourceWorkingTree, nil)
+	sessA := makeLocalSession(t, repoA, "head-x", new("main"), model.SourceWorkingTree, nil)
+	sessB := makeLocalSession(t, repoB, "head-x", new("main"), model.SourceWorkingTree, nil)
 	mustSave(t, store, sessA)
 	mustSave(t, store, sessB)
 
@@ -498,7 +497,7 @@ func TestDisambiguateTwoCheckoutsWithSameRepoName(t *testing.T) {
 	}
 
 	_, loadedA, foundA, err := store.LoadLatestSessionForContext(
-		repoA, strp("main"), "head-x", model.SourceWorkingTree, nil)
+		repoA, new("main"), "head-x", model.SourceWorkingTree, nil)
 	if err != nil || !foundA {
 		t.Fatalf("repo A lookup: found=%v err=%v", foundA, err)
 	}
@@ -507,7 +506,7 @@ func TestDisambiguateTwoCheckoutsWithSameRepoName(t *testing.T) {
 	}
 
 	_, loadedB, foundB, err := store.LoadLatestSessionForContext(
-		repoB, strp("main"), "head-x", model.SourceWorkingTree, nil)
+		repoB, new("main"), "head-x", model.SourceWorkingTree, nil)
 	if err != nil || !foundB {
 		t.Fatalf("repo B lookup: found=%v err=%v", foundB, err)
 	}
@@ -522,8 +521,7 @@ func TestLoadSessionCorruptReportsCorrupted(t *testing.T) {
 	writeTestFile(t, path, "not json {")
 
 	_, err := store.LoadSession(path)
-	var corrupted *errs.CorruptedSession
-	if !errors.As(err, &corrupted) {
+	if _, ok := errors.AsType[*errs.CorruptedSession](err); !ok {
 		t.Fatalf("err = %v, want *errs.CorruptedSession", err)
 	}
 }
@@ -585,7 +583,7 @@ func TestSkipPrFilesInLocalContextLookup(t *testing.T) {
 	mustSave(t, store, makePrSession(makePrKey(125, "abcdef0123456789")))
 
 	_, _, found, err := store.LoadLatestSessionForContext(
-		makeRepo(t), strp("main"), "head", model.SourceWorkingTree, nil)
+		makeRepo(t), new("main"), "head", model.SourceWorkingTree, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -642,7 +640,7 @@ func TestMatchLocalAndPrSessionsSharingRepoNameByCoordinate(t *testing.T) {
 	if err := os.MkdirAll(localRepo, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	mustSave(t, store, makeLocalSession(t, localRepo, "abc1234", strp("main"), model.SourceWorkingTree, nil))
+	mustSave(t, store, makeLocalSession(t, localRepo, "abc1234", new("main"), model.SourceWorkingTree, nil))
 	mustSave(t, store, makePrSession(makePrKey(125, "abcdef0123456789")))
 
 	listed, err := store.ListSessions("agavra/tuicr")
@@ -668,9 +666,9 @@ func TestMatchLocalAndPrSessionsSharingRepoNameByCoordinate(t *testing.T) {
 func TestMatchLocalSessionByCanonicalPathInPathMode(t *testing.T) {
 	store := newTestStore(t)
 	repo := makeRepo(t)
-	mustSave(t, store, makeLocalSession(t, repo, "abc1234", strp("main"), model.SourceWorkingTree, nil))
+	mustSave(t, store, makeLocalSession(t, repo, "abc1234", new("main"), model.SourceWorkingTree, nil))
 	// A second checkout's session must not leak into the listing.
-	mustSave(t, store, makeLocalSession(t, makeRepo(t), "abc1234", strp("main"), model.SourceWorkingTree, nil))
+	mustSave(t, store, makeLocalSession(t, makeRepo(t), "abc1234", new("main"), model.SourceWorkingTree, nil))
 
 	listed, err := store.ListSessions(repo)
 	if err != nil {
@@ -697,7 +695,7 @@ func TestDirectorySelectorUsesOriginCoordinate(t *testing.T) {
 	}
 	t.Cleanup(func() { originRemoteURL = oldOrigin })
 
-	mustSave(t, store, makeLocalSession(t, repo, "abc1234", strp("main"), model.SourceWorkingTree, nil))
+	mustSave(t, store, makeLocalSession(t, repo, "abc1234", new("main"), model.SourceWorkingTree, nil))
 	mustSave(t, store, makePrSession(makePrKey(125, "abcdef0123456789")))
 
 	listed, err := store.ListSessions(repo)
@@ -713,7 +711,7 @@ func TestDirectorySelectorUsesOriginCoordinate(t *testing.T) {
 
 func TestListAllSessionsNewestFirstWithActiveFlag(t *testing.T) {
 	store := newTestStore(t)
-	older := makeLocalSession(t, makeRepo(t), "abc1234", strp("main"), model.SourceWorkingTree, nil)
+	older := makeLocalSession(t, makeRepo(t), "abc1234", new("main"), model.SourceWorkingTree, nil)
 	older.UpdatedAt = time.Now().Add(-time.Hour)
 	mustSave(t, store, older)
 
@@ -747,11 +745,11 @@ func TestListAllSessionsNewestFirstWithActiveFlag(t *testing.T) {
 
 func TestUpdateSession(t *testing.T) {
 	store := newTestStore(t)
-	sess := makeLocalSession(t, makeRepo(t), "abc1234", strp("main"), model.SourceWorkingTree, nil)
+	sess := makeLocalSession(t, makeRepo(t), "abc1234", new("main"), model.SourceWorkingTree, nil)
 	path := mustSave(t, store, sess)
 
 	updated, err := store.UpdateSession(path, func(s *model.ReviewSession) error {
-		s.SessionNotes = strp("updated notes")
+		s.SessionNotes = new("updated notes")
 		return nil
 	})
 	if err != nil {
@@ -772,7 +770,7 @@ func TestUpdateSession(t *testing.T) {
 
 func TestUpdateSessionPropagatesCallbackError(t *testing.T) {
 	store := newTestStore(t)
-	sess := makeLocalSession(t, makeRepo(t), "abc1234", strp("main"), model.SourceWorkingTree, nil)
+	sess := makeLocalSession(t, makeRepo(t), "abc1234", new("main"), model.SourceWorkingTree, nil)
 	path := mustSave(t, store, sess)
 
 	boom := errors.New("boom")
@@ -787,7 +785,7 @@ func TestUpdateSessionPropagatesCallbackError(t *testing.T) {
 
 func TestSaveSessionByIdentityMergesPersisted(t *testing.T) {
 	store := newTestStore(t)
-	sess := makeLocalSession(t, makeRepo(t), "abc1234", strp("main"), model.SourceWorkingTree, nil)
+	sess := makeLocalSession(t, makeRepo(t), "abc1234", new("main"), model.SourceWorkingTree, nil)
 
 	// First save: nothing persisted yet.
 	path1, saved1, err := store.SaveSessionByIdentity(sess, func(persisted *model.ReviewSession) (*model.ReviewSession, error) {
@@ -811,7 +809,7 @@ func TestSaveSessionByIdentityMergesPersisted(t *testing.T) {
 		if persisted.ID != sess.ID {
 			t.Fatalf("persisted %q, want %q", persisted.ID, sess.ID)
 		}
-		persisted.SessionNotes = strp("merged")
+		persisted.SessionNotes = new("merged")
 		return persisted, nil
 	})
 	if err != nil {
@@ -835,7 +833,7 @@ func TestSaveSessionByIdentityMergesPersisted(t *testing.T) {
 
 func TestSaveSessionByIdentityPropagatesCallbackError(t *testing.T) {
 	store := newTestStore(t)
-	sess := makeLocalSession(t, makeRepo(t), "abc1234", strp("main"), model.SourceWorkingTree, nil)
+	sess := makeLocalSession(t, makeRepo(t), "abc1234", new("main"), model.SourceWorkingTree, nil)
 
 	boom := errors.New("boom")
 	_, _, err := store.SaveSessionByIdentity(sess, func(*model.ReviewSession) (*model.ReviewSession, error) {
@@ -894,7 +892,7 @@ func TestMigratePreFlatLayoutOnFirstRun(t *testing.T) {
 	}
 	writeTestFile(t, filepath.Join(treeSubdir, "foo.json"), "{}")
 
-	mustSave(t, store, makeLocalSession(t, makeRepo(t), "abc1234", strp("main"), model.SourceWorkingTree, nil))
+	mustSave(t, store, makeLocalSession(t, makeRepo(t), "abc1234", new("main"), model.SourceWorkingTree, nil))
 
 	if fileExists(t, stray) {
 		t.Fatal("pre-flat artifacts should have moved during migration")
@@ -940,7 +938,7 @@ func TestNoMigrationWhenSessionsDirAlreadyPresent(t *testing.T) {
 	stray := filepath.Join(store.ReviewsDir, "stray.json")
 	writeTestFile(t, stray, "{}")
 
-	mustSave(t, store, makeLocalSession(t, makeRepo(t), "abc1234", strp("main"), model.SourceWorkingTree, nil))
+	mustSave(t, store, makeLocalSession(t, makeRepo(t), "abc1234", new("main"), model.SourceWorkingTree, nil))
 
 	if !fileExists(t, stray) {
 		t.Fatal("stray .json must survive when sessions/ already exists")
@@ -972,5 +970,74 @@ func TestNoMigrationWhenReviewsDirMissing(t *testing.T) {
 	}
 	if fileExists(t, store.ReviewsDir) {
 		t.Fatal("maybeMigrate must not create the reviews dir")
+	}
+}
+
+// TestStoreFilesArePrivate pins the modes: sessions carry private-repo diff
+// context and review text, so nothing under the store may be group- or
+// world-readable.
+func TestStoreFilesArePrivate(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX modes")
+	}
+	store := newTestStore(t)
+	sess := makeLocalSession(t, makeRepo(t), "abc123", new("main"), model.SourceWorkingTree, nil)
+	path, err := store.SaveSession(sess)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.MarkSessionActive(sess, path); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []string{
+		store.ReviewsDir,
+		filepath.Join(store.ReviewsDir, SessionsDirname),
+		filepath.Join(store.ReviewsDir, ManifestFilename),
+		store.activeSessionsPath(),
+		path,
+	} {
+		info, err := os.Stat(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if info.Mode().Perm()&0o077 != 0 {
+			t.Errorf("%s has mode %o; must be owner-only", p, info.Mode().Perm())
+		}
+	}
+}
+
+func TestNewDefaultStoreHardensExistingFiles(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX modes")
+	}
+	tmp := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", tmp)
+	xdg.Reload()
+	t.Cleanup(xdg.Reload)
+
+	// A store as an earlier mrman left it: 0755 dirs, 0644 files.
+	dir := filepath.Join(tmp, "mrman", "reviews")
+	if err := os.MkdirAll(filepath.Join(dir, SessionsDirname), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	old := filepath.Join(dir, SessionsDirname, "old.json")
+	if err := os.WriteFile(old, []byte("{}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, ManifestFilename), []byte("{}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := NewDefaultStore(); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []string{dir, filepath.Join(dir, SessionsDirname), old} {
+		info, err := os.Stat(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if info.Mode().Perm()&0o077 != 0 {
+			t.Errorf("%s still has mode %o after opening the store", p, info.Mode().Perm())
+		}
 	}
 }

@@ -2,6 +2,7 @@ package reviewcli
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"time"
 
@@ -56,6 +57,7 @@ type CommentOutput struct {
 	CommentType    string  `json:"comment_type"`
 	LifecycleState string  `json:"lifecycle_state"`
 	CreatedAt      string  `json:"created_at"`
+	Author         string  `json:"author"`
 	Content        string  `json:"content"`
 }
 
@@ -105,6 +107,7 @@ func commentOutputFromParts(location string, path *string, startLine, endLine *u
 		CommentType:    c.CommentType.ID(),
 		LifecycleState: string(c.LifecycleState),
 		CreatedAt:      c.CreatedAt.Format(time.RFC3339),
+		Author:         c.Author,
 		Content:        c.Content,
 	}
 }
@@ -153,7 +156,7 @@ func collectComments(session *model.ReviewSession) []CommentOutput {
 		for line := range review.LineComments {
 			lines = append(lines, line)
 		}
-		sort.Slice(lines, func(i, j int) bool { return lines[i] < lines[j] })
+		slices.Sort(lines)
 
 		for _, line := range lines {
 			for _, c := range review.LineComments[line] {

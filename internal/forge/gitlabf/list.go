@@ -32,9 +32,9 @@ func (d *Driver) ListPullRequests(ctx context.Context, q forge.ListQuery) (*forg
 		size = defaultPageSize
 	}
 	opts := &gitlab.ListProjectMergeRequestsOptions{
-		State:   gitlab.Ptr("opened"),
-		OrderBy: gitlab.Ptr("updated_at"),
-		Sort:    gitlab.Ptr("desc"),
+		State:   new("opened"),
+		OrderBy: new("updated_at"),
+		Sort:    new("desc"),
 		ListOptions: gitlab.ListOptions{
 			Page:    int64(page),
 			PerPage: int64(size),
@@ -45,7 +45,7 @@ func (d *Driver) ListPullRequests(ctx context.Context, q forge.ListQuery) (*forg
 		if err != nil {
 			return nil, err
 		}
-		opts.ReviewerUsername = gitlab.Ptr(viewer)
+		opts.ReviewerUsername = new(viewer)
 	}
 	rows, resp, err := d.client.MergeRequests.ListProjectMergeRequests(
 		projectID(q.Repository), opts, gitlab.WithContext(ctx))
@@ -56,7 +56,7 @@ func (d *Driver) ListPullRequests(ctx context.Context, q forge.ListQuery) (*forg
 	for _, row := range rows {
 		summary := forge.PullRequestSummary{
 			Repository:  q.Repository,
-			Number:      uint64(row.IID),
+			Number:      uint64(row.IID), //nolint:gosec // G115: the forge never returns a negative id
 			Title:       row.Title,
 			HeadRefName: row.SourceBranch,
 			BaseRefName: row.TargetBranch,

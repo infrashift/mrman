@@ -192,7 +192,7 @@ func (e *Editor) motion(m rune) {
 		target = e.lineEnd(e.cursor)
 	case 'w':
 		prev := target
-		for i := 0; i < n; i++ {
+		for range n {
 			prev = target
 			target = nextWordStart(e.text, target)
 		}
@@ -204,11 +204,11 @@ func (e *Editor) motion(m rune) {
 			}
 		}
 	case 'b':
-		for i := 0; i < n; i++ {
+		for range n {
 			target = prevWordStart(e.text, target)
 		}
 	case 'e':
-		for i := 0; i < n; i++ {
+		for range n {
 			target = wordEnd(e.text, target)
 		}
 		inclusive = true

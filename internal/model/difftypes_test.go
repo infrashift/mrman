@@ -7,20 +7,18 @@ package model
 
 import "testing"
 
-func spanU32(v uint32) *uint32 { return &v }
-
 // ctxLine, addLine and delLine build the three line origins with the side
 // numbering a real diff would give them.
 func ctxLine(oldNo, newNo uint32) DiffLine {
-	return DiffLine{Origin: OriginContext, Content: "ctx", OldLineno: spanU32(oldNo), NewLineno: spanU32(newNo)}
+	return DiffLine{Origin: OriginContext, Content: "ctx", OldLineno: new(oldNo), NewLineno: new(newNo)}
 }
 
 func addLine(newNo uint32) DiffLine {
-	return DiffLine{Origin: OriginAddition, Content: "add", NewLineno: spanU32(newNo)}
+	return DiffLine{Origin: OriginAddition, Content: "add", NewLineno: new(newNo)}
 }
 
 func delLine(oldNo uint32) DiffLine {
-	return DiffLine{Origin: OriginDeletion, Content: "del", OldLineno: spanU32(oldNo)}
+	return DiffLine{Origin: OriginDeletion, Content: "del", OldLineno: new(oldNo)}
 }
 
 func TestCommentSpanPrefersNewSideOnAMixedHunk(t *testing.T) {

@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/infrashift/mrman/internal/textsafe"
+
 	"github.com/infrashift/mrman/internal/model"
 )
 
@@ -35,12 +37,15 @@ func SliceContextLines(content string, startLine, endLine uint32) []model.DiffLi
 		}
 		lineNo := n
 		oldNo, newNo := lineNo, lineNo
+		// File contents are untrusted the moment they come from a forge or
+		// a patch someone else wrote; scrub them like every other ingress.
+		text := textsafe.SanitizeLine(lines[idx])
 		result = append(result, model.DiffLine{
 			Origin:  model.OriginContext,
-			Content: Tabify(lines[idx]),
+			Content: Tabify(text),
 			// The source line with a context line's leading space, kept
 			// untabified so anything quoting this reads as the file does.
-			Raw:       " " + lines[idx],
+			Raw:       " " + text,
 			OldLineno: &oldNo,
 			NewLineno: &newNo,
 		})
@@ -62,7 +67,7 @@ func ReadWorkdirFile(root, rel string) (string, bool) {
 func ParseBatchedFiles(output string) map[string]string {
 	sep := "\n" + BatchBoundary + "\n"
 	files := make(map[string]string)
-	for _, block := range strings.Split(output, sep) {
+	for block := range strings.SplitSeq(output, sep) {
 		if block == "" {
 			continue
 		}

@@ -69,7 +69,8 @@ mrman review watch --session <slug>
 ```
 
 The stream ends on `submitted` or `closed` — which are the two answers to "is
-the human finished", so the agent never has to ask. `--since <comment-id>`
+the human finished", so the agent never has to ask. `closed` says why:
+`tui_exited`, `timeout` or `canceled`. `--since <comment-id>`
 resumes without re-reading, and `--timeout` bounds the wait.
 
 A one-shot read works too:
@@ -209,6 +210,11 @@ It is **not a security boundary**. An agent with a shell can call the forge API
 directly and mrman cannot stop it. If that is your threat model, the control
 belongs at the credential: give agent sessions a token without write scope, or
 no token at all.
+
+The grant is keyed to the TUI's process id and checked for liveness on every
+submit, on Linux, macOS and Windows alike. The files that record it live in
+`~/.local/share/mrman/reviews/`, which mrman keeps owner-only (0700/0600);
+an older store is tightened the first time a newer mrman opens it.
 
 ## Comments an agent must not touch
 

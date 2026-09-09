@@ -18,10 +18,10 @@ func mixedHunk(start uint32) model.DiffHunk {
 	return model.DiffHunk{
 		Header: "@@ mixed @@",
 		Lines: []model.DiffLine{
-			{Origin: model.OriginContext, Content: "ctx", OldLineno: u32(start), NewLineno: u32(start)},
-			{Origin: model.OriginDeletion, Content: "gone", OldLineno: u32(start + 1)},
-			{Origin: model.OriginAddition, Content: "new", NewLineno: u32(start + 1)},
-			{Origin: model.OriginContext, Content: "ctx", OldLineno: u32(start + 2), NewLineno: u32(start + 2)},
+			{Origin: model.OriginContext, Content: "ctx", OldLineno: new(start), NewLineno: new(start)},
+			{Origin: model.OriginDeletion, Content: "gone", OldLineno: new(start + 1)},
+			{Origin: model.OriginAddition, Content: "new", NewLineno: new(start + 1)},
+			{Origin: model.OriginContext, Content: "ctx", OldLineno: new(start + 2), NewLineno: new(start + 2)},
 		},
 		OldStart: start, OldCount: 3,
 		NewStart: start, NewCount: 3,
@@ -115,8 +115,8 @@ func TestSaveHunkCommentOnAPureDeletionUsesTheOldSide(t *testing.T) {
 	deletion := model.DiffHunk{
 		Header: "@@ deletion @@",
 		Lines: []model.DiffLine{
-			{Origin: model.OriginDeletion, Content: "gone", OldLineno: u32(30)},
-			{Origin: model.OriginDeletion, Content: "gone", OldLineno: u32(31)},
+			{Origin: model.OriginDeletion, Content: "gone", OldLineno: new(uint32(30))},
+			{Origin: model.OriginDeletion, Content: "gone", OldLineno: new(uint32(31))},
 		},
 		OldStart: 30, OldCount: 2, NewStart: 29, NewCount: 0,
 	}

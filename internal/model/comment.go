@@ -207,7 +207,7 @@ func (c *Comment) UnmarshalJSON(data []byte) error {
 
 // newIDFn and nowFn are injection seams for deterministic tests.
 var (
-	newIDFn = func() string { return uuid.NewString() }
+	newIDFn = uuid.NewString
 	nowFn   = func() time.Time { return time.Now().UTC() }
 )
 

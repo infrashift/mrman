@@ -2,11 +2,13 @@
 // engine, the layout constants shared with the renderer, source-line jumps,
 // hunk and file navigation, and the render-height math that keeps
 // TotalLines in lockstep with the annotation stream.
+
 package app
 
 import (
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/infrashift/mrman/internal/input"
 	"github.com/infrashift/mrman/internal/model"
@@ -573,8 +575,8 @@ func (a *App) NextFile() {
 func (a *App) PrevFile() {
 	visibleItems := a.BuildVisibleItems()
 	currentFileIdx := a.DiffState.CurrentFileIdx
-	for i := len(visibleItems) - 1; i >= 0; i-- {
-		item := visibleItems[i]
+	for _, item := range slices.Backward(visibleItems) {
+
 		if !item.IsDir && item.FileIdx < currentFileIdx {
 			a.JumpToFile(item.FileIdx)
 			return
@@ -652,9 +654,9 @@ func (a *App) PrevHunk() {
 	a.DownReleasedSinceArm = false
 	a.UpReleasedSinceArm = false
 	positions := a.HunkPositions()
-	for i := len(positions) - 1; i >= 0; i-- {
-		if positions[i] < a.DiffState.CursorLine {
-			a.DiffState.CursorLine = positions[i]
+	for _, position := range slices.Backward(positions) {
+		if position < a.DiffState.CursorLine {
+			a.DiffState.CursorLine = position
 			a.ensureCursorVisible()
 			a.updateCurrentFileFromCursor()
 			return
@@ -761,124 +763,10 @@ func (a *App) lineCommentsHeightAt(path string, lineComments map[uint32][]*model
 // body of the focused file in single-file view, where the header is hidden
 // and reviewed files render the body under a banner.
 func (a *App) fileRenderBodyHeight(fileIdx int, file *model.DiffFile) int {
-	const spacingLines = 1 // trailing blank or "next file" hint
-	contentLines := 0
-	commentLines := 0
-	path := file.DisplayPath()
-
-	// Commit-selection filter — must mirror RebuildAnnotations exactly, or
-	// TotalLines disagrees with len(LineAnnotations) and cursor math drifts.
 	commitSet, hasCommitSet := a.selectedCommitSet()
-
-	// Remote threads whose anchor is gone render at file scope, ahead of
-	// the local file comments — same order as RebuildAnnotations.
-	commentLines += a.remoteThreadsHeight(a.remoteThreadsByFile[path])
-
-	var lineComments map[uint32][]*model.Comment
-	if review := a.Session.File(path); review != nil {
-		for _, comment := range review.FileComments {
-			if commentVisibleWith(comment, commitSet, hasCommitSet) {
-				commentLines += CommentDisplayLines(comment, a.DiffState.ViewportWidth)
-			}
-		}
-		lineComments = review.LineComments
-	}
-
-	if file.IsBinary || len(file.Hunks) == 0 {
-		contentLines = 1
-	} else {
-		for hunkIdx := range file.Hunks {
-			hunk := &file.Hunks[hunkIdx]
-
-			var prevHunk *model.DiffHunk
-			if hunkIdx > 0 {
-				prevHunk = &file.Hunks[hunkIdx-1]
-			}
-			gap := calculateGap(prevHunk, hunk.NewStart)
-			gapID := GapID{FileIdx: fileIdx, HunkIdx: hunkIdx}
-
-			if gap > 0 && a.ShouldRenderGapBeforeHunk(fileIdx, hunkIdx) {
-				topLen := len(a.ExpandedTop[gapID])
-				botLen := len(a.ExpandedBottom[gapID])
-				remaining := satSub(int(gap), topLen+botLen)
-				contentLines += topLen + botLen
-				contentLines += gapAnnotationLineCount(hunkIdx == 0, false, remaining)
-			}
-
-			contentLines++ // hunk header
-			if a.IsHunkReviewed(fileIdx, hunkIdx) {
-				continue
-			}
-
-			switch a.DiffViewMode {
-			case ViewUnified:
-				for lineIdx := range hunk.Lines {
-					line := &hunk.Lines[lineIdx]
-					contentLines++
-					commentLines += a.lineCommentsHeightAt(path, lineComments, line.OldLineno, model.LineSideOld, commitSet, hasCommitSet)
-					commentLines += a.lineCommentsHeightAt(path, lineComments, line.NewLineno, model.LineSideNew, commitSet, hasCommitSet)
-				}
-			case ViewSideBySide:
-				contentLines += sideBySideRowCount(hunk.Lines)
-				// Comment rows follow the emission in
-				// buildSideBySideAnnotations: old side for deletion lines,
-				// new side for context/addition lines.
-				for lineIdx := range hunk.Lines {
-					line := &hunk.Lines[lineIdx]
-					switch line.Origin {
-					case model.OriginContext, model.OriginAddition:
-						commentLines += a.lineCommentsHeightAt(path, lineComments, line.NewLineno, model.LineSideNew, commitSet, hasCommitSet)
-					case model.OriginDeletion:
-						commentLines += a.lineCommentsHeightAt(path, lineComments, line.OldLineno, model.LineSideOld, commitSet, hasCommitSet)
-					}
-				}
-			}
-		}
-
-		// End-of-file gap (not for deleted files).
-		if file.Status != model.StatusDeleted && len(file.Hunks) > 0 {
-			lastHunk := &file.Hunks[len(file.Hunks)-1]
-			eofStart := lastHunk.NewStart + lastHunk.NewCount
-			if total, ok := a.FileLineCountCache[fileIdx]; ok && eofStart <= total {
-				gap := int(total - eofStart + 1)
-				eofGapID := GapID{FileIdx: fileIdx, HunkIdx: len(file.Hunks)}
-				topLen := len(a.ExpandedTop[eofGapID])
-				botLen := len(a.ExpandedBottom[eofGapID])
-				remaining := satSub(gap, topLen+botLen)
-				contentLines += topLen + botLen
-				contentLines += gapAnnotationLineCount(false, true, remaining)
-			}
-		}
-	}
-
-	return commentLines + contentLines + spacingLines
-}
-
-// sideBySideRowCount is the number of paired rows a hunk renders in
-// side-by-side mode: deletions pair with following additions, taking the
-// max of the two run lengths.
-func sideBySideRowCount(lines []model.DiffLine) int {
-	rows := 0
-	i := 0
-	for i < len(lines) {
-		switch lines[i].Origin {
-		case model.OriginContext, model.OriginAddition:
-			rows++
-			i++
-		case model.OriginDeletion:
-			delEnd := i + 1
-			for delEnd < len(lines) && lines[delEnd].Origin == model.OriginDeletion {
-				delEnd++
-			}
-			addEnd := delEnd
-			for addEnd < len(lines) && lines[addEnd].Origin == model.OriginAddition {
-				addEnd++
-			}
-			rows += max(delEnd-i, addEnd-delEnd)
-			i = addEnd
-		}
-	}
-	return rows
+	v := &heightVisitor{a: a, ctx: &annBuildCtx{commitSet: commitSet, hasCommitSet: hasCommitSet}}
+	a.walkFileBody(fileIdx, file, v.ctx, v)
+	return v.comments + v.content
 }
 
 // effectiveFileHeight is the render-aware file height that knows about

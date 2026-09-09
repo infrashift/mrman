@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"context"
 	"errors"
 
 	tea "charm.land/bubbletea/v2"
@@ -97,8 +96,9 @@ func (m *Model) reloadPullRequest() tea.Cmd {
 	localCheckout := m.localCheckout
 	a.SetMessage("Reloading merge request…")
 
+	ctx := m.inflight.replace(&m.inflight.reload)
 	return func() tea.Msg {
-		load, err := fetchPullRequest(context.Background(), backend, &repo,
+		load, err := fetchPullRequest(ctx, backend, &repo,
 			target, highlighter, localCheckout)
 		return prReloadResultMsg{Request: req, Load: load, Err: err}
 	}
@@ -125,7 +125,7 @@ func (m *Model) handlePrReloadResult(msg prReloadResultMsg) tea.Cmd {
 	if a.PrHeadMoved(&msg.Load) {
 		fresh := app.NewPrSession(msg.Load.Details)
 		if m.session != nil {
-			m.session.finish(a)
+			m.shutdown(a)
 		}
 		lifecycle, session := openPrSession(m.store, fresh, m.grantedEvents)
 		m.session = lifecycle

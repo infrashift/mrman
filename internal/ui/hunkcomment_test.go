@@ -32,9 +32,9 @@ func twoHunkModel(t *testing.T) *Model {
 		return model.DiffHunk{
 			Header: "@@ hunk @@",
 			Lines: []model.DiffLine{
-				{Origin: model.OriginContext, Content: "ctx", OldLineno: lineno(start), NewLineno: lineno(start)},
-				{Origin: model.OriginDeletion, Content: "gone", OldLineno: lineno(start + 1)},
-				{Origin: model.OriginAddition, Content: "new", NewLineno: lineno(start + 1)},
+				{Origin: model.OriginContext, Content: "ctx", OldLineno: new(start), NewLineno: new(start)},
+				{Origin: model.OriginDeletion, Content: "gone", OldLineno: new(start + 1)},
+				{Origin: model.OriginAddition, Content: "new", NewLineno: new(start + 1)},
 			},
 			OldStart: start, OldCount: 2, NewStart: start, NewCount: 2,
 		}

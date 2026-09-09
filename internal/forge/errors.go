@@ -7,6 +7,8 @@ import (
 	"net"
 	"strings"
 
+	"github.com/infrashift/mrman/internal/textsafe"
+
 	"github.com/infrashift/mrman/internal/errs"
 	"github.com/infrashift/mrman/internal/forge/forgetypes"
 )
@@ -114,8 +116,14 @@ type Error struct {
 	Err error
 }
 
-// Error implements the error interface.
+// Error implements the error interface. The wrapped SDK error often quotes
+// the response body, which is forge-authored text, so the result is
+// scrubbed before it can reach the status bar.
 func (e *Error) Error() string {
+	return textsafe.SanitizeLine(e.render())
+}
+
+func (e *Error) render() string {
 	var b strings.Builder
 	if e.ForgeID != "" {
 		b.WriteString(string(e.ForgeID))
@@ -171,8 +179,7 @@ func StatusError(forgeID forgetypes.Kind, op, host string, status int, err error
 // is a *Error passes through unchanged so kinds assigned deeper in a driver
 // survive.
 func WrapError(forgeID forgetypes.Kind, op, host string, err error) *Error {
-	var fe *Error
-	if errors.As(err, &fe) {
+	if fe, ok := errors.AsType[*Error](err); ok {
 		return fe
 	}
 	return NewError(forgeID, op, host, Classify(err), err)
@@ -193,8 +200,7 @@ func Classify(err error) ErrorKind {
 	case errors.Is(err, errs.ErrUnsupported):
 		return ErrorUnsupported
 	}
-	var netErr net.Error
-	if errors.As(err, &netErr) {
+	if _, ok := errors.AsType[net.Error](err); ok {
 		return ErrorNetwork
 	}
 	return ErrorNetwork
@@ -203,8 +209,7 @@ func Classify(err error) ErrorKind {
 // KindOf returns the ErrorKind of err when it is (or wraps) a forge
 // *Error, ok=false otherwise.
 func KindOf(err error) (ErrorKind, bool) {
-	var fe *Error
-	if errors.As(err, &fe) {
+	if fe, ok := errors.AsType[*Error](err); ok {
 		return fe.Kind, true
 	}
 	return 0, false

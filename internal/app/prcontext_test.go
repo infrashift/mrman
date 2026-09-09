@@ -13,7 +13,7 @@ import (
 func contextLines(count int) []model.DiffLine {
 	lines := make([]model.DiffLine, count)
 	for i := range lines {
-		n := uint32(i + 1) //nolint:gosec // test fixture line counts stay tiny
+		n := uint32(i + 1)
 		lines[i] = model.DiffLine{
 			Origin:    model.OriginContext,
 			Content:   "line " + string(rune('a'+i%26)),

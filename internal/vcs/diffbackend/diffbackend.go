@@ -28,6 +28,7 @@
 package diffbackend
 
 import (
+	"bytes"
 	"fmt"
 	"hash/fnv"
 	"os"
@@ -648,7 +649,7 @@ func (b *Backend) FetchContextLines(path string, status model.FileStatus, _ *str
 	}
 	data, err := os.ReadFile(abs)
 	if err != nil {
-		return nil, nil
+		return nil, nil //nolint:nilerr // a side that cannot be read has no context to offer
 	}
 	return vcs.SliceContextLines(string(data), start, end), nil
 }
@@ -662,7 +663,7 @@ func (b *Backend) FileLineCount(path string, status model.FileStatus, _ *string)
 	}
 	data, err := os.ReadFile(abs)
 	if err != nil {
-		return 0, nil
+		return 0, nil //nolint:nilerr // a side that cannot be read has no lines
 	}
 	return countLines(string(data)), nil
 }
@@ -731,7 +732,7 @@ func usesCRLF(abs string) (crlf, ok bool) {
 	if err != nil {
 		return false, false
 	}
-	i := strings.IndexByte(string(data), '\n')
+	i := bytes.IndexByte(data, '\n')
 	if i < 0 {
 		return false, false
 	}
@@ -808,5 +809,5 @@ func countLines(content string) uint32 {
 	if content == "" {
 		return 0
 	}
-	return uint32(strings.Count(strings.TrimSuffix(content, "\n"), "\n") + 1)
+	return uint32(strings.Count(strings.TrimSuffix(content, "\n"), "\n") + 1) //nolint:gosec // G115: line numbers fit uint32
 }

@@ -208,8 +208,7 @@ func TestCorruptedManifestSurfacesError(t *testing.T) {
 	}
 
 	_, err := LoadManifest(dir)
-	var corrupted *errs.CorruptedSession
-	if !errors.As(err, &corrupted) {
+	if _, ok := errors.AsType[*errs.CorruptedSession](err); !ok {
 		t.Fatalf("err = %v, want *errs.CorruptedSession", err)
 	}
 }

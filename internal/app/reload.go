@@ -6,6 +6,7 @@
 // deliberately different — a file whose content moved loses its mark,
 // because a review of the old content says nothing about the new. The
 // reload reports both.
+
 package app
 
 import (

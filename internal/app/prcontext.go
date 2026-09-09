@@ -9,6 +9,7 @@
 // whole file once off the render loop, installs it, and replays the
 // expansion. After the first press every later expansion in that file is
 // instant, which is how a reviewer actually uses the key.
+
 package app
 
 import (
@@ -258,7 +259,7 @@ func (a *App) PrefetchContextForCurrentFile() {
 // expansion that triggered the fetch. It reports whether the replay ran.
 func (a *App) ApplyPrContextSnapshot(req PrContextRequest, lines []model.DiffLine) bool {
 	provider := a.ensurePrContext()
-	count := uint32(len(lines)) //nolint:gosec // file line counts stay well inside uint32
+	count := uint32(len(lines)) //nolint:gosec // G115: line numbers fit uint32
 	provider.Install(req.Key, lines, count)
 
 	// The end-of-file gap needs the count, which only exists now.

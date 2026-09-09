@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/infrashift/mrman/internal/textsafe"
+
 	"github.com/infrashift/mrman/internal/errs"
 	"github.com/infrashift/mrman/internal/model"
 	"github.com/infrashift/mrman/internal/syntax"
@@ -51,7 +53,12 @@ func Parse(text string, format Format, h *syntax.Highlighter) ([]model.DiffFile,
 // huge diffs without buffering. Highlighter h may be nil (no spans).
 // It returns errs.ErrNoChanges when the stream contains no file diffs.
 func ParseLines(next func() (string, bool, error), format Format, h *syntax.Highlighter) ([]model.DiffFile, error) {
-	src := &lineSource{next: next}
+	// Every diff mrman shows — from a forge, a patch file, git or jj —
+	// enters here, so this is where terminal control sequences leave it.
+	src := &lineSource{next: func() (string, bool, error) {
+		line, ok, err := next()
+		return textsafe.SanitizeLine(line), ok, err
+	}}
 	var files []model.DiffFile
 
 	headerPrefix := "diff --git "
@@ -70,105 +77,111 @@ func ParseLines(next func() (string, bool, error), format Format, h *syntax.High
 		if !strings.HasPrefix(line, headerPrefix) {
 			continue
 		}
-
-		// Keep the file's preamble verbatim — the header line just consumed
-		// plus whatever parseFileHeader consumes below — so a review reply can
-		// quote it back as the author wrote it.
-		rawHeader := []string{line}
-		src.record = &rawHeader
-		oldPath, newPath, status, err := parseFileHeader(src, format)
-		src.record = nil
+		file, err := parseFile(src, line, format, h)
 		if err != nil {
 			return nil, err
 		}
-
-		// For git-style diffs (jj, git patches), if parseFileHeader didn't
-		// find ---/+++ or rename/copy lines (e.g. empty new files, mode-only
-		// changes), fall back to parsing paths from the "diff --git a/X b/X"
-		// header.
-		if oldPath == nil && newPath == nil {
-			if a, b, ok := parseDiffGitHeader(line); ok {
-				switch status {
-				case model.StatusDeleted:
-					oldPath = &a
-				case model.StatusAdded:
-					newPath = &b
-				default:
-					oldPath = &a
-					newPath = &b
-				}
-			}
-		}
-
-		// Check if binary. `git diff --binary` can emit lowercase
-		// "GIT binary patch", so keep this check explicit instead of a
-		// case-sensitive substring search.
-		peeked, peekOK, err := src.peek()
-		if err != nil {
-			return nil, err
-		}
-		if peekOK && isBinaryPatchLine(peeked) {
-			if _, _, err := src.advance(); err != nil { // consume binary message
-				return nil, err
-			}
-			files = append(files, model.DiffFile{
-				OldPath:     oldPath,
-				NewPath:     newPath,
-				Status:      status,
-				IsBinary:    true,
-				RawHeader:   rawHeader,
-				SourceIndex: len(files),
-			})
-			continue
-		}
-
-		filePath := ""
-		switch {
-		case newPath != nil:
-			filePath = *newPath
-		case oldPath != nil:
-			filePath = *oldPath
-		}
-
-		var hunks []model.DiffHunk
-
-		// Parse hunks until next file or end.
-		for {
-			line, ok, err := src.peek()
-			if err != nil {
-				return nil, err
-			}
-			if !ok || strings.HasPrefix(line, "diff ") {
-				break
-			}
-			if strings.HasPrefix(line, "@@") {
-				hunk, ok, err := parseHunk(src, filePath, h)
-				if err != nil {
-					return nil, err
-				}
-				if ok {
-					hunks = append(hunks, hunk)
-				}
-			} else if _, _, err := src.advance(); err != nil { // skip non-hunk, non-diff lines
-				return nil, err
-			}
-		}
-
-		files = append(files, model.DiffFile{
-			OldPath:     oldPath,
-			NewPath:     newPath,
-			Status:      status,
-			Hunks:       hunks,
-			ContentHash: model.ComputeContentHash(hunks),
-			RawHeader:   rawHeader,
-			SourceIndex: len(files),
-		})
+		file.SourceIndex = len(files)
+		files = append(files, file)
 	}
 
 	if len(files) == 0 {
 		return nil, errs.ErrNoChanges
 	}
 	return files, nil
+}
+
+// parseFile parses one file, starting from its already-consumed "diff"
+// header line: the metadata header, then either a binary marker or the
+// hunks up to the next file.
+func parseFile(src *lineSource, header string, format Format, h *syntax.Highlighter) (model.DiffFile, error) {
+	// Keep the file's preamble verbatim — the header line just consumed
+	// plus whatever parseFileHeader consumes below — so a review reply can
+	// quote it back as the author wrote it.
+	rawHeader := []string{header}
+	src.record = &rawHeader
+	oldPath, newPath, status, err := parseFileHeader(src, format)
+	src.record = nil
+	if err != nil {
+		return model.DiffFile{}, err
+	}
+
+	// For git-style diffs (jj, git patches), if parseFileHeader didn't find
+	// ---/+++ or rename/copy lines (e.g. empty new files, mode-only
+	// changes), fall back to parsing paths from the "diff --git a/X b/X"
+	// header.
+	if oldPath == nil && newPath == nil {
+		if a, b, ok := parseDiffGitHeader(header); ok {
+			switch status {
+			case model.StatusDeleted:
+				oldPath = &a
+			case model.StatusAdded:
+				newPath = &b
+			default:
+				oldPath = &a
+				newPath = &b
+			}
+		}
+	}
+	file := model.DiffFile{OldPath: oldPath, NewPath: newPath, Status: status, RawHeader: rawHeader}
+
+	// Check if binary. `git diff --binary` can emit lowercase "GIT binary
+	// patch", so keep this check explicit instead of a case-sensitive
+	// substring search.
+	peeked, peekOK, err := src.peek()
+	if err != nil {
+		return model.DiffFile{}, err
+	}
+	if peekOK && isBinaryPatchLine(peeked) {
+		if _, _, err := src.advance(); err != nil { // consume binary message
+			return model.DiffFile{}, err
+		}
+		file.IsBinary = true
+		return file, nil
+	}
+
+	filePath := ""
+	switch {
+	case newPath != nil:
+		filePath = *newPath
+	case oldPath != nil:
+		filePath = *oldPath
+	}
+	hunks, err := parseHunks(src, filePath, h)
+	if err != nil {
+		return model.DiffFile{}, err
+	}
+	file.Hunks = hunks
+	file.ContentHash = model.ComputeContentHash(hunks)
+	return file, nil
+}
+
+// parseHunks reads hunks until the next file header or the end of the
+// stream, skipping lines that are neither.
+func parseHunks(src *lineSource, filePath string, h *syntax.Highlighter) ([]model.DiffHunk, error) {
+	var hunks []model.DiffHunk
+	for {
+		line, ok, err := src.peek()
+		if err != nil {
+			return nil, err
+		}
+		if !ok || strings.HasPrefix(line, "diff ") {
+			return hunks, nil
+		}
+		if !strings.HasPrefix(line, "@@") {
+			if _, _, err := src.advance(); err != nil { // skip non-hunk, non-diff lines
+				return nil, err
+			}
+			continue
+		}
+		hunk, ok, err := parseHunk(src, filePath, h)
+		if err != nil {
+			return nil, err
+		}
+		if ok {
+			hunks = append(hunks, hunk)
+		}
+	}
 }
 
 // lineSource wraps the streaming iterator with single-line lookahead so the
@@ -222,108 +235,122 @@ func isBinaryPatchLine(line string) bool {
 	return strings.HasPrefix(line, "Binary file") || strings.HasPrefix(line, "GIT binary patch")
 }
 
+// fileHeader accumulates what the metadata lines between "diff --git" and
+// the first hunk say about a file.
+type fileHeader struct {
+	oldPath, newPath *string
+	status           model.FileStatus
+}
+
+// headerRule handles one kind of metadata line by prefix. done marks the
+// line that ends the header (+++); the others keep reading.
+type headerRule struct {
+	prefix string
+	apply  func(h *fileHeader, line string, format Format)
+	done   bool
+}
+
+// headerPath strips the diff prefix ("--- a/", "+++ b/") and, for Hg, the
+// timestamp after the tab. nil for /dev/null.
+func headerPath(line, marker, treePrefix string, format Format) *string {
+	pathStr := strings.TrimPrefix(strings.TrimPrefix(line, marker), treePrefix)
+	if pathStr == "/dev/null" {
+		return nil
+	}
+	if format == Hg {
+		pathStr, _, _ = strings.Cut(pathStr, "\t")
+	}
+	return &pathStr
+}
+
+var headerRules = []headerRule{
+	{prefix: "---", apply: func(h *fileHeader, line string, f Format) {
+		if p := headerPath(line, "--- ", "a/", f); p != nil {
+			h.oldPath = p
+		}
+	}},
+	{prefix: "+++", done: true, apply: func(h *fileHeader, line string, f Format) {
+		if p := headerPath(line, "+++ ", "b/", f); p != nil {
+			h.newPath = p
+		}
+	}},
+	{prefix: "new file", apply: func(h *fileHeader, _ string, _ Format) { h.status = model.StatusAdded }},
+	{prefix: "deleted file", apply: func(h *fileHeader, _ string, _ Format) { h.status = model.StatusDeleted }},
+	{prefix: "rename from ", apply: func(h *fileHeader, line string, _ Format) {
+		h.status = model.StatusRenamed
+		p := strings.TrimPrefix(line, "rename from ")
+		h.oldPath = &p
+	}},
+	{prefix: "rename to ", apply: func(h *fileHeader, line string, _ Format) {
+		p := strings.TrimPrefix(line, "rename to ")
+		h.newPath = &p
+	}},
+	{prefix: "copy from ", apply: func(h *fileHeader, line string, _ Format) {
+		h.status = model.StatusCopied
+		p := strings.TrimPrefix(line, "copy from ")
+		h.oldPath = &p
+	}},
+	{prefix: "copy to ", apply: func(h *fileHeader, line string, _ Format) {
+		p := strings.TrimPrefix(line, "copy to ")
+		h.newPath = &p
+	}},
+}
+
+// applyLine folds one metadata line into the header. Lines no rule claims
+// (index, similarity, modes) are skipped. done reports the +++ line.
+func (h *fileHeader) applyLine(line string, format Format) (done bool) {
+	for _, rule := range headerRules {
+		if strings.HasPrefix(line, rule.prefix) {
+			rule.apply(h, line, format)
+			return rule.done
+		}
+	}
+	return false
+}
+
+// applyBinary takes the paths from a binary marker when nothing earlier in
+// the header named them:
+// Hg: "Binary file <path> has changed"; git: "Binary files a/<old> and b/<new> differ".
+func (h *fileHeader) applyBinary(line string) {
+	old, newer, ok := parseBinaryFileLine(line)
+	if !ok {
+		return
+	}
+	if h.oldPath == nil {
+		h.oldPath = old
+	}
+	if h.newPath == nil {
+		h.newPath = newer
+	}
+}
+
 // parseFileHeader consumes ---/+++ and metadata lines (rename/copy, new
 // file/deleted file, index, similarity, modes), returning paths and status.
 // It stops after the +++ line, or before an @@ hunk header, "diff " header,
 // binary marker, or end of stream.
 func parseFileHeader(src *lineSource, format Format) (oldPath, newPath *string, status model.FileStatus, err error) {
-	status = model.StatusModified
-
+	h := fileHeader{status: model.StatusModified}
 	for {
 		line, ok, err := src.peek()
 		if err != nil {
-			return nil, nil, status, err
+			return nil, nil, h.status, err
 		}
-		if !ok {
+		if !ok || strings.HasPrefix(line, "@@") || strings.HasPrefix(line, "diff ") {
 			break
 		}
-
-		switch {
-		case strings.HasPrefix(line, "---"):
-			pathStr := strings.TrimPrefix(strings.TrimPrefix(line, "--- "), "a/")
-			if pathStr != "/dev/null" {
-				path := pathStr
-				// Hg format may include timestamps after tab.
-				if format == Hg {
-					path, _, _ = strings.Cut(pathStr, "\t")
-				}
-				oldPath = &path
-			}
-			if _, _, err := src.advance(); err != nil {
-				return nil, nil, status, err
-			}
-		case strings.HasPrefix(line, "+++"):
-			pathStr := strings.TrimPrefix(strings.TrimPrefix(line, "+++ "), "b/")
-			if pathStr != "/dev/null" {
-				path := pathStr
-				if format == Hg {
-					path, _, _ = strings.Cut(pathStr, "\t")
-				}
-				newPath = &path
-			}
-			if _, _, err := src.advance(); err != nil {
-				return nil, nil, status, err
-			}
-			return oldPath, newPath, deriveStatus(oldPath, newPath, status), nil // done with file header
-		case strings.HasPrefix(line, "new file"):
-			status = model.StatusAdded
-			if _, _, err := src.advance(); err != nil {
-				return nil, nil, status, err
-			}
-		case strings.HasPrefix(line, "deleted file"):
-			status = model.StatusDeleted
-			if _, _, err := src.advance(); err != nil {
-				return nil, nil, status, err
-			}
-		case strings.HasPrefix(line, "rename from "):
-			status = model.StatusRenamed
-			path := strings.TrimPrefix(line, "rename from ")
-			oldPath = &path
-			if _, _, err := src.advance(); err != nil {
-				return nil, nil, status, err
-			}
-		case strings.HasPrefix(line, "rename to "):
-			path := strings.TrimPrefix(line, "rename to ")
-			newPath = &path
-			if _, _, err := src.advance(); err != nil {
-				return nil, nil, status, err
-			}
-		case strings.HasPrefix(line, "copy from "):
-			status = model.StatusCopied
-			path := strings.TrimPrefix(line, "copy from ")
-			oldPath = &path
-			if _, _, err := src.advance(); err != nil {
-				return nil, nil, status, err
-			}
-		case strings.HasPrefix(line, "copy to "):
-			path := strings.TrimPrefix(line, "copy to ")
-			newPath = &path
-			if _, _, err := src.advance(); err != nil {
-				return nil, nil, status, err
-			}
-		case strings.HasPrefix(line, "@@") || strings.HasPrefix(line, "diff "):
-			return oldPath, newPath, deriveStatus(oldPath, newPath, status), nil
-		case isBinaryPatchLine(line):
-			// Hg format: "Binary file <path> has changed"
-			// Git format: "Binary files a/<old> and b/<new> differ"
-			if old, newer, ok := parseBinaryFileLine(line); ok {
-				if oldPath == nil {
-					oldPath = old
-				}
-				if newPath == nil {
-					newPath = newer
-				}
-			}
-			return oldPath, newPath, deriveStatus(oldPath, newPath, status), nil
-		default:
-			// Skip other metadata lines (index, similarity index, modes, ...).
-			if _, _, err := src.advance(); err != nil {
-				return nil, nil, status, err
-			}
+		if isBinaryPatchLine(line) {
+			h.applyBinary(line)
+			break
+		}
+		done := h.applyLine(line, format)
+		if _, _, err := src.advance(); err != nil {
+			return nil, nil, h.status, err
+		}
+		if done {
+			break
 		}
 	}
-
-	return oldPath, newPath, deriveStatus(oldPath, newPath, status), nil
+	return h.oldPath, h.newPath, deriveStatus(h.oldPath, h.newPath, h.status), nil
 }
 
 // deriveStatus infers Added/Deleted from missing paths when no metadata line

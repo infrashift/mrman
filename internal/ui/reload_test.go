@@ -60,7 +60,7 @@ func TestReloadCommandRereadsALocalDiff(t *testing.T) {
 		NewPath: &path, Status: model.StatusModified,
 		Hunks: []model.DiffHunk{{
 			Lines: []model.DiffLine{
-				{Origin: model.OriginAddition, Content: "brand new", NewLineno: lineno(1)},
+				{Origin: model.OriginAddition, Content: "brand new", NewLineno: new(uint32(1))},
 			},
 			NewStart: 1, NewCount: 1,
 		}},

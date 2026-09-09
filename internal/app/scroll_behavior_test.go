@@ -22,8 +22,8 @@ func buildScrollApp(n, viewport, scrollOffsetConfig int) *App {
 		lines = append(lines, model.DiffLine{
 			Origin:    model.OriginContext,
 			Content:   fmt.Sprintf("line %d", i),
-			OldLineno: u32(uint32(i)),
-			NewLineno: u32(uint32(i)),
+			OldLineno: new(uint32(i)),
+			NewLineno: new(uint32(i)),
 		})
 	}
 
@@ -36,7 +36,7 @@ func buildScrollApp(n, viewport, scrollOffsetConfig int) *App {
 		NewCount: uint32(n),
 	}
 	file := model.DiffFile{
-		NewPath: strPtr("test.rs"),
+		NewPath: new("test.rs"),
 		Status:  model.StatusModified,
 		Hunks:   []model.DiffHunk{hunk},
 	}

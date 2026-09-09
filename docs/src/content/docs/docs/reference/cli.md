@@ -29,7 +29,7 @@ These are persistent flags on the root command, so they apply to `mrman`,
 | `--theme <name>` | — | Bundled theme name, or a file in `themes/` |
 | `--appearance <mode>` | — | `light`, `dark` or `system`, used when no explicit theme |
 | `--patch <file>` | | Review a `.patch`, `.diff` or mbox file with no repository ([guide](../../guides/patches/)) |
-| `--patch-strip <n>` | 1 | Leading path components to strip from a patch, like `patch -p<n>` |
+| `--patch-strip <n>` | `-p1` convention | Leading path components to strip from a patch, like `patch -p<n>`; unset means the usual `a/`, `b/` prefix |
 | `--stdout` | false | Export review markdown to stdout instead of the clipboard |
 | `--repo-url <url>` | — | Override the forge repository for MR operations |
 | `--forge <kind>` | — | Forge for ambiguous targets: `github`, `gitlab`, `azuredevops`, `forgejo` |
@@ -45,8 +45,17 @@ mrman rejects these rather than picking a winner:
 - `mrman diff` with `--file`, `--patch`, `--patch-strip`, `--all-files`,
   `--path`, `--revisions` or `--working-tree` — a comparison is its own review
   target, with no repository to filter, revise or compare against
+- `--file` with `--path` or `--revisions`
+- `--patch` with `--file`, `--all-files`, `--path`, `--revisions` or
+  `--working-tree`
 - **`--json` with `--auto`** — load-bearing, so that a command an agent can run
   can never issue a grant
+
+Two flags are accepted more widely than they act: `--json` does something only
+under `mrman pr` (elsewhere it is ignored), and `--auto` records a grant only
+for a merge request — on a local review there is nothing an agent could submit,
+so it is inert. `mrman tui pr <target>` and `mrman tui mr <target>` are
+accepted as spellings of `mrman pr`.
 
 Passing any TUI flag to `mrman review` is also a hard error:
 
@@ -171,6 +180,10 @@ mrman review add --session <slug> --username "Claude" --input - <<'JSON'
 JSON
 ```
 
+The JSON payload accepts a few spellings of the same thing: `type` or
+`comment_type`; `username` or `author`; `target.type` or `target.kind`; and
+`line_range` or `range` for a multi-line target.
+
 ### `review comments`
 
 Aliased as `review get`.
@@ -180,8 +193,8 @@ mrman review comments --session <slug>
 ```
 
 `--session` is required. Each comment carries `id`, `location`, `path`,
-`start_line`, `end_line`, `side`, `comment_type`, `lifecycle_state`, `content`
-and `author`.
+`start_line`, `end_line`, `side`, `comment_type`, `lifecycle_state`,
+`created_at`, `author` and `content`.
 
 ### `review watch`
 
@@ -199,7 +212,10 @@ mrman review watch --session <slug> --timeout 600
 | `--since <id>` | — | Resume after this comment id instead of sending a snapshot |
 
 Events: `snapshot`, `comment_added`, `comment_changed`, `comment_removed`,
-`submitted`, `closed`.
+`submitted`, `closed`. A `closed` event carries a `reason`: `tui_exited` (a
+TUI held the session and has quit), `timeout`, or `canceled` (the watch got
+SIGINT/SIGTERM). A session no TUI ever held — one opened headlessly by an
+agent — is never reported as `tui_exited`, whatever else is open.
 
 ### `review submit`
 
@@ -223,6 +239,33 @@ JSON on stdout and exits `1`:
 
 `reason` is `no_grant`, `grant_expired` or `event_not_granted`.
 
+On success it prints one JSON object and exits `0`:
+
+```json
+{"submitted":true,"event":"comment","review_id":"...","url":"...","state":"COMMENTED",
+ "inline_count":2,"omitted_count":0,"moved_to_body":1,"locked_comments":3}
+```
+
+GitLab and Azure DevOps post comments one at a time, so a submit there can
+stop partway. Then `submitted` is `false`, `inline_count` counts what the
+forge accepted, `partial` says where it stopped, and the command exits `1`.
+The comments that did not post stay local drafts; submitting again sends
+exactly those.
+
+```json
+{"submitted":false,"event":"comment","state":"COMMENTED","inline_count":1,
+ "omitted_count":0,"moved_to_body":0,"locked_comments":2,
+ "partial":{"posted_inline":1,"unposted_inline":2,"failed_at":1,"error":"..."}}
+```
+
+## Exit codes
+
+| Code | Meaning |
+|---|---|
+| `0` | Done |
+| `1` | A runtime failure, an interlock refusal, or a partial `review submit` — details on stderr, or as JSON on stdout for the `review` commands |
+| `2` | The command line did not parse |
+
 ## Environment
 
 | Variable | Read for |
@@ -233,9 +276,15 @@ JSON on stdout and exits `1`:
 | `AZURE_DEVOPS_EXT_PAT` | `dev.azure.com` |
 | `FORGEJO_TOKEN`, `CODEBERG_TOKEN` | `codeberg.org` |
 | `EDITOR` | `:edit` |
+| `TMUX`, `SSH_TTY`, `ZELLIJ` | Clipboard: any of these selects OSC 52 (via `tmux load-buffer` under tmux) |
+| `XDG_SESSION_TYPE` | Clipboard on Linux desktops: `wayland` → `wl-copy`, `x11` → `xclip` |
 
-Token variables are host-scoped on purpose, so an environment token never leaks
-to an on-premise instance.
+Token variables are host-scoped on purpose: `GITHUB_TOKEN` is read only for
+github.com, and `GH_ENTERPRISE_TOKEN` only for hosts you have listed under
+`[[forge.hosts]]`. A host mrman merely *guessed* the forge for — a merge
+request URL on an unfamiliar domain, a remote whose hostname happens to
+contain "github" — is connected to without any credential, and mrman says so.
+Listing the host is what turns authentication on.
 
 ## Paths
 
@@ -244,7 +293,11 @@ to an on-premise instance.
 | `~/.config/mrman/config.toml` | [Configuration](../configuration/) |
 | `~/.config/mrman/themes/` | [Local themes](../themes/) |
 | `~/.config/mrman/templates/` | [Templates](../templates/) (by convention) |
-| `~/.local/share/mrman/reviews/` | Saved sessions (`sessions/<repo>@<what>-<hash>.json`) |
+| `~/.local/share/mrman/reviews/` | Saved sessions (`sessions/<repo>@<what>-<hash>.json`), owner-only: directories 0700, files 0600 |
+| `~/.local/share/mrman/reviews/index.json` | The session manifest; rebuilt from the session files if lost |
+| `~/.local/share/mrman/reviews/active_sessions.json` | Which sessions live TUIs hold, and any agent-submit grant |
+| `~/.local/share/mrman/reviews/.mrman.lock` | Advisory lock around store writes; a stale one is reaped by pid |
+| `~/.local/share/mrman/reviews.bakN/` | A pre-1.0 layout moved aside on first run, announced on stderr |
 | `<repo>/.mrmanignore` | Per-repository ignore rules |
 
 `$XDG_CONFIG_HOME` and `$XDG_DATA_HOME` are honored if set.

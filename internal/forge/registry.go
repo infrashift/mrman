@@ -27,6 +27,10 @@ type HostConfig struct {
 	CAFile string
 	// InsecureSkipVerify disables TLS certificate verification.
 	InsecureSkipVerify bool
+	// Warning is a notice for the user about how this host was resolved
+	// — set when the host is untrusted and therefore unauthenticated. ""
+	// when there is nothing to say.
+	Warning string
 }
 
 // Driver describes one registered forge driver.
@@ -98,6 +102,12 @@ func ResolveHostConfig(host string, kind forgetypes.Kind, cfg config.ForgeConfig
 		hc.CAFile = entry.CAFile
 		hc.InsecureSkipVerify = entry.InsecureSkipVerify
 	}
+	if !HostTrusted(host, cfg) {
+		// No token lookup at all: not even a token_cmd runs for a host
+		// nothing vouches for.
+		hc.Warning = UntrustedHostWarning(host)
+		return hc, nil
+	}
 	token, err := TokenForHost(host, kind, cfg)
 	if err != nil {
 		return hc, err
@@ -116,10 +126,16 @@ func ForRepository(repo forgetypes.Repository, cfg config.ForgeConfig) (Forge, e
 	if err != nil {
 		return nil, err
 	}
+	var f Forge
 	if d.NewForRepo != nil {
-		return d.NewForRepo(hc, repo)
+		f, err = d.NewForRepo(hc, repo)
+	} else {
+		f, err = d.New(hc)
 	}
-	return d.New(hc)
+	if err != nil {
+		return nil, err
+	}
+	return Sanitized(f), nil
 }
 
 // kindFromConfigName maps a config forge name to a Kind, accepting the
@@ -563,7 +579,7 @@ func parsePRNumber(s string) (uint64, bool) {
 	}
 	var n uint64
 	for _, r := range s {
-		n = n*10 + uint64(r-'0')
+		n = n*10 + uint64(r-'0') //nolint:gosec // G115: r is a decimal digit
 	}
 	return n, n > 0
 }

@@ -103,7 +103,7 @@ func TestCommitStripFollowsTheCycledCommit(t *testing.T) {
 	a := stripApp(commits, viewport)
 
 	a.CycleCommitPrev() // all → first
-	for step := 0; step < commits; step++ {
+	for step := range commits {
 		cursor, offset := a.CommitListCursor, a.CommitListScrollOffset
 		if cursor < offset || cursor >= offset+viewport {
 			t.Fatalf("after %d ) the cursor %d is outside the strip window [%d,%d)",
@@ -113,7 +113,7 @@ func TestCommitStripFollowsTheCycledCommit(t *testing.T) {
 	}
 
 	a.CycleCommitPrev() // off the "all" wrap, back onto the last commit
-	for step := 0; step < commits; step++ {
+	for step := range commits {
 		cursor, offset := a.CommitListCursor, a.CommitListScrollOffset
 		if cursor < offset || cursor >= offset+viewport {
 			t.Fatalf("after %d ( the cursor %d is outside the strip window [%d,%d)",
@@ -126,7 +126,7 @@ func TestCommitStripFollowsTheCycledCommit(t *testing.T) {
 // TestShortCommitStripNeverScrolls: a strip that fits stays at the top.
 func TestShortCommitStripNeverScrolls(t *testing.T) {
 	a := stripApp(3, 8)
-	for i := 0; i < 6; i++ {
+	for range 6 {
 		a.CycleCommitNext()
 	}
 	if a.CommitListScrollOffset != 0 {

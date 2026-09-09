@@ -362,8 +362,8 @@ func wrapModel(t *testing.T, content string) *Model {
 		Hunks: []model.DiffHunk{{
 			Header: "@@ -1,2 +1,2 @@",
 			Lines: []model.DiffLine{
-				{Origin: model.OriginAddition, Content: content, NewLineno: lineno(1)},
-				{Origin: model.OriginContext, Content: "tail", OldLineno: lineno(1), NewLineno: lineno(2)},
+				{Origin: model.OriginAddition, Content: content, NewLineno: new(uint32(1))},
+				{Origin: model.OriginContext, Content: "tail", OldLineno: new(uint32(1)), NewLineno: new(uint32(2))},
 			},
 			OldStart: 1, OldCount: 2, NewStart: 1, NewCount: 2,
 		}},

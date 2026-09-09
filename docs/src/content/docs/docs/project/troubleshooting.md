@@ -55,9 +55,12 @@ cached run from before you changed anything.
 
 ### `token_cmd` failing
 
-A failing `token_cmd` is **fatal**, not skipped — you configured it on purpose,
-so falling through to anonymous access would hide the problem. Run the command
-yourself; it goes through `sh -c`, so quoting is on you.
+A `token_cmd` that exits non-zero is **fatal**, not skipped — you configured it
+on purpose, so falling through to anonymous access would hide the problem. One
+that exits 0 and prints nothing counts as "no token" and *does* fall through,
+to `gh auth token` and then anonymous access. Run the command yourself; it goes
+through `sh -c` (`cmd /C` on Windows), so quoting is on you, and check that it
+actually prints the token.
 
 A host entry may set `token` **or** `token_cmd`, never both. The schema rejects
 that rather than picking one silently.

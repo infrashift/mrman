@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"hash/fnv"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -18,6 +19,7 @@ import (
 	"github.com/infrashift/mrman/internal/output"
 	"github.com/infrashift/mrman/internal/patch"
 	"github.com/infrashift/mrman/internal/persistence"
+	"github.com/infrashift/mrman/internal/syntax"
 	"github.com/infrashift/mrman/internal/theme"
 	"github.com/infrashift/mrman/internal/vcs"
 	"github.com/infrashift/mrman/internal/vcs/detect"
@@ -26,91 +28,57 @@ import (
 	"github.com/infrashift/mrman/internal/vcs/patchbackend"
 )
 
-// Run opens the read-only TUI for the given CLI options (M3 scope: working
-// tree and commit ranges; target selector, sessions-on-disk wiring and PR
-// mode land in later milestones).
-func Run(opts cli.TuiOptions) error {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return err
-	}
-
-	cfg, cfgWarnings := config.Load()
-	resolved, warnings, err := resolveTheme(opts, cfg)
-	if err != nil {
-		return err
-	}
-	warnings = append(cfgWarnings, warnings...)
-	if cfg.TransparentBackground {
-		resolved.ApplyTransparentBackground()
-	}
-
-	var backend vcs.Backend
-	// patchBackend is non-nil only for a --patch review; it carries the
-	// parsed series for the commit strip and the reply exporter.
-	var patchBackend *patchbackend.Backend
-	// diffBackend is non-nil only for a `mrman diff` review; it names the
-	// two sides for the header and the export scope.
-	var diffBackend *diffbackend.Backend
+// openLocalBackend picks the VCS backend a local review reads from. The
+// patch and two-path backends are also returned as their concrete types:
+// the patch one carries the series for the commit strip and the reply
+// exporter, the two-path one names its sides for the header and export.
+func openLocalBackend(opts cli.TuiOptions, cfg config.Config, cwd string) (
+	vcs.Backend, *patchbackend.Backend, *diffbackend.Backend, error,
+) {
 	switch {
 	case opts.DiffOld != "":
-		db, dbErr := diffbackend.New(opts.DiffOld, opts.DiffNew, whitespaceMode(cfg))
-		if dbErr != nil {
-			return dbErr
-		}
-		backend, diffBackend = db, db
+		db, err := diffbackend.New(opts.DiffOld, opts.DiffNew, whitespaceMode(cfg))
+		return db, nil, db, err
 	case opts.Patch != "":
-		pb, pbErr := patchbackend.New(opts.Patch, patch.Options{StripLevel: opts.PatchStrip})
-		if pbErr != nil {
-			return pbErr
-		}
-		backend, patchBackend = pb, pb
+		pb, err := patchbackend.New(opts.Patch, patch.Options{StripLevel: opts.PatchStrip})
+		return pb, pb, nil, err
 	case opts.File != "":
-		fb, fbErr := filebackend.New(opts.File)
-		if fbErr != nil {
-			return fbErr
-		}
-		backend = fb
+		fb, err := filebackend.New(opts.File)
+		return fb, nil, nil, err
 	case opts.AllFiles:
-		paths, pErr := filebackend.CollectTrackedPaths(cwd, vcs.SystemRunner{})
-		if pErr != nil {
-			return pErr
+		paths, err := filebackend.CollectTrackedPaths(cwd, vcs.SystemRunner{})
+		if err != nil {
+			return nil, nil, nil, err
 		}
-		fb, fbErr := filebackend.NewPristine(paths, cwd)
-		if fbErr != nil {
-			return fbErr
-		}
-		backend = fb
-	default:
-		detected, dErr := detect.Detect(cwd, whitespaceMode(cfg), vcs.SystemRunner{})
-		if dErr != nil {
-			if errors.Is(dErr, errs.ErrNotARepository) {
-				return fmt.Errorf("not inside a supported repository (git or jj): %w", dErr)
-			}
-			return dErr
-		}
-		backend = detected
+		fb, err := filebackend.NewPristine(paths, cwd)
+		return fb, nil, nil, err
 	}
-	info := backend.Info()
+	detected, err := detect.Detect(cwd, whitespaceMode(cfg), vcs.SystemRunner{})
+	if err != nil {
+		if errors.Is(err, errs.ErrNotARepository) {
+			return nil, nil, nil, fmt.Errorf("not inside a supported repository (git or jj): %w", err)
+		}
+		return nil, nil, nil, err
+	}
+	return detected, nil, nil, nil
+}
 
-	// No explicit target and a real VCS → open the target selector instead
-	// of loading a diff (tuicr's default entry).
-	selectorStart := opts.Revisions == "" && !opts.WorkingTree &&
-		opts.File == "" && !opts.AllFiles && opts.Patch == "" && opts.DiffOld == ""
-
-	highlighter := resolved.Highlighter()
-	var files []model.DiffFile
-	// rangeCommits are the rows behind the inline commit strip for a -r
-	// review; empty for every other start.
-	var rangeCommits []vcs.CommitInfo
-	source := app.DiffSource{Kind: app.DiffSourceWorkingTree}
+// loadInitialDiff loads the files the review opens on, and describes where
+// they came from. rangeCommits are the rows behind the inline commit strip
+// for a -r review or a patch series; empty for every other start. With
+// selectorStart the files load after the user confirms a target.
+func loadInitialDiff(
+	opts cli.TuiOptions, backend vcs.Backend, patchBackend *patchbackend.Backend,
+	diffBackend *diffbackend.Backend, selectorStart bool, highlighter *syntax.Highlighter,
+) (files []model.DiffFile, source app.DiffSource, rangeCommits []vcs.CommitInfo, err error) {
+	source = app.DiffSource{Kind: app.DiffSourceWorkingTree}
 	switch {
 	case selectorStart && opts.File == "" && !opts.AllFiles:
 		// Files load after the user confirms a target.
 	case opts.Revisions != "":
 		rng, resolveErr := backend.ResolveRevisionRange(opts.Revisions)
 		if resolveErr != nil {
-			return resolveErr
+			return nil, source, nil, resolveErr
 		}
 		files, err = backend.CommitRangeDiff(rng, highlighter)
 		source = app.DiffSource{Kind: app.DiffSourceCommitRange, Commits: reversed(rng.CommitIDs)}
@@ -132,6 +100,110 @@ func Run(opts cli.TuiOptions) error {
 	default:
 		files, err = backend.WorkingTreeDiff(highlighter)
 	}
+	return files, source, rangeCommits, err
+}
+
+// filterLocalFiles applies the repository's ignore rules and the --path
+// prefix, refusing a review that has nothing left.
+func filterLocalFiles(files []model.DiffFile, root, pathPrefix string) ([]model.DiffFile, error) {
+	files = ignore.Load(root).FilterDiffFiles(files)
+	if pathPrefix != "" {
+		files = filterByPath(files, pathPrefix)
+	}
+	if len(files) == 0 {
+		return nil, fmt.Errorf("no changes to review")
+	}
+	return files, nil
+}
+
+// newLocalSession builds the session identity for a local review. A
+// pristine review is keyed by the head plus the set of paths rather than
+// by the head alone, so it stays stable across pulls.
+func newLocalSession(opts cli.TuiOptions, info *vcs.Info, source app.DiffSource, files []model.DiffFile, cwd string) *model.ReviewSession {
+	baseCommit := info.HeadCommit
+	sessionSrc := sessionSource(source)
+	if opts.AllFiles {
+		baseCommit = fmt.Sprintf("pristine:%s:%016x",
+			filebackend.HeadShortSHA(cwd, vcs.SystemRunner{}), pathSetHash(files))
+		sessionSrc = model.SourcePristine
+	}
+	fresh := model.NewReviewSession(info.RootPath, baseCommit, info.BranchName, sessionSrc)
+	fresh.CommitRange = source.Commits
+	return fresh
+}
+
+// configureLocalApp applies the start-mode switches: the selector entry,
+// pristine mode's forced layout, and the two-path comparison label.
+func configureLocalApp(a *app.App, opts cli.TuiOptions, selectorStart bool, diffBackend *diffbackend.Backend) error {
+	if selectorStart {
+		if err := a.EnterTargetSelector(app.TargetTabLocal); err != nil {
+			return err
+		}
+	}
+	if opts.AllFiles {
+		// Pristine mode forces unified rendering and single-file focus.
+		a.IsPristineMode = true
+		a.DiffViewMode = app.ViewUnified
+		a.IsSingleFileView = true
+	}
+	if diffBackend != nil {
+		// Nothing else can tell the reviewer which side is which: OldPath is
+		// never rendered, and every display path is the new side.
+		a.ComparisonLabel = diffBackend.Label()
+	}
+	return nil
+}
+
+// announceLocalStart puts the start-up notices on screen: config and
+// theme warnings, where a resumed session came from, and anything about
+// persistence the reviewer should know before they start typing.
+func announceLocalStart(a *app.App, warnings []string, lifecycle *sessionLifecycle, storeErr error) {
+	for _, w := range warnings {
+		a.SetWarning(w)
+	}
+	reportSessionResume(a, lifecycle)
+	if lifecycle != nil {
+		if w := lifecycle.activationWarning(false); w != "" {
+			a.SetStickyWarning(w)
+		}
+	}
+	if storeErr != nil {
+		a.SetStickyWarning("Sessions are not persisted: " + storeErr.Error())
+	}
+}
+
+// Run opens the read-only TUI for the given CLI options (M3 scope: working
+// tree and commit ranges; target selector, sessions-on-disk wiring and PR
+// mode land in later milestones).
+func Run(opts cli.TuiOptions) error {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+
+	cfg, cfgWarnings := config.Load()
+	resolved, warnings, err := resolveTheme(opts, cfg)
+	if err != nil {
+		return err
+	}
+	warnings = append(cfgWarnings, warnings...)
+	if cfg.TransparentBackground {
+		resolved.ApplyTransparentBackground()
+	}
+
+	backend, patchBackend, diffBackend, err := openLocalBackend(opts, cfg, cwd)
+	if err != nil {
+		return err
+	}
+	info := backend.Info()
+
+	// No explicit target and a real VCS → open the target selector instead
+	// of loading a diff (tuicr's default entry).
+	selectorStart := opts.Revisions == "" && !opts.WorkingTree &&
+		opts.File == "" && !opts.AllFiles && opts.Patch == "" && opts.DiffOld == ""
+
+	highlighter := resolved.Highlighter()
+	files, source, rangeCommits, err := loadInitialDiff(opts, backend, patchBackend, diffBackend, selectorStart, highlighter)
 	if err != nil {
 		if errors.Is(err, errs.ErrNoChanges) {
 			return fmt.Errorf("no changes to review")
@@ -140,26 +212,11 @@ func Run(opts cli.TuiOptions) error {
 	}
 
 	if !selectorStart {
-		filter := ignore.Load(info.RootPath)
-		files = filter.FilterDiffFiles(files)
-		if opts.Path != "" {
-			files = filterByPath(files, opts.Path)
-		}
-		if len(files) == 0 {
-			return fmt.Errorf("no changes to review")
+		if files, err = filterLocalFiles(files, info.RootPath, opts.Path); err != nil {
+			return err
 		}
 	}
-
-	baseCommit := info.HeadCommit
-	sessionSrc := sessionSource(source)
-	if opts.AllFiles {
-		// Pristine identity is stable across pulls: prefixed head + path hash.
-		baseCommit = fmt.Sprintf("pristine:%s:%016x",
-			filebackend.HeadShortSHA(cwd, vcs.SystemRunner{}), pathSetHash(files))
-		sessionSrc = model.SourcePristine
-	}
-	fresh := model.NewReviewSession(info.RootPath, baseCommit, info.BranchName, sessionSrc)
-	fresh.CommitRange = source.Commits
+	fresh := newLocalSession(opts, info, source, files, cwd)
 
 	store, storeErr := persistence.NewDefaultStore()
 	if storeErr != nil {
@@ -174,21 +231,8 @@ func Run(opts cli.TuiOptions) error {
 	}
 
 	a := app.NewApp(backend, info, files, session, source)
-	if selectorStart {
-		if selErr := a.EnterTargetSelector(app.TargetTabLocal); selErr != nil {
-			return selErr
-		}
-	}
-	if opts.AllFiles {
-		// Pristine mode forces unified rendering and single-file focus.
-		a.IsPristineMode = true
-		a.DiffViewMode = app.ViewUnified
-		a.IsSingleFileView = true
-	}
-	if diffBackend != nil {
-		// Nothing else can tell the reviewer which side is which: OldPath is
-		// never rendered, and every display path is the new side.
-		a.ComparisonLabel = diffBackend.Label()
+	if err := configureLocalApp(a, opts, selectorStart, diffBackend); err != nil {
+		return err
 	}
 
 	m := NewModel(a, resolved)
@@ -210,21 +254,15 @@ func Run(opts cli.TuiOptions) error {
 	if len(rangeCommits) > 0 {
 		a.InstallReviewCommits(rangeCommits)
 	}
-	for _, w := range warnings {
-		a.SetWarning(w)
-	}
-	reportSessionResume(a, lifecycle)
-	if storeErr != nil {
-		a.SetStickyWarning("Sessions are not persisted: " + storeErr.Error())
-	}
+	announceLocalStart(a, warnings, lifecycle, storeErr)
 
 	prog := tea.NewProgram(m)
 	_, err = prog.Run()
 	if m.session != nil {
-		m.session.finish(a)
+		m.shutdown(a)
 	}
 	if m.PendingStdout != "" {
-		fmt.Print(m.PendingStdout)
+		_, _ = io.WriteString(os.Stdout, m.PendingStdout)
 	}
 	return err
 }
