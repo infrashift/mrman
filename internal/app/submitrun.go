@@ -61,17 +61,24 @@ func SubmitRequest(a *App, body string) forge.CreateReviewRequest {
 // tea.Cmd so the interface stays responsive, and it needs the staleness
 // guard that only makes sense when the user can navigate mid-flight.
 func SubmitReview(a *App, templatePath string) (*forge.SubmitResult, []string, error) {
+	result, _, warnings, err := SubmitReviewOutcome(a, templatePath)
+	return result, warnings, err
+}
+
+// SubmitReviewOutcome is SubmitReview plus the outcome of applying the
+// result, so a headless caller can tell a partial post from a complete one.
+func SubmitReviewOutcome(a *App, templatePath string) (*forge.SubmitResult, SubmitOutcome, []string, error) {
 	body, warnings, err := BuildReviewBody(a, templatePath)
 	if err != nil {
-		return nil, warnings, err
+		return nil, SubmitOutcome{}, warnings, err
 	}
 	result, err := a.Pr.Backend.CreateReview(
 		context.Background(), a.Pr.Details, SubmitRequest(a, body))
 	if err != nil {
-		return nil, warnings, err
+		return nil, SubmitOutcome{}, warnings, err
 	}
-	a.ApplySubmitSuccess(result, a.Submit.Event)
-	return result, warnings, nil
+	outcome := a.ApplySubmitResult(result, a.Submit.Event)
+	return result, outcome, warnings, nil
 }
 
 // submitTypeID drops the sentinel "none" so an untyped comment carries no

@@ -125,5 +125,9 @@ func runSubmit(store *persistence.Store, opts reviewcli.Options, args *cli.Args)
 		}
 		os.Exit(1)
 	}
+	if errors.Is(err, agentsubmit.ErrPartialSubmit) {
+		// The JSON on stdout already says what landed and what did not.
+		os.Exit(1)
+	}
 	return err
 }

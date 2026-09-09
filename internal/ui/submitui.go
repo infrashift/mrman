@@ -30,7 +30,7 @@ func (m *Model) dispatchSubmitPicker(action input.Action) (bool, tea.Cmd) {
 	case input.Quit:
 		return true, nil
 	case input.SubmitPickerDown:
-		if a.Submit != nil && a.Submit.PickerCursor < len(app.SubmitPickerEvents)-1 {
+		if a.Submit != nil && a.Submit.PickerCursor < len(a.PickerEvents())-1 {
 			a.Submit.PickerCursor++
 		}
 	case input.SubmitPickerUp:
@@ -41,7 +41,7 @@ func (m *Model) dispatchSubmitPicker(action input.Action) (bool, tea.Cmd) {
 		if a.Submit == nil {
 			break
 		}
-		event := app.SubmitPickerEvents[a.Submit.PickerCursor]
+		event := a.PickerEvents()[a.Submit.PickerCursor]
 		if a.StartSubmitWith(event, true) && len(a.Submit.Unmappable) == 0 {
 			return false, m.spawnSubmit()
 		}
@@ -151,8 +151,12 @@ func (m *Model) handleSubmitResult(msg prSubmitResultMsg) {
 		a.SetError("Submit failed: " + msg.Err.Error())
 		return
 	}
-	a.ApplySubmitSuccess(msg.Result, msg.Event)
+	outcome := a.ApplySubmitResult(msg.Result, msg.Event)
 	m.autosave()
+	if !outcome.Complete() {
+		a.SetError(outcome.Message())
+		return
+	}
 	a.SetMessage(fmt.Sprintf("Review submitted (%s)", msg.Event.HumanLabel()))
 }
 
@@ -176,7 +180,7 @@ func (m *Model) submitModalView(width int) []string {
 	switch a.InputMode {
 	case input.ModeSubmitActionPicker:
 		title(fmt.Sprintf(" Submit review to %s? ", a.Pr.Details.Repository.Host))
-		for i, event := range app.SubmitPickerEvents {
+		for i, event := range a.PickerEvents() {
 			marker, style := "  ", render.Style{Fg: t.FgPrimary}
 			if i == a.Submit.PickerCursor {
 				marker, style = "> ", render.Style{Fg: t.FgPrimary, Bg: t.BgHighlight, Bold: true}
@@ -218,6 +222,10 @@ func (m *Model) submitModalView(width int) []string {
 		line(render.Span{Text: fmt.Sprintf("Moved to summary: %d · Omitted: %d",
 			moved, len(a.Submit.Unmappable)-moved), Style: render.Style{Fg: t.FgPrimary}})
 		line(render.Span{Text: fmt.Sprintf("Head:   %.7s", a.Submit.CommitID), Style: render.Style{Fg: t.FgDim}})
+		if !a.Pr.Backend.Capabilities().AtomicSubmit && len(a.Submit.Mappable) > 0 {
+			line(render.Span{Text: "This forge posts comments one by one; a failure midway leaves the rest local.",
+				Style: render.Style{Fg: t.FgDim}})
+		}
 		line(render.Span{Text: "[y] submit    [n] cancel", Style: render.Style{Fg: t.FgSecondary, Bold: true}})
 	}
 

@@ -217,6 +217,25 @@ JSON on stdout and exits `1`:
 
 `reason` is `no_grant`, `grant_expired` or `event_not_granted`.
 
+On success it prints one JSON object and exits `0`:
+
+```json
+{"submitted":true,"event":"comment","review_id":"...","url":"...","state":"COMMENTED",
+ "inline_count":2,"omitted_count":0,"moved_to_body":1,"locked_comments":3}
+```
+
+GitLab and Azure DevOps post comments one at a time, so a submit there can
+stop partway. Then `submitted` is `false`, `inline_count` counts what the
+forge accepted, `partial` says where it stopped, and the command exits `1`.
+The comments that did not post stay local drafts; submitting again sends
+exactly those.
+
+```json
+{"submitted":false,"event":"comment","state":"COMMENTED","inline_count":1,
+ "omitted_count":0,"moved_to_body":0,"locked_comments":2,
+ "partial":{"posted_inline":1,"unposted_inline":2,"failed_at":1,"error":"..."}}
+```
+
 ## Environment
 
 | Variable | Read for |
