@@ -56,6 +56,7 @@ type CommentOutput struct {
 	CommentType    string  `json:"comment_type"`
 	LifecycleState string  `json:"lifecycle_state"`
 	CreatedAt      string  `json:"created_at"`
+	Author         string  `json:"author"`
 	Content        string  `json:"content"`
 }
 
@@ -105,6 +106,7 @@ func commentOutputFromParts(location string, path *string, startLine, endLine *u
 		CommentType:    c.CommentType.ID(),
 		LifecycleState: string(c.LifecycleState),
 		CreatedAt:      c.CreatedAt.Format(time.RFC3339),
+		Author:         c.Author,
 		Content:        c.Content,
 	}
 }

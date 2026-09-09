@@ -214,6 +214,11 @@ func Run(opts cli.TuiOptions) error {
 		a.SetWarning(w)
 	}
 	reportSessionResume(a, lifecycle)
+	if lifecycle != nil {
+		if w := lifecycle.activationWarning(false); w != "" {
+			a.SetStickyWarning(w)
+		}
+	}
 	if storeErr != nil {
 		a.SetStickyWarning("Sessions are not persisted: " + storeErr.Error())
 	}

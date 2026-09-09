@@ -21,6 +21,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/infrashift/mrman/internal/config"
 	"github.com/infrashift/mrman/internal/model"
 	"github.com/infrashift/mrman/internal/persistence"
 )
@@ -84,7 +85,7 @@ func Watch(store *persistence.Store, opts Options, w WatchOptions, out io.Writer
 	}
 	interval := w.Interval
 	if interval <= 0 {
-		interval = watchDefaultInterval
+		interval = configWatchInterval()
 	}
 	deadline := time.Time{}
 	if w.Timeout > 0 {
@@ -127,13 +128,17 @@ func Watch(store *persistence.Store, opts Options, w WatchOptions, out io.Writer
 	}
 
 	last := statSession(path)
+	// "The TUI exited" is a transition, not a state: a session opened
+	// headlessly is never held by a TUI, and must not read as closed just
+	// because some other review is open on the machine.
+	held := sessionHeld(store, path)
 	for {
 		select {
 		case <-w.Done:
 			err := enc.Encode(WatchEvent{Event: WatchClosed, Reason: ClosedCanceled})
 			flush()
 			return err
-		case <-time.After(interval):
+		case <-time.After(untilNextPoll(interval, deadline)):
 		}
 
 		if !deadline.IsZero() && !watchNow().Before(deadline) {
@@ -145,14 +150,17 @@ func Watch(store *persistence.Store, opts Options, w WatchOptions, out io.Writer
 		current := statSession(path)
 		if current != nil && last != nil && *current == *last {
 			// Unchanged file: only liveness can have moved.
-			if !sessionIsLive(store, path) {
+			nowHeld := sessionHeld(store, path)
+			if held && !nowHeld {
 				err := enc.Encode(WatchEvent{Event: WatchClosed, Reason: ClosedTUIExited})
 				flush()
 				return err
 			}
+			held = held || nowHeld
 			continue
 		}
 		last = current
+		held = held || sessionHeld(store, path)
 
 		session, err := store.LoadSession(path)
 		if err != nil {
@@ -183,11 +191,13 @@ func Watch(store *persistence.Store, opts Options, w WatchOptions, out io.Writer
 		}
 		flush()
 
-		if !sessionIsLive(store, path) {
+		nowHeld := sessionHeld(store, path)
+		if held && !nowHeld {
 			err := enc.Encode(WatchEvent{Event: WatchClosed, Reason: ClosedTUIExited})
 			flush()
 			return err
 		}
+		held = held || nowHeld
 	}
 }
 
@@ -205,21 +215,38 @@ func statSession(path string) *sessionState {
 	return &sessionState{modTime: info.ModTime(), size: info.Size()}
 }
 
-// sessionIsLive reports whether a TUI still holds the session open. A
-// session that was never opened by a TUI is treated as live, so a headless
-// agent watching its own session is not immediately told it closed.
-func sessionIsLive(store *persistence.Store, path string) bool {
+// sessionHeld reports whether a live TUI currently holds the session.
+func sessionHeld(store *persistence.Store, path string) bool {
 	paths, err := store.ActiveSessionPaths()
-	if err != nil || len(paths) == 0 {
-		return true
+	if err != nil {
+		return false
 	}
-	for active := range paths {
-		if active == path {
-			return true
-		}
+	return paths[path]
+}
+
+// untilNextPoll is the interval, shortened so a deadline is met on time
+// rather than up to one interval late.
+func untilNextPoll(interval time.Duration, deadline time.Time) time.Duration {
+	if deadline.IsZero() {
+		return interval
 	}
-	// Some session is active but not this one: this one's TUI exited.
-	return false
+	if remaining := deadline.Sub(watchNow()); remaining < interval {
+		return max(remaining, 0)
+	}
+	return interval
+}
+
+// configWatchInterval is the poll interval when --interval is not given:
+// the review_watch_interval_ms setting, read lazily so a watch never pays
+// for config parsing before it needs to. A setting of 0 (which disables
+// the TUI's own watcher) falls back to the default here, since a watch
+// that never polls is not a watch.
+var configWatchInterval = func() time.Duration {
+	cfg, _ := config.Load()
+	if cfg.ReviewWatchIntervalMS > 0 {
+		return time.Duration(cfg.ReviewWatchIntervalMS) * time.Millisecond
+	}
+	return watchDefaultInterval
 }
 
 func indexComments(comments []CommentOutput) map[string]CommentOutput {

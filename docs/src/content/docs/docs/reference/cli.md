@@ -174,8 +174,8 @@ mrman review comments --session <slug>
 ```
 
 `--session` is required. Each comment carries `id`, `location`, `path`,
-`start_line`, `end_line`, `side`, `comment_type`, `lifecycle_state`, `content`
-and `author`.
+`start_line`, `end_line`, `side`, `comment_type`, `lifecycle_state`,
+`created_at`, `author` and `content`.
 
 ### `review watch`
 
@@ -193,7 +193,10 @@ mrman review watch --session <slug> --timeout 600
 | `--since <id>` | — | Resume after this comment id instead of sending a snapshot |
 
 Events: `snapshot`, `comment_added`, `comment_changed`, `comment_removed`,
-`submitted`, `closed`.
+`submitted`, `closed`. A `closed` event carries a `reason`: `tui_exited` (a
+TUI held the session and has quit), `timeout`, or `canceled` (the watch got
+SIGINT/SIGTERM). A session no TUI ever held — one opened headlessly by an
+agent — is never reported as `tui_exited`, whatever else is open.
 
 ### `review submit`
 

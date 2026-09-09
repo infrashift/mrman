@@ -28,6 +28,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 
 	"github.com/infrashift/mrman/internal/app"
@@ -241,7 +242,12 @@ func prAppForSession(session *model.ReviewSession, opts Options) (*app.App, erro
 	if session.PrSessionKey == nil {
 		return nil, fmt.Errorf("session %q is a local review, not a merge request", opts.Session)
 	}
-	cfg, _ := config.Load()
+	cfg, warnings := config.Load()
+	for _, w := range warnings {
+		// A forge write with a misread config is worth a word on stderr;
+		// stdout stays JSON.
+		fmt.Fprintf(os.Stderr, "mrman: config: %s\n", w)
+	}
 	key := session.PrSessionKey
 	backend, err := forge.ForRepository(key.Repository, cfg.Forge)
 	if err != nil {
