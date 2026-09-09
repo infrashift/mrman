@@ -144,14 +144,26 @@ know what is left.
 hunk in the middle of a long file has context above and below it that the diff
 omitted. `o` / `O` expand and collapse every directory in the tree.
 
-Comments come in four scopes:
+Comments come in five scopes:
 
 | Key | Scope |
 |---|---|
 | `c` | The line at the cursor |
+| `c` on a `@@` header | The whole hunk |
 | `v` then `c` | A visual range |
 | `C` | The whole file |
 | `<leader>c` (`;c`) | The review as a whole |
+
+A hunk comment is a range comment that spans the hunk for you — `[` to the
+header and `c` beats holding `j` to the last line. Inside a visual selection,
+`]` and `[` extend it hunk by hunk, so `[` `v` `]` `]` `c` comments on three
+hunks at once.
+
+One wrinkle worth knowing: a hunk usually contains both deleted and added
+lines, but no forge accepts a comment range that spans both sides of a diff.
+So a hunk comment covers the hunk's **new-side** lines — its additions and
+context — falling back to the old side only when the hunk does nothing but
+delete. This is what GitHub's own hunk comments do.
 
 `Tab` in the comment box cycles the comment type, and the box title shows the
 current one (`Add L60 comment [ISSUE]`). Four ship by default — **NOTE**,
@@ -220,7 +232,9 @@ instead of copying, which is what you want in a pipeline.
 
 The markdown is rendered through a Go template with an embedded default, and
 you can replace it — see [Templates](../../reference/templates/).
-`export_legend = false` drops the comment-type legend if you find it noisy.
+`export_legend = false` drops the comment-type legend if you find it noisy, and
+`export_diff = true` quotes each comment's diff hunk above it so the notes make
+sense to someone without the branch checked out.
 
 Export is how a local review reaches another person, since there is no forge to
 post it to — [Sharing a Review](../sharing/) covers that end to end, including

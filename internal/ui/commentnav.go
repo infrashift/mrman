@@ -38,7 +38,7 @@ func (p *CommentNavPane) BuildLines(a *app.App, width, height int) []string {
 			{Text: marker, Style: markerStyle},
 			{Text: commentNavLabel(item), Style: render.Style{Fg: t.FgPrimary}},
 		}
-		if item.Author != "" && item.Author != a.Username {
+		if a.ShowsAuthor(item.Author) {
 			style := render.Style{Fg: t.FgSecondary}
 			if accent, ok := theme.AuthorAccent(a.Username, item.Author); ok {
 				style.Fg = accent

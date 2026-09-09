@@ -89,11 +89,11 @@ func (p *DiffPane) commentBoxRow(a *app.App, ann *app.AnnotatedLine, idx int, in
 		badge := ""
 		if !comment.CommentType.IsNone() {
 			badge = "[" + comment.CommentType.Display()
-			if comment.Author != "" && comment.Author != a.Username {
+			if a.ShowsAuthor(comment.Author) {
 				badge += " @" + comment.Author
 			}
 			badge += "] "
-		} else if comment.Author != "" && comment.Author != a.Username {
+		} else if a.ShowsAuthor(comment.Author) {
 			badge = "[@" + comment.Author + "] "
 		}
 		lineInfo := ""

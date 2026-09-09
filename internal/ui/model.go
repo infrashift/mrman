@@ -91,6 +91,11 @@ type Model struct {
 	mouseEnabled bool
 	// dragging is true between a diff press and its release.
 	dragging bool
+	// dragAnchor is where a press landed, held until the pointer actually
+	// moves. The selection is only created then, so a plain click leaves none
+	// — a zero-width selection would make y copy nothing instead of
+	// exporting the review.
+	dragAnchor *app.SelPoint
 
 	width, height int
 }
@@ -829,6 +834,10 @@ func (m *Model) dispatchVisual(action input.Action) bool {
 	case input.CursorUp:
 		a.CursorUp(action.N)
 		a.ExtendVisualToCursor()
+	case input.NextHunk:
+		a.ExtendVisualToNextHunk()
+	case input.PrevHunk:
+		a.ExtendVisualToPrevHunk()
 	case input.AddRangeComment:
 		a.EnterCommentFromVisual()
 		m.enterComposeMode()

@@ -845,3 +845,45 @@ func TestLineContextAtMissingLine(t *testing.T) {
 		t.Errorf("LineContextAt for an unknown file = %+v, want nil", got)
 	}
 }
+
+// TestShowsAuthorHidesYourOwnByDefault pins the rule the badge exists for:
+// it marks what someone else wrote, so your own comments carry no author
+// unless you ask for one.
+func TestShowsAuthorHidesYourOwnByDefault(t *testing.T) {
+	a := &App{Username: "ryan"}
+	if a.ShowsAuthor("ryan") {
+		t.Error("your own author must not be badged by default")
+	}
+	if !a.ShowsAuthor("agent-claude") {
+		t.Error("someone else's author must be badged")
+	}
+	if a.ShowsAuthor("") {
+		t.Error("an unauthored comment must not be badged")
+	}
+}
+
+// TestShowsAuthorWithShowOwnAuthor covers the opt-in: every authored comment
+// is attributed, including yours.
+func TestShowsAuthorWithShowOwnAuthor(t *testing.T) {
+	a := &App{Username: "ryan", ShowOwnAuthor: true}
+	if !a.ShowsAuthor("ryan") {
+		t.Error("show_own_author must badge your own comments")
+	}
+	if !a.ShowsAuthor("agent-claude") {
+		t.Error("show_own_author must keep badging others")
+	}
+	if a.ShowsAuthor("") {
+		t.Error("show_own_author must not invent an author")
+	}
+}
+
+// TestShowsAuthorWithoutConfiguredUsername is the state a fresh install is in:
+// no username set, so the default author does not match and every comment —
+// including your own — reads as someone else's. That is why "@user" shows up
+// before the setting is configured.
+func TestShowsAuthorWithoutConfiguredUsername(t *testing.T) {
+	a := &App{}
+	if !a.ShowsAuthor(model.DefaultAuthor) {
+		t.Error("with no username configured the default author is badged")
+	}
+}

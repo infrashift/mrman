@@ -29,6 +29,7 @@ var knownTopLevelKeys = map[string]struct{}{
 	"ignore_whitespace":        {},
 	"wrap":                     {},
 	"export_legend":            {},
+	"export_diff":              {},
 	"cursor_line":              {},
 	"mouse":                    {},
 	"comment_vim":              {},
@@ -39,6 +40,7 @@ var knownTopLevelKeys = map[string]struct{}{
 	"review_watch_interval_ms": {},
 	"single_file_view":         {},
 	"username":                 {},
+	"show_own_author":          {},
 	"templates":                {},
 	"forge":                    {},
 }
@@ -186,7 +188,8 @@ func apply(raw map[string]any, cfg *Config, warnings *[]string) {
 	boolKeys := map[string]*bool{
 		"show_file_list": &cfg.ShowFileList, "show_commits": &cfg.ShowCommits,
 		"ignore_whitespace": &cfg.IgnoreWhitespace, "wrap": &cfg.Wrap,
-		"export_legend": &cfg.ExportLegend, "cursor_line": &cfg.CursorLine,
+		"export_legend": &cfg.ExportLegend, "export_diff": &cfg.ExportDiff,
+		"show_own_author": &cfg.ShowOwnAuthor, "cursor_line": &cfg.CursorLine,
 		"mouse": &cfg.Mouse, "comment_vim": &cfg.CommentVim,
 		"transparent_background": &cfg.TransparentBackground, "single_file_view": &cfg.SingleFileView,
 	}

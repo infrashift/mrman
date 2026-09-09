@@ -209,7 +209,10 @@ func TestHelpConfirmVisualModes(t *testing.T) {
 		t.Errorf("plain confirm r = %v", got.Kind)
 	}
 
-	cases := map[rune]Kind{'j': CursorDown, 'c': AddRangeComment, 'y': ExportToClipboard, 'v': ExitMode, 'q': Quit}
+	cases := map[rune]Kind{'j': CursorDown, 'c': AddRangeComment, 'y': ExportToClipboard, 'v': ExitMode, 'q': Quit,
+		// ] and [ reuse the normal-mode hunk actions; visual mode extends the
+		// selection with them rather than jumping the cursor.
+		']': NextHunk, '[': PrevHunk}
 	for r, want := range cases {
 		if got := MapKey(pr(r), ModeVisualSelect, ';'); got.Kind != want {
 			t.Errorf("visual %c = %v, want %v", r, got.Kind, want)

@@ -239,8 +239,8 @@ func TestDragSelectsARangeAndYankCopiesIt(t *testing.T) {
 	diff := paneOf(t, m, app.PanelDiff)
 
 	m.Update(tea.MouseClickMsg(mouse(diff.X+8, diff.Y+3, tea.MouseLeft)))
-	if m.App.VisualSelection == nil {
-		t.Fatal("a press must start a selection")
+	if m.App.VisualSelection != nil {
+		t.Fatal("a press alone must not select anything")
 	}
 	if !m.dragging {
 		t.Error("a press must arm the drag")
@@ -248,6 +248,9 @@ func TestDragSelectsARangeAndYankCopiesIt(t *testing.T) {
 
 	m.Update(tea.MouseMotionMsg(mouse(diff.X+8, diff.Y+4, tea.MouseLeft)))
 	sel := m.App.VisualSelection
+	if sel == nil {
+		t.Fatal("motion after a press must start the selection")
+	}
 	if sel.Head.AnnotationIdx == sel.Anchor.AnnotationIdx {
 		t.Error("dragging must extend the selection past its anchor")
 	}

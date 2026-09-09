@@ -55,6 +55,7 @@ package schema
 	ignore_whitespace?:        bool
 	wrap?:                     bool
 	export_legend?:            bool
+	export_diff?:              bool
 	cursor_line?:              bool
 	mouse?:                    bool
 	comment_vim?:              bool
@@ -65,6 +66,7 @@ package schema
 	review_watch_interval_ms?: int & >=0
 	single_file_view?:         bool
 	username?:                 string
+	show_own_author?:          bool
 	templates?:                #Templates
 	forge?:                    #Forge
 }

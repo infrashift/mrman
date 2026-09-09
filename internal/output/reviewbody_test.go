@@ -82,3 +82,46 @@ func TestReviewBodyOverride(t *testing.T) {
 		t.Fatalf("warnings: %v", warnings)
 	}
 }
+
+// TestReviewBodyBadgesTheAuthor covers attribution in the body posted to the
+// forge. A review submitted on behalf of several authors — a person plus an
+// agent, typically — has to say which comment came from whom.
+func TestReviewBodyBadgesTheAuthor(t *testing.T) {
+	tmpl, _ := LoadReviewBodyTemplate("")
+	got, err := RenderReviewBody(tmpl, &ReviewBodyData{
+		ReviewComments: []ReviewBodyComment{
+			{Content: "Theirs.", Author: "claude", ShowAuthor: true},
+			{Content: "Mine.", Author: "ryan"},
+		},
+		MovedToSummary: []ReviewBodyComment{
+			{Type: "issue", Path: "src/a.go", Content: "off-by-one", Author: "claude", ShowAuthor: true},
+			{Path: "src/b.go", Content: "untyped", Author: "claude", ShowAuthor: true},
+			{Type: "note", Path: "src/c.go", Content: "mine", Author: "ryan"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "**[@claude]** Theirs.\n\nMine.\n\n## Unplaced comments\n\n" +
+		"- [ISSUE @claude] src/a.go: off-by-one\n" +
+		"- [@claude] src/b.go: untyped\n" +
+		"- [NOTE] src/c.go: mine"
+	if got != want {
+		t.Fatalf("got:\n%q\nwant:\n%q", got, want)
+	}
+}
+
+// TestReviewBodyLeavesUnauthoredCommentsAlone pins backward compatibility for
+// sessions written before mrman stamped authors.
+func TestReviewBodyLeavesUnauthoredCommentsAlone(t *testing.T) {
+	tmpl, _ := LoadReviewBodyTemplate("")
+	got, err := RenderReviewBody(tmpl, &ReviewBodyData{
+		ReviewComments: []ReviewBodyComment{{Content: "old note", ShowAuthor: true}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "old note" {
+		t.Fatalf("an unauthored comment must render unchanged, got %q", got)
+	}
+}

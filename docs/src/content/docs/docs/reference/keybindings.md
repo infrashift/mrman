@@ -104,7 +104,7 @@ thread) and its colour shows the comment type.
 |---|---|
 | `r` | Toggle the file reviewed |
 | `R` | Toggle the hunk reviewed |
-| `c` | Comment on the line at the cursor |
+| `c` | Comment on the line at the cursor, or on the whole hunk when the cursor is on a `@@` header |
 | `C` | Comment on the file |
 | `<leader>c` | Comment on the whole review |
 | `v` / `V` | Visual select |
@@ -120,9 +120,15 @@ existing comments; mrman says so rather than silently doing nothing.
 | Key | Action |
 |---|---|
 | `j` / `k` | Extend the selection |
+| `]` / `[` | Extend the selection by a whole hunk |
 | `c` / `Enter` | Comment on the range |
 | `y` | Copy the selection |
 | `Esc` / `v` / `V` / `q` | Cancel |
+
+`]` grows the selection to the end of the hunk you are in, then to the end of
+each hunk after it; `[` does the same backwards. They stop on real diff lines
+rather than `@@` headers, because a header has no line number to anchor a
+comment to. Neither takes a count prefix — nothing in visual mode does.
 
 ## Comment box
 
@@ -195,10 +201,15 @@ alone.
 | Click a diff line | Place the cursor there |
 | Click a commit | Toggle it and reload the diff |
 | Click a navigator row | Jump to that comment |
-| Drag in the diff | Select; `y` then copies it |
+| Drag in the diff | Select; the range highlights as you drag, and `y` copies it |
 
-Hold your terminal's bypass modifier (usually Shift or Option) for native
-selection while the mouse is enabled.
+A drag highlights exactly the text `y` will put on the clipboard — character
+by character, on the side-by-side column you dragged in.
+
+To copy out to another application, use the terminal's own selection instead:
+hold its bypass modifier (usually Shift, or Option on some macOS terminals),
+or run `:set mouse!` to turn tracking off entirely for the rest of the
+session.
 
 ## Commands
 
@@ -216,6 +227,7 @@ selection while the mouse is enabled.
 | `:clearc` | Clear comments only |
 | `:diff` | Toggle unified / side-by-side |
 | `:wrap` `:set wrap` `:set wrap!` | Line wrap |
+| `:mouse` `:set mouse` `:set nomouse` `:set mouse!` | Mouse tracking; off hands the terminal back its own selection |
 | `:focus` `:f` | Toggle single-file view |
 | `:stage` | Stage the reviewed files — unstaged git reviews only |
 | `:commits` `:targets` | Open the target selector |

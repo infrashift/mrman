@@ -69,8 +69,8 @@ func TestDefault(t *testing.T) {
 	if cfg.InitialCommitSelection != "all" {
 		t.Errorf("InitialCommitSelection = %q, want all", cfg.InitialCommitSelection)
 	}
-	if cfg.IgnoreWhitespace || cfg.Wrap || cfg.CommentVim || cfg.SingleFileView {
-		t.Error("IgnoreWhitespace, Wrap, CommentVim, SingleFileView should default to false")
+	if cfg.IgnoreWhitespace || cfg.Wrap || cfg.CommentVim || cfg.SingleFileView || cfg.ExportDiff || cfg.ShowOwnAuthor {
+		t.Error("IgnoreWhitespace, Wrap, CommentVim, SingleFileView, ExportDiff, ShowOwnAuthor should default to false")
 	}
 	if !cfg.ExportLegend || !cfg.CursorLine || !cfg.Mouse || !cfg.TransparentBackground {
 		t.Error("ExportLegend, CursorLine, Mouse, TransparentBackground should default to true")
@@ -686,6 +686,7 @@ initial_commit_selection = "oldest"
 ignore_whitespace = true
 wrap = true
 export_legend = false
+export_diff = true
 cursor_line = false
 mouse = false
 comment_vim = true
@@ -696,6 +697,7 @@ scroll_offset = 5
 review_watch_interval_ms = 250
 single_file_view = true
 username = "reviewer"
+show_own_author = true
 
 comment_types = [
   { id = "note", label = "question", definition = "ask", color = "yellow" },
@@ -733,6 +735,7 @@ token = "$CODEBERG_TOKEN"
 		IgnoreWhitespace:       true,
 		Wrap:                   true,
 		ExportLegend:           false,
+		ExportDiff:             true,
 		CursorLine:             false,
 		Mouse:                  false,
 		CommentVim:             true,
@@ -743,6 +746,7 @@ token = "$CODEBERG_TOKEN"
 		ReviewWatchIntervalMS:  250,
 		SingleFileView:         true,
 		Username:               "reviewer",
+		ShowOwnAuthor:          true,
 		Templates:              TemplatesConfig{Notes: "notes.tmpl", ReviewBody: "body.tmpl"},
 		Forge: ForgeConfig{
 			Default:           "forgejo",

@@ -15,6 +15,7 @@ import (
 	render "github.com/infrashift/mrman/charmkit/cellrender"
 	"github.com/infrashift/mrman/internal/input"
 	"github.com/infrashift/mrman/internal/model"
+	"github.com/infrashift/mrman/internal/output"
 	"github.com/infrashift/mrman/internal/reviewcli"
 	"github.com/infrashift/mrman/internal/vcs"
 )
@@ -939,21 +940,31 @@ func (a *App) enterCommentInput() {
 // EnterCommentMode opens the comment input for a new comment: file-level
 // when fileLevel is set, otherwise anchored to the diff line under the
 // cursor (warning and no mode change when the cursor is not on one).
+//
+// On a hunk header the anchor is the whole hunk, which is an ordinary range
+// comment spanning it — the header row was otherwise the one cursor position
+// where c could do nothing at all.
 func (a *App) EnterCommentMode(fileLevel bool) {
 	var line *CommentAnchor
+	var lineRange *CommentRangeAnchor
 	if !fileLevel {
-		lineno, side, ok := a.LineAtCursor()
-		if !ok {
-			a.SetMessage("Move cursor to a diff line to add a line comment")
-			return
+		if rng, side, ok := a.hunkCommentRangeAtCursor(); ok {
+			lineRange = &CommentRangeAnchor{Range: rng, Side: side}
+			line = &CommentAnchor{Line: rng.End, Side: side}
+		} else {
+			lineno, side, ok := a.LineAtCursor()
+			if !ok {
+				a.SetMessage("Move cursor to a diff line to add a line comment")
+				return
+			}
+			line = &CommentAnchor{Line: lineno, Side: side}
 		}
-		line = &CommentAnchor{Line: lineno, Side: side}
 	}
 	a.enterCommentInput()
 	a.CommentIsReviewLevel = false
 	a.CommentIsFileLevel = fileLevel
 	a.CommentLine = line
-	a.CommentLineRange = nil
+	a.CommentLineRange = lineRange
 	a.EditingCommentID = nil
 }
 
@@ -1021,6 +1032,29 @@ func (a *App) usernameOrDefault() string {
 		return a.Username
 	}
 	return model.DefaultAuthor
+}
+
+// AuthorVisibility is the badge rule as the exports need it: a value they can
+// carry, since output must not import app.
+func (a *App) AuthorVisibility() output.AuthorVisibility {
+	return output.AuthorVisibility{Username: a.Username, ShowOwnAuthor: a.ShowOwnAuthor}
+}
+
+// ShowsAuthor reports whether a comment by the given author should carry an
+// author badge.
+//
+// Your own comments are unbadged by default: the badge is there to mark what
+// someone else wrote, and repeating your own name on every one of your notes
+// buries the handful that are not yours. show_own_author opts back in, for
+// anyone who would rather see every comment attributed.
+//
+// An empty author is never badged. That is a comment written before mrman
+// stamped authors at all, and inventing one for it would be a guess.
+//
+// The rule itself lives in output so that the TUI and every export badge the
+// same comments; this is the app-side spelling of it.
+func (a *App) ShowsAuthor(author string) bool {
+	return a.AuthorVisibility().Shows(author)
 }
 
 // findCommentByID returns the comment with the given id, or nil.

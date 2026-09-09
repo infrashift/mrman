@@ -8,6 +8,7 @@ import (
 // applyConfig wires loaded configuration onto the app state and model,
 // mirroring tuicr's main.rs config-override pass.
 func applyConfig(cfg config.Config, a *app.App, m *Model) {
+	a.ShowOwnAuthor = cfg.ShowOwnAuthor
 	if cfg.Username != "" {
 		a.Username = cfg.Username
 	}
@@ -51,6 +52,7 @@ func applyConfig(cfg config.Config, a *app.App, m *Model) {
 	m.commentTabWidth = cfg.CommentTabWidth
 	m.mouseEnabled = cfg.Mouse
 	m.export.ShowLegend = cfg.ExportLegend
+	m.export.IncludeDiff = cfg.ExportDiff
 	m.export.TemplatePath = cfg.Templates.Notes
 	m.export.ReviewBodyTemplatePath = cfg.Templates.ReviewBody
 	m.export.PatchTemplatePath = cfg.Templates.PatchReply

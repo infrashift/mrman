@@ -351,3 +351,60 @@ func TestSideFromLineSide(t *testing.T) {
 		t.Fatal("new should map to SideNew")
 	}
 }
+
+// TestMapsHunkDerivedRange guards the seam between DiffHunk.CommentSpan and
+// this package: a hunk comment is nothing but a range whose bounds the hunk
+// chose, so the origin filter CommentSpan selects lines with has to agree with
+// the one rangeEndpointsPresent validates against. If they ever drift, every
+// hunk comment silently becomes MixedSideRange at submit.
+func TestMapsHunkDerivedRange(t *testing.T) {
+	file := typicalFile()
+	span, side, ok := file.Hunks[0].CommentSpan()
+	if !ok {
+		t.Fatal("the fixture hunk must yield a span")
+	}
+	if span != model.NewLineRange(10, 12) || side != model.LineSideNew {
+		t.Fatalf("span: got %+v on %q, want {10 12} on new", span, side)
+	}
+
+	inline := mustInline(t, MapComment(commentRange(side, span), RangeAnchor(), file, true))
+
+	if inline.StartLine == nil || *inline.StartLine != 10 {
+		t.Fatalf("StartLine: got %v, want 10", inline.StartLine)
+	}
+	if inline.Line != 12 {
+		t.Errorf("Line: got %d, want 12", inline.Line)
+	}
+	if inline.Side != SideNew {
+		t.Errorf("Side: got %v, want %v", inline.Side, SideNew)
+	}
+	if inline.StartSide == nil || *inline.StartSide != SideNew {
+		t.Fatalf("StartSide: got %v, want %v", inline.StartSide, SideNew)
+	}
+}
+
+// TestMapsHunkDerivedRangeOnAPureDeletion is the old-side fallback: the hunk
+// has no new-side line to anchor to, so the range must land on the old side and
+// still map.
+func TestMapsHunkDerivedRangeOnAPureDeletion(t *testing.T) {
+	file := fileWithHunks(hunk(
+		line(model.OriginDeletion, nil, new(uint32(30))),
+		line(model.OriginDeletion, nil, new(uint32(31))),
+	))
+	span, side, ok := file.Hunks[0].CommentSpan()
+	if !ok {
+		t.Fatal("a pure-deletion hunk must still yield a span")
+	}
+	if side != model.LineSideOld {
+		t.Fatalf("side: got %q, want old", side)
+	}
+
+	inline := mustInline(t, MapComment(commentRange(side, span), RangeAnchor(), file, true))
+
+	if inline.StartLine == nil || *inline.StartLine != 30 || inline.Line != 31 {
+		t.Fatalf("range: got start %v end %d, want 30..31", inline.StartLine, inline.Line)
+	}
+	if inline.Side != SideOld {
+		t.Errorf("Side: got %v, want %v", inline.Side, SideOld)
+	}
+}

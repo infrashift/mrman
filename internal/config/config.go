@@ -106,6 +106,10 @@ type Config struct {
 	Wrap bool
 	// ExportLegend includes the comment-type legend in markdown exports.
 	ExportLegend bool
+	// ExportDiff quotes the hunk each line comment is anchored in above the
+	// comment in markdown exports. Off by default: it makes the notes
+	// substantially longer, which not every reader wants.
+	ExportDiff bool
 	// CursorLine highlights the current cursor line.
 	CursorLine bool
 	// Mouse enables wheel scrolling, clicks, and drag-to-select.
@@ -130,6 +134,9 @@ type Config struct {
 	SingleFileView bool
 	// Username is the display name stamped on locally authored comments.
 	Username string
+	// ShowOwnAuthor renders the author badge on your own comments too. Off
+	// by default: the badge marks what someone else wrote.
+	ShowOwnAuthor bool
 	// Templates holds paths to user markdown template overrides.
 	Templates TemplatesConfig
 	// Forge holds the [forge] section.

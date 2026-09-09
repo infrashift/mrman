@@ -285,6 +285,57 @@ func TestCancelSubmit(t *testing.T) {
 	}
 }
 
+// TestReviewBodyCarriesTheAuthorBadge is the wiring test for the review body:
+// the badge rule lives in output, but nothing reaches it unless the submit
+// path copies each comment's author across. It did not, so an agent's review
+// posted to a forge read as if the submitter had written all of it.
+func TestReviewBodyCarriesTheAuthorBadge(t *testing.T) {
+	a := prTestApp(t, allCaps())
+	a.Username = "ryan"
+	theirs := model.NewComment("theirs", model.CommentTypeFromID("note"), nil)
+	theirs.Author = "claude"
+	mine := model.NewComment("mine", model.CommentTypeFromID("note"), nil)
+	mine.Author = "ryan"
+	a.Session.ReviewComments = append(a.Session.ReviewComments, theirs, mine)
+
+	if !a.StartSubmitWith(forge.SubmitComment, false) {
+		t.Fatal("submit must start")
+	}
+	body, warnings, err := BuildReviewBody(a, "")
+	if err != nil || len(warnings) != 0 {
+		t.Fatalf("BuildReviewBody: err=%v warnings=%v", err, warnings)
+	}
+	if !strings.Contains(body, "**[@claude]** theirs") {
+		t.Errorf("someone else's review comment must be badged:\n%s", body)
+	}
+	if strings.Contains(body, "@ryan") {
+		t.Errorf("your own review comment must not be badged:\n%s", body)
+	}
+}
+
+// TestUnplacedCommentCarriesTheAuthorBadge covers the other half of the body:
+// a comment the resolver moved to the summary keeps its attribution too.
+func TestUnplacedCommentCarriesTheAuthorBadge(t *testing.T) {
+	a := prTestApp(t, allCaps())
+	a.Username = "ryan"
+	orphan := addLineComment(t, a, "src/x.go", 9999, "orphan")
+	orphan.Author = "claude"
+
+	if !a.StartSubmitWith(forge.SubmitComment, false) {
+		t.Fatal("submit must start with unmappables")
+	}
+	if len(a.Submit.MovedToSummary()) != 1 {
+		t.Fatalf("expected the orphan to move to the summary: %+v", a.Submit.Unmappable)
+	}
+	body, _, err := BuildReviewBody(a, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(body, "@claude] src/x.go: orphan") {
+		t.Errorf("an unplaced comment must keep its author:\n%s", body)
+	}
+}
+
 // TestApplySubmitResultPartialLocksOnlyWhatPosted covers the GitLab and
 // Azure DevOps contract: the forge posted some inline comments, then
 // refused one. Only the posted ones (and the body, which both drivers post

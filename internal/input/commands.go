@@ -35,6 +35,12 @@ const (
 	CmdSetCommitsVisible
 	CmdSetCommitsHidden
 	CmdToggleCommits
+	// CmdSetMouse and friends control mouse tracking. Turning it off hands
+	// the terminal back its own selection, which is how a user copies text
+	// with the mouse into an application mrman knows nothing about.
+	CmdSetMouse
+	CmdSetNoMouse
+	CmdToggleMouse
 	CmdDiff
 	CmdFocus
 	CmdStage
@@ -89,6 +95,9 @@ var commandSpecs = []struct {
 	{"set commits", CmdSetCommitsVisible},
 	{"set nocommits", CmdSetCommitsHidden},
 	{"set commits!", CmdToggleCommits},
+	{"set mouse", CmdSetMouse},
+	{"set nomouse", CmdSetNoMouse},
+	{"set mouse!", CmdToggleMouse}, {"mouse", CmdToggleMouse},
 	{"diff", CmdDiff},
 	{"focus", CmdFocus}, {"f", CmdFocus},
 	{"stage", CmdStage},

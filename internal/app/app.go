@@ -96,6 +96,28 @@ type DiffState struct {
 	// viewport (set during render). When wrapping is enabled this accounts
 	// for lines expanding to multiple visual rows.
 	VisibleLineCount int
+	// RowAnnotations maps each drawn row of the diff pane to the annotation
+	// it came from (set during render). Only the renderer knows how many rows
+	// a line took, so mouse hit-testing reads this rather than assuming one
+	// row per annotation — which is wrong the moment wrapping splits a line.
+	RowAnnotations []int
+}
+
+// AnnotationAtRow maps a zero-based row of the diff pane body to the
+// annotation drawn there, using the map the last render recorded. It falls
+// back to the flat scroll-offset arithmetic before the first render, and
+// reports false when the row is past the drawn content.
+func (d *DiffState) AnnotationAtRow(row int) (int, bool) {
+	if row < 0 {
+		return 0, false
+	}
+	if len(d.RowAnnotations) == 0 {
+		return d.ScrollOffset + row, true
+	}
+	if row >= len(d.RowAnnotations) {
+		return 0, false
+	}
+	return d.RowAnnotations[row], true
 }
 
 // NewDiffState returns the default diff state (wrapping on, everything else
@@ -239,6 +261,10 @@ type App struct {
 	EditingCommentID *string
 	// Username is stamped as the author on new comments (config).
 	Username string
+	// ShowOwnAuthor renders the author badge on your own comments too
+	// (config). Off by default, because the badge exists to mark comments
+	// that are *not* yours and a column of your own name defeats that.
+	ShowOwnAuthor bool
 
 	// VisualSelection is the active visual-mode selection, nil outside
 	// visual mode.
@@ -388,6 +414,28 @@ func (a *App) HunkAtCursor() (fileIdx, hunkIdx int, ok bool) {
 	default:
 		return 0, 0, false
 	}
+}
+
+// hunkCommentRangeAtCursor returns the range and side a whole-hunk comment
+// would anchor to, but only when the cursor rests on a hunk header. Diff-line
+// rows report false so c goes on meaning "comment on this line" there —
+// HunkAtCursor resolves those too, which is why it cannot be used alone.
+func (a *App) hunkCommentRangeAtCursor() (model.LineRange, model.LineSide, bool) {
+	none := func() (model.LineRange, model.LineSide, bool) {
+		return model.LineRange{}, model.LineSideNew, false
+	}
+	if a.DiffState.CursorLine >= len(a.LineAnnotations) {
+		return none()
+	}
+	ann := &a.LineAnnotations[a.DiffState.CursorLine]
+	if ann.Kind != AnnHunkHeader || ann.FileIdx >= len(a.DiffFiles) {
+		return none()
+	}
+	file := &a.DiffFiles[ann.FileIdx]
+	if ann.HunkIdx >= len(file.Hunks) {
+		return none()
+	}
+	return file.Hunks[ann.HunkIdx].CommentSpan()
 }
 
 // hunkReviewTarget resolves (path, review key) for a hunk.

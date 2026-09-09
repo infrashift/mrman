@@ -159,11 +159,17 @@ mrman review add --session <slug> \
 | `--line <n>` | — | Line number for a line comment |
 | `--end-line <n>` | — | End line for a range comment |
 | `--side <old\|new>` | `new` | Diff side |
-| `--username <name>` | — | Comment author |
+| `--username <name>` | config `username`, else `user` | Comment author |
 
 A comment argument **or** `--input` is required. Scope follows from what you
 pass: `--target-file` with `--line` is a line comment, `--target-file` alone is
 a file comment, neither is a review-level comment.
+
+`--username` falls back to the `username` setting from your config file, the
+same value the TUI stamps, so a comment you add from the shell is attributed to
+you without repeating the flag. Pass it explicitly to write as someone else —
+which is what an agent should do, so its findings stay distinguishable from
+yours.
 
 Structured input target types: `review`, `file`, `line`, `line_range`.
 

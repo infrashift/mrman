@@ -29,14 +29,20 @@ func BuildReviewBody(a *App, templatePath string) (body string, warnings []strin
 	}
 	data := &output.ReviewBodyData{}
 	for _, c := range a.Submit.ReviewComments {
-		data.ReviewComments = append(data.ReviewComments,
-			output.ReviewBodyComment{Type: submitTypeID(c.CommentType.ID()), Content: c.Content})
+		data.ReviewComments = append(data.ReviewComments, output.ReviewBodyComment{
+			Type:       submitTypeID(c.CommentType.ID()),
+			Content:    c.Content,
+			Author:     c.Author,
+			ShowAuthor: a.ShowsAuthor(c.Author),
+		})
 	}
 	for _, item := range a.Submit.MovedToSummary() {
 		data.MovedToSummary = append(data.MovedToSummary, output.ReviewBodyComment{
-			Type:    submitTypeID(item.Comment.CommentType.ID()),
-			Path:    item.Path,
-			Content: item.Comment.Content,
+			Type:       submitTypeID(item.Comment.CommentType.ID()),
+			Path:       item.Path,
+			Content:    item.Comment.Content,
+			Author:     item.Comment.Author,
+			ShowAuthor: a.ShowsAuthor(item.Comment.Author),
 		})
 	}
 	tmpl, warnings := output.LoadReviewBodyTemplate(templatePath)

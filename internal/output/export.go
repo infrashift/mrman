@@ -106,13 +106,27 @@ type ExportOptions struct {
 	// CommentTypes is the configured comment-type set, in configuration
 	// order; only types actually used in the session make it into the data.
 	CommentTypes []LegendEntry
+	// IncludeDiff quotes the hunk each line comment is anchored in into
+	// TemplateComment.Diff. Off by default: it changes what every export
+	// looks like, so it is the export_diff setting's to turn on.
+	IncludeDiff bool
+	// Author decides which comments carry an author badge. The zero value
+	// badges every authored comment.
+	Author AuthorVisibility
 }
 
 // BuildTemplateData flattens a review session into the template data model:
 // review comments first, then files sorted by path with file comments before
 // line comments (ordered by line key), all numbered continuously. It returns
 // errs.ErrNoComments when the session has nothing to export.
-func BuildTemplateData(session *model.ReviewSession, scopeLine string, opts ExportOptions) (*TemplateData, error) {
+//
+// files is the diff the session was written against, used only to quote each
+// line comment's hunk when opts.IncludeDiff is set. It may be nil otherwise —
+// the notes export has never needed the diff for anything else.
+func BuildTemplateData(
+	session *model.ReviewSession, files []model.DiffFile,
+	scopeLine string, opts ExportOptions,
+) (*TemplateData, error) {
 	if !session.HasComments() {
 		return nil, errs.ErrNoComments
 	}
@@ -141,7 +155,7 @@ func BuildTemplateData(session *model.ReviewSession, scopeLine string, opts Expo
 	}
 	for _, c := range session.ReviewComments {
 		data.ReviewComments = append(data.ReviewComments,
-			templateComment(c, reviewLocation, next(), opts.CommentTypes))
+			templateComment(c, reviewLocation, next(), opts.CommentTypes, opts.Author))
 	}
 
 	paths := make([]string, 0, len(session.Files))
@@ -150,6 +164,8 @@ func BuildTemplateData(session *model.ReviewSession, scopeLine string, opts Expo
 	}
 	sort.Strings(paths)
 
+	quoter := newHunkQuoter(files, opts.IncludeDiff)
+
 	comments := 0
 	for _, path := range paths {
 		review := session.Files[path]
@@ -157,10 +173,13 @@ func BuildTemplateData(session *model.ReviewSession, scopeLine string, opts Expo
 		if review.CommentCount() == 0 {
 			continue
 		}
+		// A repeated hunk is only suppressed within one file's run of
+		// comments; the next file starts over.
+		quoter.reset()
 		file := TemplateFile{Path: path, Status: string(review.Status)}
 		for _, c := range review.FileComments {
 			file.Comments = append(file.Comments,
-				templateComment(c, path, next(), opts.CommentTypes))
+				templateComment(c, path, next(), opts.CommentTypes, opts.Author))
 		}
 		lines := make([]uint32, 0, len(review.LineComments))
 		for line := range review.LineComments {
@@ -169,8 +188,9 @@ func BuildTemplateData(session *model.ReviewSession, scopeLine string, opts Expo
 		slices.Sort(lines)
 		for _, line := range lines {
 			for _, c := range review.LineComments[line] {
-				file.Comments = append(file.Comments,
-					templateComment(c, lineLocation(path, line, c), next(), opts.CommentTypes))
+				tc := templateComment(c, lineLocation(path, line, c), next(), opts.CommentTypes, opts.Author)
+				tc.Diff = quoter.quote(path, line, c)
+				file.Comments = append(file.Comments, tc)
 			}
 		}
 		data.Files = append(data.Files, file)
@@ -183,13 +203,21 @@ func BuildTemplateData(session *model.ReviewSession, scopeLine string, opts Expo
 }
 
 // templateComment converts a model comment at the given location and number.
-func templateComment(c *model.Comment, location string, number int, configured []LegendEntry) TemplateComment {
+//
+// It is the single conversion point for every export, which is why the author
+// badge is resolved here: get it right once and the notes export, the reply
+// and the orphan list all agree about who wrote what.
+func templateComment(
+	c *model.Comment, location string, number int,
+	configured []LegendEntry, vis AuthorVisibility,
+) TemplateComment {
 	tc := TemplateComment{
-		Type:     exportTypeLabel(c.CommentType, configured),
-		Author:   c.Author,
-		Location: location,
-		Content:  c.Content,
-		Number:   number,
+		Type:       exportTypeLabel(c.CommentType, configured),
+		Author:     c.Author,
+		ShowAuthor: vis.Shows(c.Author),
+		Location:   location,
+		Content:    c.Content,
+		Number:     number,
 	}
 	if c.CommitID != nil {
 		tc.CommitID = shortSHA(*c.CommitID)
