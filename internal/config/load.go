@@ -308,6 +308,10 @@ func applyForge(f map[string]any, forge *ForgeConfig, warnings *[]string) {
 		h.TokenCmd, _ = stringAt(entry, "token_cmd")
 		h.CAFile, _ = stringAt(entry, "ca_file")
 		h.InsecureSkipVerify, _ = boolAt(entry, "insecure_skip_verify")
+		if strings.HasPrefix(strings.ToLower(h.APIBase), "http://") {
+			*warnings = append(*warnings, fmt.Sprintf(
+				"forge host %s: api_base uses plaintext http — tokens will be sent unencrypted", h.Host))
+		}
 		if h.InsecureSkipVerify {
 			*warnings = append(*warnings, fmt.Sprintf(
 				"forge host %s: insecure_skip_verify is on — TLS certificates are not verified", h.Host))
