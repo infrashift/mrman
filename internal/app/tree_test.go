@@ -11,7 +11,7 @@ import (
 )
 
 func makeTreeFile(path string) model.DiffFile {
-	return model.DiffFile{NewPath: strPtr(path), Status: model.StatusModified}
+	return model.DiffFile{NewPath: new(path), Status: model.StatusModified}
 }
 
 func treeApp(paths ...string) *App {

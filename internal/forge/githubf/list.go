@@ -58,7 +58,7 @@ func (d *Driver) listOpen(ctx context.Context, q forge.ListQuery, page, size int
 	for _, pr := range prs {
 		items = append(items, forge.PullRequestSummary{
 			Repository:  q.Repository,
-			Number:      uint64(pr.GetNumber()),
+			Number:      uint64(pr.GetNumber()), //nolint:gosec // G115: the forge never returns a negative id
 			Title:       pr.GetTitle(),
 			Author:      pr.GetUser().GetLogin(),
 			HeadRefName: pr.GetHead().GetRef(),
@@ -93,7 +93,7 @@ func (d *Driver) listReviewRequested(ctx context.Context, q forge.ListQuery, pag
 	for _, issue := range result.Issues {
 		items = append(items, forge.PullRequestSummary{
 			Repository: q.Repository,
-			Number:     uint64(issue.GetNumber()),
+			Number:     uint64(issue.GetNumber()), //nolint:gosec // G115: the forge never returns a negative id
 			Title:      issue.GetTitle(),
 			Author:     issue.GetUser().GetLogin(),
 			UpdatedAt:  timePtr(issue.UpdatedAt),

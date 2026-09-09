@@ -5,6 +5,7 @@
 // replies to, resolves, or persists them past the in-memory cache. Their
 // annotation kinds exist so hit-testing, scroll math and search stay correct
 // while the cursor passes over them — not so they can be edited.
+
 package app
 
 import (
@@ -273,7 +274,7 @@ func RemoteThreadSegments(thread *forge.RemoteReviewThread, viewportWidth int) [
 			header = "↳ " + header
 		}
 		segments = append(segments, header)
-		for _, line := range strings.Split(comment.Body, "\n") {
+		for line := range strings.SplitSeq(comment.Body, "\n") {
 			segments = append(segments, WrapSegments(line, contentArea)...)
 		}
 	}
@@ -284,7 +285,7 @@ func RemoteThreadSegments(thread *forge.RemoteReviewThread, viewportWidth int) [
 func RemoteSummarySegments(summary *forge.RemoteReviewSummary, viewportWidth int) []string {
 	contentArea := max(viewportWidth-10, 1)
 	var segments []string
-	for _, line := range strings.Split(summary.Body, "\n") {
+	for line := range strings.SplitSeq(summary.Body, "\n") {
 		segments = append(segments, WrapSegments(line, contentArea)...)
 	}
 	return segments

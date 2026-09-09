@@ -124,13 +124,13 @@ func colorSlots(t *testing.T, th *Theme) map[string]color.Color {
 	t.Helper()
 	slots := map[string]color.Color{}
 	v := reflect.ValueOf(th).Elem()
-	colorType := reflect.TypeOf((*color.Color)(nil)).Elem()
+	colorType := reflect.TypeFor[color.Color]()
 	for i := 0; i < v.NumField(); i++ {
 		field := v.Type().Field(i)
 		if !field.IsExported() || field.Type != colorType {
 			continue
 		}
-		c, _ := v.Field(i).Interface().(color.Color)
+		c, _ := reflect.TypeAssert[color.Color](v.Field(i))
 		slots[field.Name] = c
 	}
 	return slots

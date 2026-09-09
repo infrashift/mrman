@@ -2,6 +2,7 @@
 // cursor helpers) plus the comment-buffer operations from the comment-mode
 // half of tuicr's handler.rs, operating on App.CommentBuffer and
 // App.CommentCursor.
+
 package app
 
 import (

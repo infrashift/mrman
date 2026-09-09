@@ -26,7 +26,7 @@ func (d *Driver) ListReviewThreads(ctx context.Context, pr *forge.PullRequestDet
 	page := int64(1)
 	for range maxDiscussionPages {
 		rows, resp, err := d.client.Discussions.ListMergeRequestDiscussions(
-			projectID(pr.Repository), int64(pr.Number),
+			projectID(pr.Repository), int64(pr.Number), //nolint:gosec // G115: pull request numbers are small forge-assigned integers
 			&gitlab.ListMergeRequestDiscussionsOptions{
 				ListOptions: gitlab.ListOptions{Page: page, PerPage: 100},
 			}, gitlab.WithContext(ctx))
@@ -70,14 +70,14 @@ func convertDiscussion(disc *gitlab.Discussion) (forge.RemoteReviewThread, bool)
 	switch {
 	case pos.NewLine != 0:
 		path = pos.NewPath
-		line = uint32(pos.NewLine)
+		line = uint32(pos.NewLine) //nolint:gosec // G115: line numbers fit uint32
 		side = forge.SideNew
 	case pos.OldLine != 0:
 		path = pos.OldPath
 		if path == "" {
 			path = pos.NewPath
 		}
-		line = uint32(pos.OldLine)
+		line = uint32(pos.OldLine) //nolint:gosec // G115: line numbers fit uint32
 		side = forge.SideOld
 	default:
 		return forge.RemoteReviewThread{}, false
@@ -158,9 +158,9 @@ func (d *Driver) ReviewMetadata(ctx context.Context, pr *forge.PullRequestDetail
 	}
 	latestHead := d.latestVersionHead(ctx, pr)
 	approvals, _, err := d.client.MergeRequestApprovals.GetConfiguration(
-		projectID(pr.Repository), int64(pr.Number), gitlab.WithContext(ctx))
+		projectID(pr.Repository), int64(pr.Number), gitlab.WithContext(ctx)) //nolint:gosec // G115: pull request numbers are small forge-assigned integers
 	if err != nil || approvals == nil {
-		return metadata, nil
+		return metadata, nil //nolint:nilerr // approvals are optional metadata; the threads still render
 	}
 	for _, approver := range approvals.ApprovedBy {
 		if approver == nil || approver.User == nil {
@@ -179,7 +179,7 @@ func (d *Driver) ReviewMetadata(ctx context.Context, pr *forge.PullRequestDetail
 // first.
 func (d *Driver) latestVersionHead(ctx context.Context, pr *forge.PullRequestDetails) string {
 	versions, _, err := d.client.MergeRequests.GetMergeRequestDiffVersions(
-		projectID(pr.Repository), int64(pr.Number),
+		projectID(pr.Repository), int64(pr.Number), //nolint:gosec // G115: pull request numbers are small forge-assigned integers
 		&gitlab.GetMergeRequestDiffVersionsOptions{
 			ListOptions: gitlab.ListOptions{Page: 1, PerPage: 1},
 		},

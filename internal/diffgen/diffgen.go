@@ -16,7 +16,6 @@
 package diffgen
 
 import (
-	"bytes"
 	"fmt"
 	"strings"
 )
@@ -125,7 +124,7 @@ func isBinaryContent(content string) bool {
 	if len(sniff) > binarySniffLen {
 		sniff = sniff[:binarySniffLen]
 	}
-	return bytes.IndexByte([]byte(sniff), 0) >= 0
+	return strings.IndexByte(sniff, 0) >= 0
 }
 
 // splitLinesKeepEnds splits content into lines that keep their trailing
@@ -196,10 +195,7 @@ func myersDiff(a, b, ka, kb []string, maxDistance int) []edit {
 		return replaceAll(a, nil)
 	}
 
-	bound := n + m
-	if bound > maxDistance {
-		bound = maxDistance
-	}
+	bound := min(n+m, maxDistance)
 
 	// trace[d] holds the furthest-x frontier after sweep d, compacted to
 	// the d+1 diagonals of matching parity: entry j is diagonal k = -d+2j.
@@ -305,18 +301,12 @@ func backtrack(trace [][]int, a, b []string) []edit {
 func formatHunks(edits []edit, context int) string {
 	type span struct{ lo, hi int } // inclusive edit-index range of one hunk
 	var spans []span
-	for i := 0; i < len(edits); i++ {
+	for i := range edits {
 		if edits[i].kind == editEqual {
 			continue
 		}
-		lo := i - context
-		if lo < 0 {
-			lo = 0
-		}
-		hi := i + context
-		if hi > len(edits)-1 {
-			hi = len(edits) - 1
-		}
+		lo := max(i-context, 0)
+		hi := min(i+context, len(edits)-1)
 		// Extend hi over the whole run of consecutive changes plus trail
 		// context by scanning forward from i in the outer loop instead:
 		// merge with the previous span when they touch or overlap.

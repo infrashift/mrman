@@ -35,11 +35,11 @@ func commentCount(sess *model.ReviewSession) int {
 func TestAdoptCarriesReviewForwardOntoNewHead(t *testing.T) {
 	store := newTestStore(t)
 	repo := makeRepo(t)
-	original := commentedLocalSession(t, repo, "abc1234", strp("main"), model.SourceWorkingTree)
+	original := commentedLocalSession(t, repo, "abc1234", new("main"), model.SourceWorkingTree)
 	oldPath := mustSave(t, store, original)
 
 	adopted, ok, err := store.AdoptSessionForNewHead(
-		repo, strp("main"), "9999999aaa", model.SourceWorkingTree)
+		repo, new("main"), "9999999aaa", model.SourceWorkingTree)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,7 +75,7 @@ func TestAdoptCarriesReviewForwardOntoNewHead(t *testing.T) {
 
 	// And the review now resolves at the new HEAD by the ordinary exact lookup.
 	_, loaded, found, err := store.LoadLatestSessionForContext(
-		repo, strp("main"), "9999999aaa", model.SourceWorkingTree, nil)
+		repo, new("main"), "9999999aaa", model.SourceWorkingTree, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,10 +90,10 @@ func TestAdoptSkipsEmptySession(t *testing.T) {
 	store := newTestStore(t)
 	repo := makeRepo(t)
 	oldPath := mustSave(t, store,
-		makeLocalSession(t, repo, "abc1234", strp("main"), model.SourceWorkingTree, nil))
+		makeLocalSession(t, repo, "abc1234", new("main"), model.SourceWorkingTree, nil))
 
 	_, ok, err := store.AdoptSessionForNewHead(
-		repo, strp("main"), "9999999aaa", model.SourceWorkingTree)
+		repo, new("main"), "9999999aaa", model.SourceWorkingTree)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,12 +110,12 @@ func TestAdoptSkipsEmptySession(t *testing.T) {
 func TestAdoptCarriesReviewedOnlySession(t *testing.T) {
 	store := newTestStore(t)
 	repo := makeRepo(t)
-	sess := makeLocalSession(t, repo, "abc1234", strp("main"), model.SourceWorkingTree, nil)
+	sess := makeLocalSession(t, repo, "abc1234", new("main"), model.SourceWorkingTree, nil)
 	sess.Files["src/main.go"].Reviewed = true
 	mustSave(t, store, sess)
 
 	adopted, ok, err := store.AdoptSessionForNewHead(
-		repo, strp("main"), "9999999aaa", model.SourceWorkingTree)
+		repo, new("main"), "9999999aaa", model.SourceWorkingTree)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,14 +137,14 @@ func TestAdoptRefusesNonLiveSources(t *testing.T) {
 		t.Run(string(src), func(t *testing.T) {
 			store := newTestStore(t)
 			repo := makeRepo(t)
-			sess := commentedLocalSession(t, repo, "abc1234", strp("main"), src)
+			sess := commentedLocalSession(t, repo, "abc1234", new("main"), src)
 			sess.CommitRange = []string{"abc1234", "0000111"}
 			if src != model.SourcePullRequest {
 				mustSave(t, store, sess)
 			}
 
 			if _, ok, err := store.AdoptSessionForNewHead(
-				repo, strp("main"), "9999999aaa", src); err != nil || ok {
+				repo, new("main"), "9999999aaa", src); err != nil || ok {
 				t.Errorf("source %s must not carry forward (ok=%v, err=%v)", src, ok, err)
 			}
 		})
@@ -170,10 +170,10 @@ func TestAdoptRefusesDetachedHead(t *testing.T) {
 func TestAdoptDoesNotCrossBranches(t *testing.T) {
 	store := newTestStore(t)
 	repo := makeRepo(t)
-	mustSave(t, store, commentedLocalSession(t, repo, "abc1234", strp("main"), model.SourceWorkingTree))
+	mustSave(t, store, commentedLocalSession(t, repo, "abc1234", new("main"), model.SourceWorkingTree))
 
 	if _, ok, err := store.AdoptSessionForNewHead(
-		repo, strp("feature"), "9999999aaa", model.SourceWorkingTree); err != nil || ok {
+		repo, new("feature"), "9999999aaa", model.SourceWorkingTree); err != nil || ok {
 		t.Errorf("another branch must not adopt this review (ok=%v, err=%v)", ok, err)
 	}
 }
@@ -183,10 +183,10 @@ func TestAdoptDoesNotCrossBranches(t *testing.T) {
 func TestAdoptDoesNotCrossDiffSources(t *testing.T) {
 	store := newTestStore(t)
 	repo := makeRepo(t)
-	mustSave(t, store, commentedLocalSession(t, repo, "abc1234", strp("main"), model.SourceStaged))
+	mustSave(t, store, commentedLocalSession(t, repo, "abc1234", new("main"), model.SourceStaged))
 
 	if _, ok, err := store.AdoptSessionForNewHead(
-		repo, strp("main"), "9999999aaa", model.SourceWorkingTree); err != nil || ok {
+		repo, new("main"), "9999999aaa", model.SourceWorkingTree); err != nil || ok {
 		t.Errorf("a staged review must not be adopted as a worktree one (ok=%v, err=%v)", ok, err)
 	}
 }
@@ -197,10 +197,10 @@ func TestAdoptDoesNotCrossDiffSources(t *testing.T) {
 func TestAdoptDoesNotCrossCheckouts(t *testing.T) {
 	store := newTestStore(t)
 	mine, theirs := makeRepo(t), makeRepo(t)
-	mustSave(t, store, commentedLocalSession(t, theirs, "abc1234", strp("main"), model.SourceWorkingTree))
+	mustSave(t, store, commentedLocalSession(t, theirs, "abc1234", new("main"), model.SourceWorkingTree))
 
 	if _, ok, err := store.AdoptSessionForNewHead(
-		mine, strp("main"), "9999999aaa", model.SourceWorkingTree); err != nil || ok {
+		mine, new("main"), "9999999aaa", model.SourceWorkingTree); err != nil || ok {
 		t.Errorf("another checkout's review must not be adopted (ok=%v, err=%v)", ok, err)
 	}
 }
@@ -211,16 +211,16 @@ func TestAdoptPicksMostRecentlyUpdated(t *testing.T) {
 	store := newTestStore(t)
 	repo := makeRepo(t)
 
-	older := commentedLocalSession(t, repo, "aaaaaaa1", strp("main"), model.SourceWorkingTree)
+	older := commentedLocalSession(t, repo, "aaaaaaa1", new("main"), model.SourceWorkingTree)
 	older.UpdatedAt = time.Now().Add(-2 * time.Hour)
 	mustSave(t, store, older)
 
-	newer := commentedLocalSession(t, repo, "bbbbbbb2", strp("main"), model.SourceWorkingTree)
+	newer := commentedLocalSession(t, repo, "bbbbbbb2", new("main"), model.SourceWorkingTree)
 	newer.UpdatedAt = time.Now().Add(-1 * time.Minute)
 	mustSave(t, store, newer)
 
 	adopted, ok, err := store.AdoptSessionForNewHead(
-		repo, strp("main"), "9999999aaa", model.SourceWorkingTree)
+		repo, new("main"), "9999999aaa", model.SourceWorkingTree)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -250,11 +250,11 @@ func TestAdoptPicksMostRecentlyUpdated(t *testing.T) {
 func TestAdoptAtExistingHeadResolvesWithoutCarrying(t *testing.T) {
 	store := newTestStore(t)
 	repo := makeRepo(t)
-	sess := commentedLocalSession(t, repo, "abc1234", strp("main"), model.SourceWorkingTree)
+	sess := commentedLocalSession(t, repo, "abc1234", new("main"), model.SourceWorkingTree)
 	path := mustSave(t, store, sess)
 
 	adopted, ok, err := store.AdoptSessionForNewHead(
-		repo, strp("main"), "abc1234", model.SourceWorkingTree)
+		repo, new("main"), "abc1234", model.SourceWorkingTree)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -281,16 +281,16 @@ func TestAdoptAtExistingHeadResolvesWithoutCarrying(t *testing.T) {
 func TestAdoptTwiceIsIdempotent(t *testing.T) {
 	store := newTestStore(t)
 	repo := makeRepo(t)
-	original := commentedLocalSession(t, repo, "abc1234", strp("main"), model.SourceWorkingTree)
+	original := commentedLocalSession(t, repo, "abc1234", new("main"), model.SourceWorkingTree)
 	mustSave(t, store, original)
 
 	first, ok, err := store.AdoptSessionForNewHead(
-		repo, strp("main"), "9999999aaa", model.SourceWorkingTree)
+		repo, new("main"), "9999999aaa", model.SourceWorkingTree)
 	if err != nil || !ok {
 		t.Fatalf("first adoption failed (ok=%v, err=%v)", ok, err)
 	}
 	second, ok, err := store.AdoptSessionForNewHead(
-		repo, strp("main"), "9999999aaa", model.SourceWorkingTree)
+		repo, new("main"), "9999999aaa", model.SourceWorkingTree)
 	if err != nil || !ok {
 		t.Fatalf("second call must still resolve the session (ok=%v, err=%v)", ok, err)
 	}
@@ -312,13 +312,13 @@ func TestAdoptSurvivesAMissingCandidateFile(t *testing.T) {
 	store := newTestStore(t)
 	repo := makeRepo(t)
 	path := mustSave(t, store,
-		commentedLocalSession(t, repo, "abc1234", strp("main"), model.SourceWorkingTree))
+		commentedLocalSession(t, repo, "abc1234", new("main"), model.SourceWorkingTree))
 	if err := os.Remove(path); err != nil {
 		t.Fatal(err)
 	}
 
 	if _, ok, err := store.AdoptSessionForNewHead(
-		repo, strp("main"), "9999999aaa", model.SourceWorkingTree); err != nil || ok {
+		repo, new("main"), "9999999aaa", model.SourceWorkingTree); err != nil || ok {
 		t.Errorf("a vanished candidate must not fail the open (ok=%v, err=%v)", ok, err)
 	}
 }
@@ -329,9 +329,9 @@ func TestRemoveManifestEntryKeepsSiblings(t *testing.T) {
 	store := newTestStore(t)
 	mine, theirs := makeRepo(t), makeRepo(t)
 	minePath := mustSave(t, store,
-		commentedLocalSession(t, mine, "abc1234", strp("main"), model.SourceWorkingTree))
+		commentedLocalSession(t, mine, "abc1234", new("main"), model.SourceWorkingTree))
 	mustSave(t, store,
-		commentedLocalSession(t, theirs, "abc1234", strp("main"), model.SourceWorkingTree))
+		commentedLocalSession(t, theirs, "abc1234", new("main"), model.SourceWorkingTree))
 
 	manifest := loadManifestOrDefault(store.ReviewsDir)
 	var slugStr string

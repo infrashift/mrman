@@ -2,11 +2,13 @@
 // engine, the layout constants shared with the renderer, source-line jumps,
 // hunk and file navigation, and the render-height math that keeps
 // TotalLines in lockstep with the annotation stream.
+
 package app
 
 import (
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/infrashift/mrman/internal/input"
 	"github.com/infrashift/mrman/internal/model"
@@ -561,8 +563,8 @@ func (a *App) NextFile() {
 func (a *App) PrevFile() {
 	visibleItems := a.BuildVisibleItems()
 	currentFileIdx := a.DiffState.CurrentFileIdx
-	for i := len(visibleItems) - 1; i >= 0; i-- {
-		item := visibleItems[i]
+	for _, item := range slices.Backward(visibleItems) {
+
 		if !item.IsDir && item.FileIdx < currentFileIdx {
 			a.JumpToFile(item.FileIdx)
 			return
@@ -667,9 +669,9 @@ func (a *App) PrevHunk() {
 	a.DownReleasedSinceArm = false
 	a.UpReleasedSinceArm = false
 	positions := a.HunkPositions()
-	for i := len(positions) - 1; i >= 0; i-- {
-		if positions[i] < a.DiffState.CursorLine {
-			a.DiffState.CursorLine = positions[i]
+	for _, position := range slices.Backward(positions) {
+		if position < a.DiffState.CursorLine {
+			a.DiffState.CursorLine = position
 			a.ensureCursorVisible()
 			a.updateCurrentFileFromCursor()
 			return

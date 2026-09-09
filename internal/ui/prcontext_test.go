@@ -165,7 +165,7 @@ func TestPrModePrefetchesTheCurrentFile(t *testing.T) {
 		t.Error("moving into a file must prefetch its context")
 	}
 	calls := f.lineCalls
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		pressPrRune(t, m, 'j')
 	}
 	if f.lineCalls != calls {

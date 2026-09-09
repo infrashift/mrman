@@ -24,7 +24,7 @@ func (c *countingVcs) FileLineCount(path string, s model.FileStatus, ref *string
 // to leave hidden lines between them.
 func gappedApp(t *testing.T, kind DiffSourceKind) (*App, *countingVcs) {
 	t.Helper()
-	info := &vcs.Info{RootPath: "/tmp", HeadCommit: "abc123", BranchName: strPtr("main"), Type: vcs.TypeGit}
+	info := &vcs.Info{RootPath: "/tmp", HeadCommit: "abc123", BranchName: new("main"), Type: vcs.TypeGit}
 	backend := &countingVcs{mockVcs: mockVcs{info: info, totalLines: 100}}
 	session := model.NewReviewSession(info.RootPath, info.HeadCommit, info.BranchName, model.SourceWorkingTree)
 	files := []model.DiffFile{
@@ -153,7 +153,7 @@ func TestCommitMessagePseudoFileHasNoSlash(t *testing.T) {
 // path, so both entries share one FileReview.
 func seriesApp(t *testing.T) *App {
 	t.Helper()
-	info := &vcs.Info{RootPath: "/inbox", HeadCommit: "abc123", BranchName: strPtr("series"), Type: vcs.TypePatch}
+	info := &vcs.Info{RootPath: "/inbox", HeadCommit: "abc123", BranchName: new("series"), Type: vcs.TypePatch}
 	one := makeFileWithHunks("net/foo.c", []model.DiffHunk{makeHunk(1, 3)})
 	one.CommitID, one.SourceIndex = "patch-0001", 0
 	two := makeFileWithHunks("net/foo.c", []model.DiffHunk{makeHunk(1, 3)})

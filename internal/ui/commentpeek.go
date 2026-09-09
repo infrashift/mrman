@@ -41,7 +41,7 @@ func (p *DiffPane) commentPeekOverlay(a *app.App, width, maxHeight int) []string
 	rows := make([]string, 0, height)
 	rows = append(rows, emitter.Line(peekRule(t, "╭──", title, hint, width)))
 
-	for i := 0; i < bodyHeight; i++ {
+	for i := range bodyHeight {
 		idx := peek.ScrollOffset + i
 		if idx >= len(peek.Lines) {
 			rows = append(rows, emitter.Line([]render.Span{

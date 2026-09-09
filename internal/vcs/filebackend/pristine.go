@@ -43,7 +43,7 @@ func CollectTrackedPaths(repoRoot string, run vcs.Runner) ([]string, error) {
 	}
 
 	var paths []string
-	for _, part := range strings.Split(string(stdout), "\x00") {
+	for part := range strings.SplitSeq(string(stdout), "\x00") {
 		if part == "" {
 			continue
 		}

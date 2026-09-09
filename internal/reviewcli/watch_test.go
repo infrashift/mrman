@@ -118,7 +118,7 @@ func TestWatchDoesNotChurnOnUnchangedComments(t *testing.T) {
 
 	// Touch the file repeatedly without changing its content.
 	go func() {
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			time.Sleep(15 * time.Millisecond)
 			_, _ = store.SaveSession(session)
 		}

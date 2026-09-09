@@ -50,11 +50,8 @@ func HeaderWithGrant(a *app.App, t *theme.Theme, width int, grantedEvents []stri
 	}
 
 	right := " " + strings.Join(chunks, " · ") + " "
-	pad := width - render.StringWidth(brand.Text) -
-		render.StringWidth(grantChip) - render.StringWidth(right)
-	if pad < 0 {
-		pad = 0
-	}
+	pad := max(width-render.StringWidth(brand.Text)-
+		render.StringWidth(grantChip)-render.StringWidth(right), 0)
 	spans := []render.Span{
 		brand,
 		{Text: strings.Repeat(" ", pad), Style: render.Style{Bg: t.StatusBarBg}},
@@ -267,11 +264,10 @@ func StatusBar(a *app.App, t *theme.Theme, width int) string {
 	}
 
 	used := render.SpanWidth(left) + render.StringWidth(right.Text)
-	pad := width - used
-	if pad < 0 {
-		pad = 0
-	}
-	spans := append(left, render.Span{Text: strings.Repeat(" ", pad), Style: render.Style{Bg: t.StatusBarBg}})
+	pad := max(width-used, 0)
+	spans := make([]render.Span, 0, len(left)+2)
+	spans = append(spans, left...)
+	spans = append(spans, render.Span{Text: strings.Repeat(" ", pad), Style: render.Style{Bg: t.StatusBarBg}})
 	if right.Text != "" {
 		spans = append(spans, right)
 	}

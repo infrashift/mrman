@@ -144,7 +144,7 @@ func TestBlankContextLineQuotesBare(t *testing.T) {
 
 	out := render(t, build(t, s, parseFixture(t, tabbedDiff), PatchOptions{}))
 
-	for _, line := range strings.Split(out, "\n") {
+	for line := range strings.SplitSeq(out, "\n") {
 		if strings.HasPrefix(line, ">") && strings.TrimRight(line, " \t") != line {
 			t.Errorf("quoted line has trailing whitespace: %q", line)
 		}
@@ -299,8 +299,8 @@ func TestUnquotableFiles(t *testing.T) {
 		file   model.DiffFile
 		reason string
 	}{
-		{"binary", model.DiffFile{NewPath: strPtr("logo.png"), IsBinary: true}, "binary file"},
-		{"too_large", model.DiffFile{NewPath: strPtr("huge.bin"), IsTooLarge: true}, "file too large"},
+		{"binary", model.DiffFile{NewPath: new("logo.png"), IsBinary: true}, "binary file"},
+		{"too_large", model.DiffFile{NewPath: new("huge.bin"), IsTooLarge: true}, "file too large"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -411,7 +411,7 @@ func TestEmptySessionRefuses(t *testing.T) {
 func TestSynthesizedLinesStillQuote(t *testing.T) {
 	line := uint32(1)
 	files := []model.DiffFile{{
-		NewPath:     strPtr("synth.txt"),
+		NewPath:     new("synth.txt"),
 		Status:      model.StatusAdded,
 		SourceIndex: -1,
 		Hunks: []model.DiffHunk{{
@@ -429,8 +429,6 @@ func TestSynthesizedLinesStillQuote(t *testing.T) {
 		t.Errorf("expected the origin prefix to be reconstructed:\n%s", out)
 	}
 }
-
-func strPtr(s string) *string { return &s }
 
 // TestSeriesQuotesEachPatchSeparately covers the reply half of the same
 // collision. Grouping by path alone kept one entry per path, so a comment

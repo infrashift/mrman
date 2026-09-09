@@ -261,7 +261,7 @@ func stripPath(raw string, stripLevel int) string {
 	if path == devNull {
 		return devNull
 	}
-	for n := 0; n < stripLevel; n++ {
+	for range stripLevel {
 		_, rest, ok := strings.Cut(path, "/")
 		if !ok || rest == "" {
 			// Stripping would leave nothing; keep what we have. A patch whose

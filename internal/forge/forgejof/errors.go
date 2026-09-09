@@ -45,8 +45,7 @@ func (d *Driver) wrap(op string, resp *forgejo.Response, err error) error {
 	if err == nil {
 		return nil
 	}
-	var fe *forge.Error
-	if errors.As(err, &fe) {
+	if _, ok := errors.AsType[*forge.Error](err); ok {
 		return err
 	}
 	if status := responseStatus(resp); status >= 400 {

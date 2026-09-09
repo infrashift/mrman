@@ -16,7 +16,7 @@ import (
 // reviewCapture records the JSON body posted to the create-review endpoint
 // and replies with a canned successful review.
 type reviewCapture struct {
-	body     map[string]interface{}
+	body     map[string]any
 	response string
 }
 
@@ -40,8 +40,6 @@ func (c *reviewCapture) handler(t *testing.T) http.Handler {
 	return mux
 }
 
-func u32Ptr(v uint32) *uint32 { return &v }
-
 func TestCreateReviewGoldenCommentPayload(t *testing.T) {
 	capture := &reviewCapture{}
 	d := newTestDriver(t, capture.handler(t))
@@ -62,11 +60,11 @@ func TestCreateReviewGoldenCommentPayload(t *testing.T) {
 		t.Fatalf("CreateReview: %v", err)
 	}
 
-	want := map[string]interface{}{
+	want := map[string]any{
 		"event":     "COMMENT",
 		"commit_id": "abc1234",
 		"body":      "body text",
-		"comments": []interface{}{map[string]interface{}{
+		"comments": []any{map[string]any{
 			"path":         "src/lib.rs",
 			"body":         "[ISSUE] boom",
 			"old_position": float64(0),
@@ -144,7 +142,7 @@ func TestCreateReviewOldSidePlacement(t *testing.T) {
 			Path:            "a.rs",
 			Line:            7,
 			Side:            submit.SideOld,
-			CounterpartLine: u32Ptr(9), // no Forgejo encoding; must not be sent
+			CounterpartLine: new(uint32(9)), // no Forgejo encoding; must not be sent
 			Body:            "old side",
 			CommentID:       "local-2",
 		}},
@@ -152,11 +150,11 @@ func TestCreateReviewOldSidePlacement(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateReview: %v", err)
 	}
-	comments, ok := capture.body["comments"].([]interface{})
+	comments, ok := capture.body["comments"].([]any)
 	if !ok || len(comments) != 1 {
 		t.Fatalf("comments = %#v", capture.body["comments"])
 	}
-	comment, ok := comments[0].(map[string]interface{})
+	comment, ok := comments[0].(map[string]any)
 	if !ok {
 		t.Fatalf("comment = %#v", comments[0])
 	}
@@ -179,7 +177,7 @@ func TestCreateReviewRejectsMultilineComments(t *testing.T) {
 			Path:      "a.rs",
 			Line:      20,
 			Side:      submit.SideNew,
-			StartLine: u32Ptr(15),
+			StartLine: new(uint32(15)),
 			StartSide: &startSide,
 			Body:      "ranged",
 			CommentID: "local-3",

@@ -257,7 +257,7 @@ func TestPrTabCursorNavigationScrolls(t *testing.T) {
 	a := prTabApp(t, rows, "")
 	a.Pr.TabViewportHeight = 3
 
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		a.PrTabDown()
 	}
 	if a.Pr.TabCursor != 5 {
@@ -267,7 +267,7 @@ func TestPrTabCursorNavigationScrolls(t *testing.T) {
 		t.Errorf("scroll must follow the cursor past the viewport edge, got %d", a.Pr.TabScrollOffset)
 	}
 
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		a.PrTabUp()
 	}
 	if a.Pr.TabCursor != 0 || a.Pr.TabScrollOffset != 0 {
@@ -275,7 +275,7 @@ func TestPrTabCursorNavigationScrolls(t *testing.T) {
 	}
 
 	// Down stops at the last row when there is no load-more row.
-	for i := 0; i < 50; i++ {
+	for range 50 {
 		a.PrTabDown()
 	}
 	if a.Pr.TabCursor != 9 {

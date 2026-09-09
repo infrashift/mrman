@@ -7,12 +7,6 @@ import (
 	"github.com/infrashift/mrman/internal/model"
 )
 
-func u32(v uint32) *uint32 { return &v }
-
-func strPtr(s string) *string { return &s }
-
-func sidePtr(s model.LineSide) *model.LineSide { return &s }
-
 func line(origin model.LineOrigin, newLn, oldLn *uint32) model.DiffLine {
 	return model.DiffLine{Origin: origin, OldLineno: oldLn, NewLineno: newLn}
 }
@@ -23,8 +17,8 @@ func hunk(lines ...model.DiffLine) model.DiffHunk {
 
 func fileWithHunks(hunks ...model.DiffHunk) *model.DiffFile {
 	return &model.DiffFile{
-		OldPath: strPtr("src/lib.rs"),
-		NewPath: strPtr("src/lib.rs"),
+		OldPath: new("src/lib.rs"),
+		NewPath: new("src/lib.rs"),
 		Status:  model.StatusModified,
 		Hunks:   hunks,
 	}
@@ -32,21 +26,21 @@ func fileWithHunks(hunks ...model.DiffHunk) *model.DiffFile {
 
 func typicalFile() *model.DiffFile {
 	return fileWithHunks(hunk(
-		line(model.OriginContext, u32(10), u32(10)),
-		line(model.OriginDeletion, nil, u32(11)),
-		line(model.OriginAddition, u32(11), nil),
-		line(model.OriginContext, u32(12), u32(12)),
+		line(model.OriginContext, new(uint32(10)), new(uint32(10))),
+		line(model.OriginDeletion, nil, new(uint32(11))),
+		line(model.OriginAddition, new(uint32(11)), nil),
+		line(model.OriginContext, new(uint32(12)), new(uint32(12))),
 	))
 }
 
 func commentWithLine(side model.LineSide, newLn, oldLn *uint32) *model.Comment {
-	c := model.NewComment("needs work", model.CommentTypeFromID("issue"), sidePtr(side))
+	c := model.NewComment("needs work", model.CommentTypeFromID("issue"), new(side))
 	c.LineContext = &model.LineContext{NewLine: newLn, OldLine: oldLn}
 	return c
 }
 
 func commentRange(side model.LineSide, r model.LineRange) *model.Comment {
-	return model.NewCommentWithRange("ranged", model.CommentTypeFromID("note"), sidePtr(side), r)
+	return model.NewCommentWithRange("ranged", model.CommentTypeFromID("note"), new(side), r)
 }
 
 func commentFileLevel() *model.Comment {
@@ -97,7 +91,7 @@ func mustUnmappable(t *testing.T, m MappedComment) *UnmappableItem {
 // Single-line mapping
 
 func TestMapsSingleAdditionLineToNewSide(t *testing.T) {
-	c := commentWithLine(model.LineSideNew, u32(11), nil)
+	c := commentWithLine(model.LineSideNew, new(uint32(11)), nil)
 	inline := mustInline(t, MapComment(c, anchorFrom(c), typicalFile(), true))
 	if inline.Line != 11 || inline.Side != SideNew {
 		t.Fatalf("line/side = %d/%s", inline.Line, inline.Side)
@@ -111,7 +105,7 @@ func TestMapsSingleAdditionLineToNewSide(t *testing.T) {
 }
 
 func TestMapsSingleContextLineToNewSide(t *testing.T) {
-	c := commentWithLine(model.LineSideNew, u32(10), u32(10))
+	c := commentWithLine(model.LineSideNew, new(uint32(10)), new(uint32(10)))
 	inline := mustInline(t, MapComment(c, anchorFrom(c), typicalFile(), true))
 	if inline.Line != 10 || inline.Side != SideNew {
 		t.Fatalf("line/side = %d/%s", inline.Line, inline.Side)
@@ -119,7 +113,7 @@ func TestMapsSingleContextLineToNewSide(t *testing.T) {
 }
 
 func TestPopulatesCounterpartLineForContextLine(t *testing.T) {
-	c := commentWithLine(model.LineSideNew, u32(10), u32(10))
+	c := commentWithLine(model.LineSideNew, new(uint32(10)), new(uint32(10)))
 	inline := mustInline(t, MapComment(c, anchorFrom(c), typicalFile(), true))
 	if inline.CounterpartLine == nil || *inline.CounterpartLine != 10 {
 		t.Fatalf("counterpart = %v", inline.CounterpartLine)
@@ -127,7 +121,7 @@ func TestPopulatesCounterpartLineForContextLine(t *testing.T) {
 }
 
 func TestNoCounterpartLineForAdditionLine(t *testing.T) {
-	c := commentWithLine(model.LineSideNew, u32(11), nil)
+	c := commentWithLine(model.LineSideNew, new(uint32(11)), nil)
 	inline := mustInline(t, MapComment(c, anchorFrom(c), typicalFile(), true))
 	if inline.CounterpartLine != nil {
 		t.Fatalf("counterpart = %v", *inline.CounterpartLine)
@@ -135,7 +129,7 @@ func TestNoCounterpartLineForAdditionLine(t *testing.T) {
 }
 
 func TestMapsSingleDeletionLineToOldSide(t *testing.T) {
-	c := commentWithLine(model.LineSideOld, nil, u32(11))
+	c := commentWithLine(model.LineSideOld, nil, new(uint32(11)))
 	inline := mustInline(t, MapComment(c, anchorFrom(c), typicalFile(), true))
 	if inline.Line != 11 || inline.Side != SideOld {
 		t.Fatalf("line/side = %d/%s", inline.Line, inline.Side)
@@ -143,7 +137,7 @@ func TestMapsSingleDeletionLineToOldSide(t *testing.T) {
 }
 
 func TestMarksLineOutsideDiffAsUnmappable(t *testing.T) {
-	c := commentWithLine(model.LineSideNew, u32(99), nil)
+	c := commentWithLine(model.LineSideNew, new(uint32(99)), nil)
 	item := mustUnmappable(t, MapComment(c, anchorFrom(c), typicalFile(), true))
 	if item.Reason != LineNotInDiff {
 		t.Fatalf("reason = %v", item.Reason)
@@ -157,9 +151,9 @@ func TestMarksLineOutsideDiffAsUnmappable(t *testing.T) {
 
 func TestMapsNewSideRangeToStartAndEnd(t *testing.T) {
 	file := fileWithHunks(hunk(
-		line(model.OriginAddition, u32(10), nil),
-		line(model.OriginAddition, u32(11), nil),
-		line(model.OriginAddition, u32(12), nil),
+		line(model.OriginAddition, new(uint32(10)), nil),
+		line(model.OriginAddition, new(uint32(11)), nil),
+		line(model.OriginAddition, new(uint32(12)), nil),
 	))
 	c := commentRange(model.LineSideNew, model.NewLineRange(10, 12))
 	inline := mustInline(t, MapComment(c, anchorFrom(c), file, true))
@@ -176,9 +170,9 @@ func TestMapsNewSideRangeToStartAndEnd(t *testing.T) {
 
 func TestMapsOldSideRangeToStartAndEnd(t *testing.T) {
 	file := fileWithHunks(hunk(
-		line(model.OriginDeletion, nil, u32(20)),
-		line(model.OriginDeletion, nil, u32(21)),
-		line(model.OriginDeletion, nil, u32(22)),
+		line(model.OriginDeletion, nil, new(uint32(20))),
+		line(model.OriginDeletion, nil, new(uint32(21))),
+		line(model.OriginDeletion, nil, new(uint32(22))),
 	))
 	c := commentRange(model.LineSideOld, model.NewLineRange(20, 22))
 	inline := mustInline(t, MapComment(c, anchorFrom(c), file, true))
@@ -194,7 +188,7 @@ func TestMapsOldSideRangeToStartAndEnd(t *testing.T) {
 }
 
 func TestFlattensSingleLineRangeToInlineWithoutStartFields(t *testing.T) {
-	file := fileWithHunks(hunk(line(model.OriginAddition, u32(15), nil)))
+	file := fileWithHunks(hunk(line(model.OriginAddition, new(uint32(15)), nil)))
 	c := commentRange(model.LineSideNew, model.SingleLineRange(15))
 	inline := mustInline(t, MapComment(c, anchorFrom(c), file, true))
 	if inline.Line != 15 || inline.StartLine != nil || inline.StartSide != nil {
@@ -205,9 +199,9 @@ func TestFlattensSingleLineRangeToInlineWithoutStartFields(t *testing.T) {
 func TestMarksMixedSideRangeAsUnmappable(t *testing.T) {
 	// Range claims New side but the file only has Old-side lines 20-22.
 	file := fileWithHunks(hunk(
-		line(model.OriginDeletion, nil, u32(20)),
-		line(model.OriginDeletion, nil, u32(21)),
-		line(model.OriginDeletion, nil, u32(22)),
+		line(model.OriginDeletion, nil, new(uint32(20))),
+		line(model.OriginDeletion, nil, new(uint32(21))),
+		line(model.OriginDeletion, nil, new(uint32(22))),
 	))
 	c := commentRange(model.LineSideNew, model.NewLineRange(20, 22))
 	item := mustUnmappable(t, MapComment(c, anchorFrom(c), file, true))
@@ -225,7 +219,7 @@ func TestMarksRangeWithoutSideAsUnmappable(t *testing.T) {
 }
 
 func TestMarksRangeAnchorWithoutLineRangeAsUnmappable(t *testing.T) {
-	c := model.NewComment("ranged", model.CommentTypeFromID("note"), sidePtr(model.LineSideNew))
+	c := model.NewComment("ranged", model.CommentTypeFromID("note"), new(model.LineSideNew))
 	item := mustUnmappable(t, MapComment(c, RangeAnchor(), typicalFile(), true))
 	if item.Reason != MixedSideRange {
 		t.Fatalf("reason = %v", item.Reason)
@@ -250,7 +244,7 @@ func TestAnchorsFileLevelToFirstValidNewLine(t *testing.T) {
 
 func TestMarksFileLevelWithoutNewAnchorAsUnmappable(t *testing.T) {
 	// Pure deletion file: nothing on the New side.
-	file := fileWithHunks(hunk(line(model.OriginDeletion, nil, u32(5))))
+	file := fileWithHunks(hunk(line(model.OriginDeletion, nil, new(uint32(5)))))
 	c := commentFileLevel()
 	item := mustUnmappable(t, MapComment(c, anchorFrom(c), file, true))
 	if item.Reason != FileLevelNoAnchor {
@@ -261,7 +255,7 @@ func TestMarksFileLevelWithoutNewAnchorAsUnmappable(t *testing.T) {
 func TestMarksBinaryFileCommentAsUnmappable(t *testing.T) {
 	file := typicalFile()
 	file.IsBinary = true
-	c := commentWithLine(model.LineSideNew, u32(11), nil)
+	c := commentWithLine(model.LineSideNew, new(uint32(11)), nil)
 	item := mustUnmappable(t, MapComment(c, anchorFrom(c), file, true))
 	if item.Reason != BinaryFile {
 		t.Fatalf("reason = %v", item.Reason)
@@ -283,9 +277,9 @@ func TestMarksTooLargeFileCommentAsUnmappable(t *testing.T) {
 func TestSetsOldPathForRenamedFile(t *testing.T) {
 	file := typicalFile()
 	file.Status = model.StatusRenamed
-	file.OldPath = strPtr("src/old.rs")
-	file.NewPath = strPtr("src/new.rs")
-	c := commentWithLine(model.LineSideNew, u32(10), u32(10))
+	file.OldPath = new("src/old.rs")
+	file.NewPath = new("src/new.rs")
+	c := commentWithLine(model.LineSideNew, new(uint32(10)), new(uint32(10)))
 	inline := mustInline(t, MapComment(c, anchorFrom(c), file, true))
 	if inline.OldPath == nil || *inline.OldPath != "src/old.rs" {
 		t.Fatalf("old path = %v", inline.OldPath)
@@ -298,7 +292,7 @@ func TestSetsOldPathForRenamedFile(t *testing.T) {
 func TestOmitsOldPathWhenRenameKeepsSameName(t *testing.T) {
 	file := typicalFile()
 	file.Status = model.StatusRenamed
-	c := commentWithLine(model.LineSideNew, u32(10), u32(10))
+	c := commentWithLine(model.LineSideNew, new(uint32(10)), new(uint32(10)))
 	inline := mustInline(t, MapComment(c, anchorFrom(c), file, true))
 	if inline.OldPath != nil {
 		t.Fatalf("old path = %v", *inline.OldPath)
@@ -306,7 +300,7 @@ func TestOmitsOldPathWhenRenameKeepsSameName(t *testing.T) {
 }
 
 func TestOmitsOldPathForModifiedFile(t *testing.T) {
-	c := commentWithLine(model.LineSideNew, u32(10), u32(10))
+	c := commentWithLine(model.LineSideNew, new(uint32(10)), new(uint32(10)))
 	inline := mustInline(t, MapComment(c, anchorFrom(c), typicalFile(), true))
 	if inline.OldPath != nil {
 		t.Fatalf("old path = %v", *inline.OldPath)
@@ -316,7 +310,7 @@ func TestOmitsOldPathForModifiedFile(t *testing.T) {
 // Body prefix toggle
 
 func TestOmitsTypePrefixWhenDisabled(t *testing.T) {
-	c := commentWithLine(model.LineSideNew, u32(11), nil)
+	c := commentWithLine(model.LineSideNew, new(uint32(11)), nil)
 	inline := mustInline(t, MapComment(c, anchorFrom(c), typicalFile(), false))
 	if inline.Body != "needs work" {
 		t.Fatalf("body = %q", inline.Body)
@@ -324,7 +318,7 @@ func TestOmitsTypePrefixWhenDisabled(t *testing.T) {
 }
 
 func TestCommentIDCarriesThrough(t *testing.T) {
-	c := commentWithLine(model.LineSideNew, u32(11), nil)
+	c := commentWithLine(model.LineSideNew, new(uint32(11)), nil)
 	inline := mustInline(t, MapComment(c, anchorFrom(c), typicalFile(), true))
 	if inline.CommentID != c.ID {
 		t.Fatalf("comment id = %q want %q", inline.CommentID, c.ID)

@@ -108,7 +108,7 @@ func parseHeaders(head string) mail.Header {
 		name, value = "", ""
 	}
 
-	for _, line := range strings.Split(head, "\n") {
+	for line := range strings.SplitSeq(head, "\n") {
 		if line == "" {
 			continue
 		}
@@ -224,7 +224,7 @@ func parseSubject(raw string) (summary string, version, pos, total int) {
 		if m == nil {
 			break
 		}
-		for _, tok := range strings.Fields(m[1]) {
+		for tok := range strings.FieldsSeq(m[1]) {
 			if v := versionToken.FindStringSubmatch(tok); v != nil {
 				if n, err := strconv.Atoi(v[1]); err == nil && n > 0 {
 					version = n
@@ -287,7 +287,7 @@ func trimAngles(s string) string {
 // splitRefs splits a References header into bare message ids.
 func splitRefs(s string) []string {
 	var refs []string
-	for _, f := range strings.Fields(s) {
+	for f := range strings.FieldsSeq(s) {
 		if id := trimAngles(f); id != "" {
 			refs = append(refs, id)
 		}

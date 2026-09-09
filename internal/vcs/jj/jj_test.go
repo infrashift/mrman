@@ -213,8 +213,7 @@ func TestWorkingTreeDiffNoChanges(t *testing.T) {
 func TestWorkingTreeDiffCommandFailure(t *testing.T) {
 	b := discover(t, &fakeRunner{responses: baseResponses("/repo")}) // no diff response
 	_, err := b.WorkingTreeDiff(highlighter())
-	var vcsErr *errs.VcsCommand
-	if !errors.As(err, &vcsErr) {
+	if _, ok := errors.AsType[*errs.VcsCommand](err); !ok {
 		t.Fatalf("expected VcsCommand error, got %v", err)
 	}
 }
@@ -535,8 +534,8 @@ func TestParseDescription(t *testing.T) {
 		{"Just a summary", "Just a summary", nil},
 		{"Just a summary\n", "Just a summary", nil},
 		{"Sum\n\n\n", "Sum", nil},
-		{"Sum\n\nBody line1\nline2", "Sum", ptr("Body line1\nline2")},
-		{"Sum\nBody without blank", "Sum", ptr("Body without blank")},
+		{"Sum\n\nBody line1\nline2", "Sum", new("Body line1\nline2")},
+		{"Sum\nBody without blank", "Sum", new("Body without blank")},
 	}
 	for _, tc := range cases {
 		summary, body := parseDescription(tc.desc)
@@ -551,8 +550,6 @@ func TestParseDescription(t *testing.T) {
 		}
 	}
 }
-
-func ptr(s string) *string { return &s }
 
 const oldVue = "<template>\n  <div>{{ msg }}</div>\n</template>\n\n<script setup>\nimport { ref } from 'vue'\nconst msg = ref('hi')\nconst other = 1\n</script>\n"
 
@@ -657,8 +654,7 @@ func TestContainerHighlightBatchFailurePropagates(t *testing.T) {
 	b := discover(t, &fakeRunner{responses: responses})
 
 	_, err := b.WorkingTreeDiff(highlighter())
-	var vcsErr *errs.VcsCommand
-	if !errors.As(err, &vcsErr) {
+	if _, ok := errors.AsType[*errs.VcsCommand](err); !ok {
 		t.Fatalf("expected VcsCommand error from batch fetch, got %v", err)
 	}
 }

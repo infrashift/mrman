@@ -4,6 +4,7 @@
 package editor
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -72,5 +73,5 @@ func FromEditor(editorStr string, target Target) Command {
 
 // ExecCommand returns the exec.Cmd for tea.ExecProcess wiring.
 func (c Command) ExecCommand() *exec.Cmd {
-	return exec.Command(c.Program, c.Args...)
+	return exec.CommandContext(context.Background(), c.Program, c.Args...)
 }

@@ -2,6 +2,7 @@ package output
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 
@@ -165,7 +166,7 @@ func BuildTemplateData(session *model.ReviewSession, scopeLine string, opts Expo
 		for line := range review.LineComments {
 			lines = append(lines, line)
 		}
-		sort.Slice(lines, func(i, j int) bool { return lines[i] < lines[j] })
+		slices.Sort(lines)
 		for _, line := range lines {
 			for _, c := range review.LineComments[line] {
 				file.Comments = append(file.Comments,

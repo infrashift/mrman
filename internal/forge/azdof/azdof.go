@@ -205,7 +205,7 @@ func (d *Driver) viewerUser(ctx context.Context, op string) (*connectionUser, er
 	if err != nil {
 		return nil, d.wrap(op, err)
 	}
-	resp, err := d.core.SendRequest(req)
+	resp, err := d.core.SendRequest(req) //nolint:bodyclose // closed by d.core.UnmarshalBody
 	if err != nil {
 		return nil, d.wrap(op, err)
 	}

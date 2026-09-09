@@ -54,7 +54,7 @@ func ParseHexColor(s string) color.Color {
 	if err != nil {
 		return nil
 	}
-	return color.RGBA{R: uint8(v >> 16), G: uint8(v >> 8), B: uint8(v), A: 0xFF}
+	return color.RGBA{R: uint8(v >> 16), G: uint8(v >> 8), B: uint8(v), A: 0xFF} //nolint:gosec // G115: masked to one byte
 }
 
 // StringWidth returns the display-column width of s under the pinned width

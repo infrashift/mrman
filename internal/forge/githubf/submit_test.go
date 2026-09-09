@@ -16,7 +16,7 @@ import (
 // reviewCapture records the JSON body posted to the create-review endpoint
 // and replies with a canned successful review.
 type reviewCapture struct {
-	body map[string]interface{}
+	body map[string]any
 }
 
 func (c *reviewCapture) handler(t *testing.T) http.Handler {
@@ -35,10 +35,6 @@ func (c *reviewCapture) handler(t *testing.T) http.Handler {
 	})
 	return mux
 }
-
-func u32Ptr(v uint32) *uint32 { return &v }
-
-func sidePtr(s submit.Side) *submit.Side { return &s }
 
 func TestCreateReviewGoldenCommentPayload(t *testing.T) {
 	capture := &reviewCapture{}
@@ -60,11 +56,11 @@ func TestCreateReviewGoldenCommentPayload(t *testing.T) {
 		t.Fatalf("CreateReview: %v", err)
 	}
 
-	want := map[string]interface{}{
+	want := map[string]any{
 		"commit_id": "abc1234",
 		"body":      "body text",
 		"event":     "COMMENT",
-		"comments": []interface{}{map[string]interface{}{
+		"comments": []any{map[string]any{
 			"path": "src/lib.rs",
 			"body": "[ISSUE] boom",
 			"line": float64(42),
@@ -135,8 +131,8 @@ func TestCreateReviewMultiLineAndOldSide(t *testing.T) {
 				Path:      "src/main.rs",
 				Line:      20,
 				Side:      submit.SideOld,
-				StartLine: u32Ptr(15),
-				StartSide: sidePtr(submit.SideOld),
+				StartLine: new(uint32(15)),
+				StartSide: new(submit.SideOld),
 				Body:      "ranged",
 				CommentID: "local-2",
 			},
@@ -144,7 +140,7 @@ func TestCreateReviewMultiLineAndOldSide(t *testing.T) {
 				Path:            "a.rs",
 				Line:            7,
 				Side:            submit.SideOld,
-				CounterpartLine: u32Ptr(9), // GitHub encoding ignores counterparts
+				CounterpartLine: new(uint32(9)), // GitHub encoding ignores counterparts
 				Body:            "old side",
 				CommentID:       "local-3",
 			},
@@ -154,11 +150,11 @@ func TestCreateReviewMultiLineAndOldSide(t *testing.T) {
 		t.Fatalf("CreateReview: %v", err)
 	}
 
-	comments, ok := capture.body["comments"].([]interface{})
+	comments, ok := capture.body["comments"].([]any)
 	if !ok || len(comments) != 2 {
 		t.Fatalf("comments = %#v", capture.body["comments"])
 	}
-	ranged, ok := comments[0].(map[string]interface{})
+	ranged, ok := comments[0].(map[string]any)
 	if !ok {
 		t.Fatalf("ranged comment = %#v", comments[0])
 	}
@@ -166,7 +162,7 @@ func TestCreateReviewMultiLineAndOldSide(t *testing.T) {
 		ranged["line"] != float64(20) || ranged["side"] != "LEFT" {
 		t.Errorf("ranged comment = %#v", ranged)
 	}
-	single, ok := comments[1].(map[string]interface{})
+	single, ok := comments[1].(map[string]any)
 	if !ok {
 		t.Fatalf("single comment = %#v", comments[1])
 	}

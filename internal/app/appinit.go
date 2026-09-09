@@ -1,6 +1,7 @@
 // appinit.go ports the read-only slice of tuicr's src/app/init.rs
 // App::build: session registration of the parsed diff, default state, and
 // the initial sort/expand/annotate pass.
+
 package app
 
 import (

@@ -2,6 +2,7 @@ package vcs
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"os/exec"
@@ -21,7 +22,7 @@ type SystemRunner struct{}
 
 // Run executes name with args in dir, capturing both streams.
 func (SystemRunner) Run(dir string, name string, args ...string) ([]byte, []byte, error) {
-	cmd := exec.Command(name, args...)
+	cmd := exec.CommandContext(context.Background(), name, args...)
 	cmd.Dir = dir
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout

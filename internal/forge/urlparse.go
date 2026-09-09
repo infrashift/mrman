@@ -3,6 +3,7 @@ package forge
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"unicode"
 
@@ -128,7 +129,7 @@ func stripGitSuffix(value string) string {
 
 func nonEmptySegments(path string) []string {
 	var segments []string
-	for _, seg := range strings.Split(path, "/") {
+	for seg := range strings.SplitSeq(path, "/") {
 		if seg != "" {
 			segments = append(segments, seg)
 		}
@@ -175,7 +176,7 @@ func resolveSSHHostname(alias string) string {
 // an exact pattern match and returns its HostName, or the alias unchanged.
 func resolveSSHHostnameFromConfig(alias, config string) string {
 	inBlock := false
-	for _, raw := range strings.Split(config, "\n") {
+	for raw := range strings.SplitSeq(config, "\n") {
 		line := raw
 		// Strip inline comments and surrounding whitespace.
 		if i := strings.Index(line, "#"); i >= 0 {
@@ -190,13 +191,7 @@ func resolveSSHHostnameFromConfig(alias, config string) string {
 		case strings.EqualFold(key, "Host"):
 			// Exact match only; wildcards and negation are
 			// intentionally unsupported.
-			inBlock = false
-			for _, pattern := range strings.Fields(value) {
-				if pattern == alias {
-					inBlock = true
-					break
-				}
-			}
+			inBlock = slices.Contains(strings.Fields(value), alias)
 		case strings.EqualFold(key, "Match"):
 			// Match blocks aren't supported; exit any Host block.
 			inBlock = false
@@ -238,7 +233,7 @@ func RemoteURLs(repoRoot string, run vcs.Runner) []string {
 		add(firstLine(string(stdout)))
 	}
 	if stdout, _, err := run.Run(repoRoot, "git", "remote", "-v"); err == nil {
-		for _, line := range strings.Split(string(stdout), "\n") {
+		for line := range strings.SplitSeq(string(stdout), "\n") {
 			fields := strings.Fields(line)
 			if len(fields) >= 2 {
 				add(fields[1])

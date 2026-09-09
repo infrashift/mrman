@@ -194,7 +194,7 @@ func TestGapAtCursorHits(t *testing.T) {
 	file := makeFileWithHunks("test.rs", []model.DiffHunk{makeHunk(1, 2), makeHunk(40, 2)})
 	a := buildAppWithFiles([]model.DiffFile{file}, 41) // EOF exactly covered: no EOF gap
 	gapID := GapID{FileIdx: 0, HunkIdx: 1}
-	if err := a.ExpandGap(gapID, ExpandDown, intPtr(5)); err != nil {
+	if err := a.ExpandGap(gapID, ExpandDown, new(5)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -220,7 +220,7 @@ func TestCollapseGapAndClearExpandedGaps(t *testing.T) {
 	file := makeFileWithHunks("test.rs", []model.DiffHunk{makeHunk(30, 5)})
 	a := buildAppWithFiles([]model.DiffFile{file}, 100)
 	gapID := GapID{FileIdx: 0, HunkIdx: 0}
-	if err := a.ExpandGap(gapID, ExpandUp, intPtr(10)); err != nil {
+	if err := a.ExpandGap(gapID, ExpandUp, new(10)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -234,7 +234,7 @@ func TestCollapseGapAndClearExpandedGaps(t *testing.T) {
 		t.Error("collapsed gap should render an expander again")
 	}
 
-	if err := a.ExpandGap(gapID, ExpandDown, intPtr(3)); err != nil {
+	if err := a.ExpandGap(gapID, ExpandDown, new(3)); err != nil {
 		t.Fatal(err)
 	}
 	a.ClearExpandedGaps()
@@ -258,11 +258,11 @@ func TestGoToSourceLineMessages(t *testing.T) {
 		Header:   "@@ -0,0 +1,2 @@",
 		OldStart: 0, OldCount: 0, NewStart: 1, NewCount: 2,
 		Lines: []model.DiffLine{
-			{Origin: model.OriginAddition, Content: "a", NewLineno: u32(1)},
-			{Origin: model.OriginAddition, Content: "b", NewLineno: u32(2)},
+			{Origin: model.OriginAddition, Content: "a", NewLineno: new(uint32(1))},
+			{Origin: model.OriginAddition, Content: "b", NewLineno: new(uint32(2))},
 		},
 	}
-	added := model.DiffFile{NewPath: strPtr("new.rs"), Status: model.StatusAdded, Hunks: []model.DiffHunk{addHunk}}
+	added := model.DiffFile{NewPath: new("new.rs"), Status: model.StatusAdded, Hunks: []model.DiffHunk{addHunk}}
 	b := buildAppWithFiles([]model.DiffFile{added}, 0)
 	// Drop the (zero) line-count cache entry so no phantom EOF gap is
 	// probed for the old side of a pure-addition file.
@@ -277,13 +277,13 @@ func TestDiffStatCountsAdditionsAndDeletions(t *testing.T) {
 		Header:   "@@ -1,3 +1,3 @@",
 		OldStart: 1, OldCount: 3, NewStart: 1, NewCount: 3,
 		Lines: []model.DiffLine{
-			{Origin: model.OriginContext, Content: "ctx", OldLineno: u32(1), NewLineno: u32(1)},
-			{Origin: model.OriginDeletion, Content: "old", OldLineno: u32(2)},
-			{Origin: model.OriginAddition, Content: "new", NewLineno: u32(2)},
-			{Origin: model.OriginAddition, Content: "new2", NewLineno: u32(3)},
+			{Origin: model.OriginContext, Content: "ctx", OldLineno: new(uint32(1)), NewLineno: new(uint32(1))},
+			{Origin: model.OriginDeletion, Content: "old", OldLineno: new(uint32(2))},
+			{Origin: model.OriginAddition, Content: "new", NewLineno: new(uint32(2))},
+			{Origin: model.OriginAddition, Content: "new2", NewLineno: new(uint32(3))},
 		},
 	}
-	file := model.DiffFile{NewPath: strPtr("test.rs"), Status: model.StatusModified, Hunks: []model.DiffHunk{hunk}}
+	file := model.DiffFile{NewPath: new("test.rs"), Status: model.StatusModified, Hunks: []model.DiffHunk{hunk}}
 	a := buildAppWithFiles([]model.DiffFile{file}, 0)
 
 	files, adds, dels := a.DiffStat()

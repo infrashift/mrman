@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 
 	"github.com/infrashift/mrman/internal/forge"
@@ -155,7 +156,7 @@ func (a *App) StartSubmitWith(event forge.SubmitEvent, skipConfirm bool) bool {
 		for line := range review.LineComments {
 			lines = append(lines, line)
 		}
-		sort.Slice(lines, func(i, j int) bool { return lines[i] < lines[j] })
+		slices.Sort(lines)
 		for _, line := range lines {
 			for _, c := range review.LineComments[line] {
 				anchor := submit.LineAnchor(line, model.SideOf(c))
@@ -183,11 +184,12 @@ func (a *App) StartSubmitWith(event forge.SubmitEvent, skipConfirm bool) bool {
 	}
 
 	a.Submit = state
-	if len(state.Unmappable) > 0 {
+	switch {
+	case len(state.Unmappable) > 0:
 		a.InputMode = input.ModeSubmitResolver
-	} else if skipConfirm {
+	case skipConfirm:
 		a.InputMode = input.ModeNormal // dispatch happens in the UI layer
-	} else {
+	default:
 		a.InputMode = input.ModeSubmitConfirm
 	}
 	return true

@@ -116,12 +116,9 @@ func (p *DiffPane) commentBoxRow(a *app.App, ann *app.AnnotatedLine, idx int, in
 			}
 		}
 		head := "    " + corner + "── "
-		fillWidth := width - render.StringWidth(head) - render.StringWidth(badge) -
-			render.StringWidth(lineInfo) - render.StringWidth(anchorText) -
-			render.StringWidth(ind.Text)
-		if fillWidth < 0 {
-			fillWidth = 0
-		}
+		fillWidth := max(width-render.StringWidth(head)-render.StringWidth(badge)-
+			render.StringWidth(lineInfo)-render.StringWidth(anchorText)-
+			render.StringWidth(ind.Text), 0)
 		return render.LogicalLine{Kind: render.RowCommentTop, Spans: []render.Span{
 			ind,
 			{Text: head, Style: borderStyle},
@@ -131,10 +128,7 @@ func (p *DiffPane) commentBoxRow(a *app.App, ann *app.AnnotatedLine, idx int, in
 			{Text: strings.Repeat("─", fillWidth), Style: borderStyle},
 		}}
 	case total - 1:
-		fillWidth := width - 5 - render.StringWidth(ind.Text)
-		if fillWidth < 0 {
-			fillWidth = 0
-		}
+		fillWidth := max(width-5-render.StringWidth(ind.Text), 0)
 		return render.LogicalLine{Kind: render.RowCommentBottom, Spans: []render.Span{
 			ind,
 			{Text: "    ╰" + strings.Repeat("─", fillWidth), Style: borderStyle},
@@ -156,12 +150,9 @@ func (p *DiffPane) commentBoxRow(a *app.App, ann *app.AnnotatedLine, idx int, in
 // commentSegments returns the wrapped body segments of a comment at the
 // current viewport width.
 func commentSegments(a *app.App, comment *model.Comment) []string {
-	contentArea := a.DiffState.ViewportWidth - 10
-	if contentArea < 1 {
-		contentArea = 1
-	}
+	contentArea := max(a.DiffState.ViewportWidth-10, 1)
 	var segments []string
-	for _, line := range strings.Split(comment.Content, "\n") {
+	for line := range strings.SplitSeq(comment.Content, "\n") {
 		segments = append(segments, app.WrapSegments(line, contentArea)...)
 	}
 	return segments
@@ -241,10 +232,7 @@ func (p *DiffPane) commentInputOverlay(a *app.App, vim *vimState, width int) []s
 	}
 	lines := []string{emitter.Line(headSpans)}
 
-	contentArea := width - 10
-	if contentArea < 1 {
-		contentArea = 1
-	}
+	contentArea := max(width-10, 1)
 	body := a.CommentBuffer
 	if body == "" {
 		lines = append(lines, emitter.Line([]render.Span{
@@ -254,7 +242,7 @@ func (p *DiffPane) commentInputOverlay(a *app.App, vim *vimState, width int) []s
 	} else {
 		cursorPos := a.CommentCursor
 		offset := 0
-		for _, rawLine := range strings.Split(body, "\n") {
+		for rawLine := range strings.SplitSeq(body, "\n") {
 			for _, seg := range app.WrapSegments(rawLine, contentArea) {
 				spans := []render.Span{{Text: borderPrefix, Style: borderStyle}}
 				segStart, segEnd := offset, offset+len(seg)
@@ -280,10 +268,7 @@ func (p *DiffPane) commentInputOverlay(a *app.App, vim *vimState, width int) []s
 		}
 	}
 
-	fill := width - 5
-	if fill < 0 {
-		fill = 0
-	}
+	fill := max(width-5, 0)
 	lines = append(lines, emitter.Line([]render.Span{
 		{Text: "    ╰" + strings.Repeat("─", fill), Style: borderStyle},
 	}))

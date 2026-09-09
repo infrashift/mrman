@@ -16,7 +16,7 @@ func thread(id, path string, line uint32, side forge.Side, resolved, outdated bo
 		IsResolved: resolved, IsOutdated: outdated, Comments: comments,
 	}
 	if line > 0 {
-		t.Line = u32(line)
+		t.Line = new(line)
 	}
 	return t
 }

@@ -9,6 +9,7 @@
 // ApplyPrTabPage or SetPrTabError. Every result carries the PrList
 // generation it was issued under so a stale page — from a scope toggle or a
 // reopened selector — is discarded instead of overwriting fresher rows.
+
 package app
 
 import (

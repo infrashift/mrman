@@ -4,6 +4,7 @@
 // fallback, the synthetic commit-message pseudo-file, and the shared reset
 // sequence (ApplyLoadedSelection) every load_*_selection path runs after
 // the UI layer has produced the new diff and session.
+
 package app
 
 import (
@@ -127,7 +128,7 @@ func InsertCommitMessageIfSingle(files []model.DiffFile, commits []vcs.CommitInf
 			NewLineno: &lineno,
 		})
 	}
-	lineCount := uint32(len(diffLines))
+	lineCount := uint32(len(diffLines)) //nolint:gosec // G115: line numbers fit uint32
 	hunks := []model.DiffHunk{{
 		Lines:    diffLines,
 		OldStart: 0,

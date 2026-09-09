@@ -2,10 +2,12 @@
 // review: turning the PR's commits into selector rows, resolving a narrowed
 // selection to the SHA range the forge should diff, and inferring which
 // commits a previous review of your own already covered.
+
 package app
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/infrashift/mrman/internal/forge"
 	"github.com/infrashift/mrman/internal/model"
@@ -16,8 +18,8 @@ import (
 // (newest first, the order every selector path expects).
 func prCommitsToInfo(commits []forge.Commit) []vcs.CommitInfo {
 	out := make([]vcs.CommitInfo, 0, len(commits))
-	for i := len(commits) - 1; i >= 0; i-- {
-		c := commits[i]
+	for _, c := range slices.Backward(commits) {
+
 		info := vcs.CommitInfo{
 			ID:      c.OID,
 			ShortID: c.ShortOID,

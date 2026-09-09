@@ -60,7 +60,7 @@ func (f *fakeForge) LocalCheckoutPath() string { return "" }
 // both sides.
 func newTestApp(t *testing.T) *App {
 	t.Helper()
-	info := &vcs.Info{RootPath: "/tmp", HeadCommit: "abc123", BranchName: strPtr("main"), Type: vcs.TypeGit}
+	info := &vcs.Info{RootPath: "/tmp", HeadCommit: "abc123", BranchName: new("main"), Type: vcs.TypeGit}
 	backend := &mockVcs{info: info, totalLines: 20}
 	session := model.NewReviewSession(info.RootPath, info.HeadCommit, info.BranchName, model.SourceWorkingTree)
 	files := []model.DiffFile{

@@ -215,12 +215,12 @@ func buildAddRequest(opts Options) (target CommentTarget, content, commentType, 
 		raw, readErr := readJSONInput(opts.Input)
 		if readErr != nil {
 			err = readErr
-			return
+			return target, content, commentType, username, err
 		}
 		var payload addPayload
 		if jsonErr := json.Unmarshal([]byte(raw), &payload); jsonErr != nil {
 			err = &errs.InvalidInput{Detail: "invalid JSON review payload: " + jsonErr.Error()}
-			return
+			return target, content, commentType, username, err
 		}
 		if payload.CommentType != nil {
 			commentType = *payload.CommentType
@@ -239,7 +239,7 @@ func buildAddRequest(opts Options) (target CommentTarget, content, commentType, 
 			t, targetErr := payload.Target.toCommentTarget()
 			if targetErr != nil {
 				err = targetErr
-				return
+				return target, content, commentType, username, err
 			}
 			explicitTarget = &t
 		} else {
@@ -263,14 +263,14 @@ func buildAddRequest(opts Options) (target CommentTarget, content, commentType, 
 
 	if strings.TrimSpace(content) == "" {
 		err = &errs.InvalidInput{Detail: "comment text is required either as COMMENT or JSON field `content`"}
-		return
+		return target, content, commentType, username, err
 	}
 	if explicitTarget != nil {
 		target = *explicitTarget
-		return
+		return target, content, commentType, username, err
 	}
 	target, err = buildCommentTarget(file, line, endLine, side)
-	return
+	return target, content, commentType, username, err
 }
 
 func readJSONInput(input string) (string, error) {

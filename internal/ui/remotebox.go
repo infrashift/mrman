@@ -86,11 +86,8 @@ func (p *DiffPane) remoteBoxRow(a *app.App, ann *app.AnnotatedLine, idx int, ind
 		if badge != "" {
 			badgeText = "(" + badge + ") "
 		}
-		fillWidth := width - render.StringWidth(head) - render.StringWidth(label) -
-			render.StringWidth(badgeText) - render.StringWidth(ind.Text)
-		if fillWidth < 0 {
-			fillWidth = 0
-		}
+		fillWidth := max(width-render.StringWidth(head)-render.StringWidth(label)-
+			render.StringWidth(badgeText)-render.StringWidth(ind.Text), 0)
 		return render.LogicalLine{Kind: render.RowCommentTop, Ann: idx, Spans: []render.Span{
 			ind,
 			{Text: head, Style: borderStyle},
@@ -99,10 +96,7 @@ func (p *DiffPane) remoteBoxRow(a *app.App, ann *app.AnnotatedLine, idx int, ind
 			{Text: strings.Repeat("═", fillWidth), Style: borderStyle},
 		}}
 	case total - 1:
-		fillWidth := width - 5 - render.StringWidth(ind.Text)
-		if fillWidth < 0 {
-			fillWidth = 0
-		}
+		fillWidth := max(width-5-render.StringWidth(ind.Text), 0)
 		return render.LogicalLine{Kind: render.RowCommentBottom, Ann: idx, Spans: []render.Span{
 			ind,
 			{Text: "    ╘" + strings.Repeat("═", fillWidth), Style: borderStyle},

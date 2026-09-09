@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -205,7 +206,7 @@ func TestAnnounceSessionDuringRunSkipsTerminal(t *testing.T) {
 			if wrote := got != ""; wrote != tc.wantWrite {
 				t.Errorf("wrote=%v (%q), want wrote=%v", wrote, got, tc.wantWrite)
 			}
-			if tc.wantWrite && !bytes.Contains([]byte(got), []byte("mrman-session: ")) {
+			if tc.wantWrite && !strings.Contains(got, "mrman-session: ") {
 				t.Errorf("announcement = %q, want the mrman-session prefix", got)
 			}
 		})

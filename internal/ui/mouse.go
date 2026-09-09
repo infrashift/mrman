@@ -6,6 +6,7 @@
 // frame; the handlers below hit-test against those. The rects describe the
 // pane *body* — inside the borders — so a click on a border resolves to no
 // pane rather than to the row next to it.
+
 package ui
 
 import (
@@ -285,10 +286,7 @@ func diffCharOffset(a *app.App, rect paneRect, row, screenX int) int {
 	if a.DiffViewMode == app.ViewSideBySide {
 		gutter = app.SbsLeftGutter(a.LinenoWidth())
 	}
-	offset := screenX - rect.X - gutter + a.DiffState.ScrollX
-	if offset < 0 {
-		offset = 0
-	}
+	offset := max(screenX-rect.X-gutter+a.DiffState.ScrollX, 0)
 	total := a.AnnotationContentLen(row, model.LineSideNew)
 	return min(offset, total)
 }

@@ -579,7 +579,7 @@ func parsePRNumber(s string) (uint64, bool) {
 	}
 	var n uint64
 	for _, r := range s {
-		n = n*10 + uint64(r-'0')
+		n = n*10 + uint64(r-'0') //nolint:gosec // G115: r is a decimal digit
 	}
 	return n, n > 0
 }

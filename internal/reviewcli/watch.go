@@ -11,6 +11,7 @@
 //
 // Neither is new information. Both were already observable through `review
 // comments` and `review list`; they were simply never delivered as events.
+
 package reviewcli
 
 import (
@@ -123,8 +124,9 @@ func Watch(store *persistence.Store, opts Options, w WatchOptions, out io.Writer
 	flush()
 
 	if state, ok := submittedState(session); ok {
-		_ = enc.Encode(WatchEvent{Event: WatchSubmitted, LifecycleState: state})
+		err := enc.Encode(WatchEvent{Event: WatchSubmitted, LifecycleState: state})
 		flush()
+		return err
 	}
 
 	last := statSession(path)

@@ -1,6 +1,7 @@
 // search.go ports tuicr's src/app/search.rs: case-insensitive substring
 // search over the annotation stream (diff panel) and the help overlay, with
 // from-cursor semantics and n/N stepping.
+
 package app
 
 import (

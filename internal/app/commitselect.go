@@ -4,6 +4,7 @@
 // load (ConfirmedSelection); the actual diff loading and session lookup
 // stay in the UI/run layer (which owns the persistence store and syntax
 // highlighter), which then calls ApplyLoadedSelection (diffload.go).
+
 package app
 
 import (

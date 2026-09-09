@@ -1,6 +1,7 @@
 package output
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -107,7 +108,7 @@ func writeToTTY(seq string) error {
 // output. A non-nil error means the binary is missing or exited non-zero,
 // which callers treat as "try the next strategy".
 func execClipboardCmd(name string, args []string, stdin string) error {
-	cmd := exec.Command(name, args...)
+	cmd := exec.CommandContext(context.Background(), name, args...)
 	cmd.Stdin = strings.NewReader(stdin)
 	cmd.Stdout = io.Discard
 	cmd.Stderr = io.Discard

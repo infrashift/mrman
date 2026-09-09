@@ -44,7 +44,7 @@ func lockPath(store *Store) string {
 
 func TestLockReleasedAfterSave(t *testing.T) {
 	store := newTestStore(t)
-	mustSave(t, store, makeLocalSession(t, makeRepo(t), "abc1234", strp("main"), model.SourceWorkingTree, nil))
+	mustSave(t, store, makeLocalSession(t, makeRepo(t), "abc1234", new("main"), model.SourceWorkingTree, nil))
 
 	if fileExists(t, lockPath(store)) {
 		t.Fatal("lock must be released after save")
@@ -84,7 +84,7 @@ func TestRecoverStaleLockWithGarbageContent(t *testing.T) {
 	// An unparseable lock is only reclaimed after its grace period.
 	withDuration(t, &lockUnparseableStaleAfter, 0)
 
-	path := mustSave(t, store, makeLocalSession(t, makeRepo(t), "abc1234", strp("main"), model.SourceWorkingTree, nil))
+	path := mustSave(t, store, makeLocalSession(t, makeRepo(t), "abc1234", new("main"), model.SourceWorkingTree, nil))
 
 	if !fileExists(t, path) {
 		t.Fatal("save should succeed after reclaiming the stale lock")
@@ -100,7 +100,7 @@ func TestKeepFreshGarbageLockUntilGracePeriod(t *testing.T) {
 	withDuration(t, &lockTimeout, 60*time.Millisecond)
 	withDuration(t, &lockRetryInterval, 5*time.Millisecond)
 
-	_, err := store.SaveSession(makeLocalSession(t, makeRepo(t), "abc1234", strp("main"), model.SourceWorkingTree, nil))
+	_, err := store.SaveSession(makeLocalSession(t, makeRepo(t), "abc1234", new("main"), model.SourceWorkingTree, nil))
 	if err == nil || !strings.Contains(err.Error(), "timed out") {
 		t.Fatalf("err = %v, want lock timeout", err)
 	}
@@ -111,7 +111,7 @@ func TestRecoverStaleLockWithDeadPid(t *testing.T) {
 	writeTestFile(t, lockPath(store), "4194304 2026-01-01T00:00:00Z")
 	withProcessAlive(t, func(int) bool { return false })
 
-	path := mustSave(t, store, makeLocalSession(t, makeRepo(t), "abc1234", strp("main"), model.SourceWorkingTree, nil))
+	path := mustSave(t, store, makeLocalSession(t, makeRepo(t), "abc1234", new("main"), model.SourceWorkingTree, nil))
 
 	if !fileExists(t, path) {
 		t.Fatal("save should succeed after reclaiming a dead pid's lock")
@@ -128,7 +128,7 @@ func TestRecoverStaleLockOlderThanReuseGuard(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	path := mustSave(t, store, makeLocalSession(t, makeRepo(t), "abc1234", strp("main"), model.SourceWorkingTree, nil))
+	path := mustSave(t, store, makeLocalSession(t, makeRepo(t), "abc1234", new("main"), model.SourceWorkingTree, nil))
 
 	if !fileExists(t, path) {
 		t.Fatal("save should succeed after reclaiming an ancient lock")
@@ -141,7 +141,7 @@ func TestLockTimeoutWhenHeldByLivePid(t *testing.T) {
 	withDuration(t, &lockTimeout, 60*time.Millisecond)
 	withDuration(t, &lockRetryInterval, 5*time.Millisecond)
 
-	_, err := store.SaveSession(makeLocalSession(t, makeRepo(t), "abc1234", strp("main"), model.SourceWorkingTree, nil))
+	_, err := store.SaveSession(makeLocalSession(t, makeRepo(t), "abc1234", new("main"), model.SourceWorkingTree, nil))
 	if err == nil || !strings.Contains(err.Error(), "timed out") {
 		t.Fatalf("err = %v, want lock timeout", err)
 	}

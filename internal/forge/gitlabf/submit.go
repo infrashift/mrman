@@ -47,7 +47,7 @@ func (d *Driver) CreateReview(ctx context.Context, pr *forge.PullRequestDetails,
 	// review. The author publishes from the GitLab "Submit review" UI.
 	isDraft := req.Event == forge.SubmitDraft
 	pid := projectID(pr.Repository)
-	iid := int64(pr.Number)
+	iid := int64(pr.Number) //nolint:gosec // G115: pull request numbers are small forge-assigned integers
 
 	posted := false // anything accepted by the server so far
 	var succeeded []string
@@ -77,11 +77,11 @@ func (d *Driver) CreateReview(ctx context.Context, pr *forge.PullRequestDetails,
 		var err error
 		if isDraft {
 			_, _, err = d.client.DraftNotes.CreateDraftNote(pid, iid,
-				&gitlab.CreateDraftNoteOptions{Note: gitlab.Ptr(req.Body)},
+				&gitlab.CreateDraftNoteOptions{Note: new(req.Body)},
 				gitlab.WithContext(ctx))
 		} else {
 			_, _, err = d.client.Notes.CreateMergeRequestNote(pid, iid,
-				&gitlab.CreateMergeRequestNoteOptions{Body: gitlab.Ptr(req.Body)},
+				&gitlab.CreateMergeRequestNoteOptions{Body: new(req.Body)},
 				gitlab.WithContext(ctx))
 		}
 		if err != nil {
@@ -100,7 +100,7 @@ func (d *Driver) CreateReview(ctx context.Context, pr *forge.PullRequestDetails,
 			var note *gitlab.DraftNote
 			note, _, err = d.client.DraftNotes.CreateDraftNote(pid, iid,
 				&gitlab.CreateDraftNoteOptions{
-					Note:     gitlab.Ptr(comment.Body),
+					Note:     new(comment.Body),
 					Position: position,
 				}, gitlab.WithContext(ctx))
 			if err == nil && note != nil {
@@ -110,7 +110,7 @@ func (d *Driver) CreateReview(ctx context.Context, pr *forge.PullRequestDetails,
 			var disc *gitlab.Discussion
 			disc, _, err = d.client.Discussions.CreateMergeRequestDiscussion(pid, iid,
 				&gitlab.CreateMergeRequestDiscussionOptions{
-					Body:     gitlab.Ptr(comment.Body),
+					Body:     new(comment.Body),
 					Position: position,
 				}, gitlab.WithContext(ctx))
 			if err == nil && disc != nil {
@@ -182,22 +182,22 @@ func buildPosition(pr *forge.PullRequestDetails, comment *submit.InlineComment) 
 		oldPath = strings.ReplaceAll(*comment.OldPath, `\`, "/")
 	}
 	position := &gitlab.PositionOptions{
-		PositionType: gitlab.Ptr("text"),
-		BaseSHA:      gitlab.Ptr(pr.BaseSHA),
-		StartSHA:     gitlab.Ptr(startSHA(pr)),
-		HeadSHA:      gitlab.Ptr(pr.HeadSHA),
-		OldPath:      gitlab.Ptr(oldPath),
-		NewPath:      gitlab.Ptr(newPath),
+		PositionType: new("text"),
+		BaseSHA:      new(pr.BaseSHA),
+		StartSHA:     new(startSHA(pr)),
+		HeadSHA:      new(pr.HeadSHA),
+		OldPath:      new(oldPath),
+		NewPath:      new(newPath),
 	}
 	if comment.Side == submit.SideNew {
-		position.NewLine = gitlab.Ptr(int64(comment.Line))
+		position.NewLine = new(int64(comment.Line))
 		if comment.CounterpartLine != nil {
-			position.OldLine = gitlab.Ptr(int64(*comment.CounterpartLine))
+			position.OldLine = new(int64(*comment.CounterpartLine))
 		}
 	} else {
-		position.OldLine = gitlab.Ptr(int64(comment.Line))
+		position.OldLine = new(int64(comment.Line))
 		if comment.CounterpartLine != nil {
-			position.NewLine = gitlab.Ptr(int64(*comment.CounterpartLine))
+			position.NewLine = new(int64(*comment.CounterpartLine))
 		}
 	}
 	if comment.StartLine != nil {
@@ -220,15 +220,15 @@ func buildPosition(pr *forge.PullRequestDetails, comment *submit.InlineComment) 
 func rangeEndpoint(newPath string, side submit.Side, line uint32) *gitlab.LinePositionOptions {
 	if side == submit.SideNew {
 		return &gitlab.LinePositionOptions{
-			Type:     gitlab.Ptr("new"),
-			NewLine:  gitlab.Ptr(int64(line)),
-			LineCode: gitlab.Ptr(lineCode(newPath, 0, line)),
+			Type:     new("new"),
+			NewLine:  new(int64(line)),
+			LineCode: new(lineCode(newPath, 0, line)),
 		}
 	}
 	return &gitlab.LinePositionOptions{
-		Type:     gitlab.Ptr("old"),
-		OldLine:  gitlab.Ptr(int64(line)),
-		LineCode: gitlab.Ptr(lineCode(newPath, line, 0)),
+		Type:     new("old"),
+		OldLine:  new(int64(line)),
+		LineCode: new(lineCode(newPath, line, 0)),
 	}
 }
 

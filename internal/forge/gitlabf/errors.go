@@ -39,8 +39,7 @@ func (d *Driver) wrap(op string, err error) error {
 	if err == nil {
 		return nil
 	}
-	var fe *forge.Error
-	if errors.As(err, &fe) {
+	if _, ok := errors.AsType[*forge.Error](err); ok {
 		return err
 	}
 	// The SDK collapses 404s into a bare sentinel instead of an
@@ -48,8 +47,7 @@ func (d *Driver) wrap(op string, err error) error {
 	if errors.Is(err, gitlab.ErrNotFound) {
 		return d.err(op, forge.ErrorNotFound, http.StatusNotFound, hintNotFound, err)
 	}
-	var glErr *gitlab.ErrorResponse
-	if errors.As(err, &glErr) {
+	if glErr, ok := errors.AsType[*gitlab.ErrorResponse](err); ok {
 		status := 0
 		if glErr.Response != nil {
 			status = glErr.Response.StatusCode

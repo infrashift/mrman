@@ -161,10 +161,10 @@ func TestLineTextForSearchCoversAnnotationKinds(t *testing.T) {
 	// Two hunks with a large gap (down + hidden + up expanders) plus a
 	// binary file; partially expand the gap for ExpandedContext coverage.
 	file := makeFileWithHunks("test.rs", []model.DiffHunk{makeHunk(1, 2), makeHunk(40, 2)})
-	binary := model.DiffFile{NewPath: strPtr("bin.dat"), Status: model.StatusModified, IsBinary: true}
+	binary := model.DiffFile{NewPath: new("bin.dat"), Status: model.StatusModified, IsBinary: true}
 	a := buildAppWithFiles([]model.DiffFile{file, binary}, 50)
 	gapID := GapID{FileIdx: 0, HunkIdx: 1}
-	if err := a.ExpandGap(gapID, ExpandDown, intPtr(5)); err != nil {
+	if err := a.ExpandGap(gapID, ExpandDown, new(5)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -204,8 +204,8 @@ func TestLineTextForSearchCoversAnnotationKinds(t *testing.T) {
 }
 
 func TestLineTextForSearchTooLargeAndEmpty(t *testing.T) {
-	tooLarge := model.DiffFile{NewPath: strPtr("big.bin"), Status: model.StatusModified, IsTooLarge: true, IsBinary: true}
-	empty := model.DiffFile{NewPath: strPtr("same.txt"), Status: model.StatusModified}
+	tooLarge := model.DiffFile{NewPath: new("big.bin"), Status: model.StatusModified, IsTooLarge: true, IsBinary: true}
+	empty := model.DiffFile{NewPath: new("same.txt"), Status: model.StatusModified}
 	a := buildAppWithFiles([]model.DiffFile{tooLarge, empty}, 0)
 
 	var got []string

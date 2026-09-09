@@ -14,6 +14,7 @@
 // Neither is a security boundary — an agent with a shell can allocate a pty
 // — but together they mean a grant cannot appear by accident or by an agent
 // deciding it would be convenient.
+
 package cli
 
 import (
@@ -60,7 +61,7 @@ func ParseAutoGrant(value string) ([]string, error) {
 	}
 	seen := map[string]bool{}
 	var out []string
-	for _, raw := range strings.Split(value, ",") {
+	for raw := range strings.SplitSeq(value, ",") {
 		event := strings.ToLower(strings.TrimSpace(raw))
 		if event == "" {
 			continue

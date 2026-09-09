@@ -171,7 +171,7 @@ func TestTokenCmdCachedPerProcess(t *testing.T) {
 	cfg := defaultForgeConfig()
 	cfg.Hosts = []config.ForgeHost{{Host: "corp.example", Forge: "gitlab", TokenCmd: "pass show tok"}}
 
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		got, err := TokenForHost("corp.example", forgetypes.KindGitLab, cfg)
 		if err != nil {
 			t.Fatal(err)

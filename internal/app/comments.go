@@ -4,6 +4,7 @@
 // helpers from src/app/commits.rs. The commit selector itself lives in
 // commits.go/commitselect.go (M5); the visibility predicates here run
 // against the shared CommitSelectionRange / ReviewCommits state.
+
 package app
 
 import (
@@ -650,8 +651,8 @@ func (a *App) PrevComment() {
 		}
 	}
 	targetIdx := len(items) - 1
-	for i := len(items) - 1; i >= 0; i-- {
-		if items[i].TargetAnnotation < cursor && (currentKey == nil || items[i].Key != *currentKey) {
+	for i, item := range slices.Backward(items) {
+		if item.TargetAnnotation < cursor && (currentKey == nil || item.Key != *currentKey) {
 			targetIdx = i
 			break
 		}

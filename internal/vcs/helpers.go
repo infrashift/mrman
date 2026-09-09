@@ -67,7 +67,7 @@ func ReadWorkdirFile(root, rel string) (string, bool) {
 func ParseBatchedFiles(output string) map[string]string {
 	sep := "\n" + BatchBoundary + "\n"
 	files := make(map[string]string)
-	for _, block := range strings.Split(output, sep) {
+	for block := range strings.SplitSeq(output, sep) {
 		if block == "" {
 			continue
 		}

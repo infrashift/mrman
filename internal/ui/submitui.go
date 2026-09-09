@@ -258,10 +258,7 @@ func modalHead(heading string, t *theme.Theme, emitter *render.Emitter, width in
 }
 
 func modalFoot(t *theme.Theme, emitter *render.Emitter, width int) string {
-	fill := width - 5
-	if fill < 0 {
-		fill = 0
-	}
+	fill := max(width-5, 0)
 	return emitter.Line([]render.Span{
 		{Text: "    ╰" + strings.Repeat("─", fill), Style: render.Style{Fg: t.BorderFocused, Bold: true}},
 	})

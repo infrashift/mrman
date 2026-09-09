@@ -157,7 +157,7 @@ func RunPr(target string, opts cli.TuiOptions) error {
 		m.shutdown(a)
 	}
 	if m.PendingStdout != "" {
-		fmt.Print(m.PendingStdout)
+		_, _ = io.WriteString(os.Stdout, m.PendingStdout)
 	}
 	return err
 }

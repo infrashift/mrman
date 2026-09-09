@@ -155,16 +155,10 @@ func Blend(base, accent color.Color, accentPercent int) color.Color {
 	if !baseOK || !accentOK {
 		return accent
 	}
-	p := accentPercent
-	if p < 0 {
-		p = 0
-	}
-	if p > 100 {
-		p = 100
-	}
+	p := min(max(accentPercent, 0), 100)
 	inv := 100 - p
 	mix := func(b, a uint8) uint8 {
-		return uint8((int(b)*inv + int(a)*p) / 100)
+		return uint8((int(b)*inv + int(a)*p) / 100) //nolint:gosec // G115: a blend of two channel values stays within 0..255
 	}
 	return color.RGBA{R: mix(br, ar), G: mix(bg, ag), B: mix(bb, ab), A: 0xff}
 }
@@ -240,5 +234,5 @@ func colorToHex(c color.Color) string {
 		return ""
 	}
 	r, g, b, _ := c.RGBA()
-	return fmt.Sprintf("#%02x%02x%02x", uint8(r>>8), uint8(g>>8), uint8(b>>8))
+	return fmt.Sprintf("#%02x%02x%02x", uint8(r>>8), uint8(g>>8), uint8(b>>8)) //nolint:gosec // G115: 16-bit channels shifted to 8
 }

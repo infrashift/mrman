@@ -20,6 +20,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -272,8 +273,8 @@ func (b *Backend) diffFor(patches []patch.Patch, h *syntax.Highlighter) ([]model
 // commits renders the patches as CommitInfo rows, newest first.
 func (b *Backend) commits() []vcs.CommitInfo {
 	out := make([]vcs.CommitInfo, 0, len(b.series.Patches))
-	for i := len(b.series.Patches) - 1; i >= 0; i-- {
-		p := b.series.Patches[i]
+	for i, p := range slices.Backward(b.series.Patches) {
+
 		id := b.patchID(i)
 		body := p.Changelog
 		when := p.Date

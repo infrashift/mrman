@@ -33,7 +33,7 @@ func (d *Driver) GetPullRequest(ctx context.Context, target forge.Target) (*forg
 		return nil, d.wrap(op, nil, err)
 	}
 	pr, resp, err := api.GetPullRequest(target.Repository.Owner, target.Repository.Name,
-		int64(target.Number))
+		int64(target.Number)) //nolint:gosec // G115: pull request numbers are small forge-assigned integers
 	if err != nil {
 		return nil, d.wrap(op, resp, err)
 	}
@@ -70,7 +70,7 @@ func (d *Driver) GetDiff(ctx context.Context, pr *forge.PullRequestDetails) (str
 		return "", d.wrap(op, nil, err)
 	}
 	diff, resp, err := api.GetPullRequestDiff(pr.Repository.Owner, pr.Repository.Name,
-		int64(pr.Number), forgejo.PullRequestDiffOptions{Binary: false})
+		int64(pr.Number), forgejo.PullRequestDiffOptions{Binary: false}) //nolint:gosec // G115: pull request numbers are small forge-assigned integers
 	if err != nil {
 		return "", d.wrap(op, resp, err)
 	}
@@ -120,7 +120,7 @@ func (d *Driver) ListCommits(ctx context.Context, pr *forge.PullRequestDetails) 
 	page := 1
 	for range maxCommitPages {
 		rows, resp, err := api.ListPullRequestCommits(pr.Repository.Owner, pr.Repository.Name,
-			int64(pr.Number), forgejo.ListPullRequestCommitsOptions{
+			int64(pr.Number), forgejo.ListPullRequestCommitsOptions{ //nolint:gosec // G115: pull request numbers are small forge-assigned integers
 				ListOptions: forgejo.ListOptions{Page: page, PageSize: 100},
 			})
 		if err != nil {

@@ -74,7 +74,7 @@ func TestEditorReloadsOnlyWhenTheWorktreeCanHaveChanged(t *testing.T) {
 	fresh := model.DiffFile{
 		NewPath: &path, Status: model.StatusModified,
 		Hunks: []model.DiffHunk{{
-			Lines:    []model.DiffLine{{Origin: model.OriginAddition, Content: "edited", NewLineno: lineno(1)}},
+			Lines:    []model.DiffLine{{Origin: model.OriginAddition, Content: "edited", NewLineno: new(uint32(1))}},
 			NewStart: 1, NewCount: 1,
 		}},
 	}

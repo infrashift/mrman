@@ -4,6 +4,7 @@
 // inline-selector helpers. Pure state plus RecentCommits paging — the diff
 // loading a selection triggers lives in the UI/run layer (see
 // commitselect.go and diffload.go).
+
 package app
 
 import (

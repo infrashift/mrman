@@ -47,22 +47,16 @@ func (m *mockVcs) FileLineCount(string, model.FileStatus, *string) (uint32, erro
 	return m.totalLines, nil
 }
 
-func u32(v uint32) *uint32 { return &v }
-
-func intPtr(v int) *int { return &v }
-
-func strPtr(s string) *string { return &s }
-
 // makeHunk builds a context-only hunk of newCount lines starting at
 // newStart with old == new linenos.
 func makeHunk(newStart, newCount uint32) model.DiffHunk {
 	var lines []model.DiffLine
-	for i := uint32(0); i < newCount; i++ {
+	for i := range newCount {
 		lines = append(lines, model.DiffLine{
 			Origin:    model.OriginContext,
 			Content:   fmt.Sprintf("hunk line %d", newStart+i),
-			OldLineno: u32(newStart + i),
-			NewLineno: u32(newStart + i),
+			OldLineno: new(newStart + i),
+			NewLineno: new(newStart + i),
 		})
 	}
 	return model.DiffHunk{
@@ -77,7 +71,7 @@ func makeHunk(newStart, newCount uint32) model.DiffHunk {
 
 func makeFileWithHunks(path string, hunks []model.DiffHunk) model.DiffFile {
 	return model.DiffFile{
-		NewPath:     strPtr(path),
+		NewPath:     new(path),
 		Status:      model.StatusModified,
 		Hunks:       hunks,
 		ContentHash: model.ComputeContentHash(hunks),
@@ -88,7 +82,7 @@ func buildAppWithFiles(files []model.DiffFile, totalLines uint32) *App {
 	info := &vcs.Info{
 		RootPath:   "/tmp",
 		HeadCommit: "abc123",
-		BranchName: strPtr("main"),
+		BranchName: new("main"),
 		Type:       vcs.TypeGit,
 	}
 	session := model.NewReviewSession(info.RootPath, info.HeadCommit, info.BranchName, model.SourceWorkingTree)

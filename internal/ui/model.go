@@ -269,10 +269,9 @@ func (m *Model) handlePaste(text string) {
 }
 
 func (m *Model) syncViewport() {
-	innerH := m.height - 4 // header + status + diff borders
-	if innerH < 1 {
-		innerH = 1
-	}
+	innerH := max(
+		// header + status + diff borders
+		m.height-4, 1)
 	m.App.DiffState.ViewportHeight = innerH
 	m.App.SyncViewportWidth(m.diffInnerWidth())
 }
@@ -368,10 +367,7 @@ func (m *Model) handleKey(k tea.Key) (tea.Model, tea.Cmd) {
 			if a.PendingCount != nil {
 				n = *a.PendingCount
 			}
-			n = n*10 + action.N
-			if n > 999_999 {
-				n = 999_999
-			}
+			n = min(n*10+action.N, 999_999)
 			a.PendingCount = &n
 			return m, nil
 		}
@@ -383,7 +379,7 @@ func (m *Model) handleKey(k tea.Key) (tea.Model, tea.Cmd) {
 				// {N}G jumps to a source line, which the help popup does
 				// not have; there a count leaves G meaning "to the end".
 				if a.InputMode == input.ModeNormal {
-					a.GoToSourceLine(uint32(count), "new")
+					a.GoToSourceLine(uint32(count), "new") //nolint:gosec // G115: line numbers fit uint32
 					return m, nil
 				}
 			case input.CursorDown, input.CursorUp, input.ScrollLeft, input.ScrollRight,
@@ -1155,10 +1151,7 @@ func (m *Model) View() tea.View {
 		return tea.NewView("")
 	}
 	a := m.App
-	innerH := m.height - 4
-	if innerH < 1 {
-		innerH = 1
-	}
+	innerH := max(m.height-4, 1)
 
 	if a.InputMode == input.ModeHelp {
 		return m.helpView()
@@ -1357,14 +1350,8 @@ func (m *Model) helpView() tea.View {
 	content := helpContent(m.leader)
 	m.App.HelpState.TotalLines = len(content)
 	m.App.HelpState.ViewportHeight = m.height - 2
-	start := m.App.HelpState.ScrollOffset
-	if start > len(content) {
-		start = len(content)
-	}
-	end := start + m.App.HelpState.ViewportHeight
-	if end > len(content) {
-		end = len(content)
-	}
+	start := min(m.App.HelpState.ScrollOffset, len(content))
+	end := min(start+m.App.HelpState.ViewportHeight, len(content))
 	body := strings.Join(content[start:end], "\n")
 	frame := lipgloss.JoinVertical(lipgloss.Left,
 		Header(m.App, m.Theme, m.width),

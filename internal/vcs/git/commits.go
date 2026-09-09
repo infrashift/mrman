@@ -16,7 +16,7 @@ import (
 // through to the staged/unstaged paths.
 func (b *Backend) RecentCommits(offset, limit int) ([]vcs.CommitInfo, error) {
 	if _, err := b.git("rev-parse", "--verify", "HEAD"); err != nil {
-		return nil, nil
+		return nil, nil //nolint:nilerr // an unborn HEAD has no commits, which is not an error
 	}
 	branchTipNames := b.branchTipNames()
 	output, err := b.git("log",
@@ -193,7 +193,7 @@ func (b *Backend) revListRange(base, head string) ([]string, error) {
 	}
 
 	var commitIDs []string
-	for _, line := range strings.Split(output, "\n") {
+	for line := range strings.SplitSeq(output, "\n") {
 		if line != "" {
 			commitIDs = append(commitIDs, line)
 		}
@@ -214,7 +214,7 @@ func (b *Backend) branchTipNames() map[string][]string {
 	}
 
 	namesByTip := make(map[string][]string)
-	for _, line := range strings.Split(output, "\n") {
+	for line := range strings.SplitSeq(output, "\n") {
 		if oid, name, found := strings.Cut(line, "\x00"); found {
 			namesByTip[oid] = append(namesByTip[oid], name)
 		}
@@ -229,7 +229,7 @@ func (b *Backend) branchTipNames() map[string][]string {
 // 0x1e, fields separated by NUL.
 func parseCommitRecords(output string, branchTipNames map[string][]string) []vcs.CommitInfo {
 	var commits []vcs.CommitInfo
-	for _, record := range strings.Split(output, "\x1e") {
+	for record := range strings.SplitSeq(output, "\x1e") {
 		if commit, ok := parseCommitRecord(record, branchTipNames); ok {
 			commits = append(commits, commit)
 		}

@@ -77,7 +77,7 @@ func TestContainerFilePaths(t *testing.T) {
 		{OldPath: &oldOnly, Status: model.StatusDeleted, Hunks: []model.DiffHunk{{}}},
 		{NewPath: &vuePath, IsBinary: true, Hunks: []model.DiffHunk{{}}},
 	}
-	needs := func(p string) bool { return syntax.NeedsFullFileHighlight(p) }
+	needs := syntax.NeedsFullFileHighlight
 
 	newSide := ContainerFilePaths(files, model.LineSideNew, needs)
 	if len(newSide) != 1 || newSide[0] != "app.vue" {
