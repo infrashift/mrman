@@ -68,6 +68,12 @@ type Model struct {
 	// forge lazily resolves the driver backing the selector's Pull
 	// Requests tab; nil in tests and when no forge remote exists.
 	forge *forgeResolver
+
+	// inflight holds the cancel for each replaceable async family. A new
+	// request in a family cancels the previous one, and shutdown cancels
+	// them all, so an abandoned forge call stops instead of running to
+	// completion behind a generation check that will discard it anyway.
+	inflight inflightRequests
 	// queuedCmd holds async work started deep in the dispatch tree — a ":"
 	// command that reaches the forge, say. handleKey drains it after
 	// dispatching, so every dispatch handler need not return a tea.Cmd.

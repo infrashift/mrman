@@ -63,6 +63,7 @@ var knownHostKeys = map[string]struct{}{
 var knownTemplateKeys = map[string]struct{}{
 	"notes":       {},
 	"review_body": {},
+	"patch_reply": {},
 }
 
 var knownCommentTypeKeys = map[string]struct{}{
@@ -270,6 +271,9 @@ func apply(raw map[string]any, cfg *Config, warnings *[]string) {
 		}
 		if v, ok := stringAt(t, "review_body"); ok {
 			cfg.Templates.ReviewBody = v
+		}
+		if v, ok := stringAt(t, "patch_reply"); ok {
+			cfg.Templates.PatchReply = v
 		}
 	}
 	if f, ok := raw["forge"].(map[string]any); ok {

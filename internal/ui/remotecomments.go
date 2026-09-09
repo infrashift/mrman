@@ -1,8 +1,6 @@
 package ui
 
 import (
-	"context"
-
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/infrashift/mrman/internal/app"
@@ -33,8 +31,8 @@ func (m *Model) drainRemoteCommentsLoad() tea.Cmd {
 	details := m.App.Pr.Details
 	caps := backend.Capabilities()
 
+	ctx := m.inflight.replace(&m.inflight.threads)
 	return func() tea.Msg {
-		ctx := context.Background()
 		threads, err := backend.ListReviewThreads(ctx, details)
 		if err != nil {
 			return remoteCommentsResultMsg{Gen: req.Gen, Key: req.Key, Err: err}

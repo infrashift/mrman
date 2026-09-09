@@ -154,7 +154,7 @@ func RunPr(target string, opts cli.TuiOptions) error {
 	prog := tea.NewProgram(m)
 	_, err = prog.Run()
 	if m.session != nil {
-		m.session.finish(a)
+		m.shutdown(a)
 	}
 	if m.PendingStdout != "" {
 		fmt.Print(m.PendingStdout)

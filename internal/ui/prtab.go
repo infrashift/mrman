@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"context"
 	"fmt"
 	"strings"
 
@@ -40,12 +39,13 @@ func (m *Model) drainPrTabLoad() tea.Cmd {
 		return nil
 	}
 	resolver := m.forge
+	ctx := m.inflight.replace(&m.inflight.list)
 	return func() tea.Msg {
 		backend, repo, err := resolver.Get()
 		if err != nil {
 			return prListResultMsg{Gen: req.Gen, Append: req.Append, Err: err}
 		}
-		page, err := backend.ListPullRequests(context.Background(), forge.ListQuery{
+		page, err := backend.ListPullRequests(ctx, forge.ListQuery{
 			Repository: repo,
 			Scope:      req.Scope,
 			PageToken:  req.PageToken,
@@ -96,12 +96,13 @@ func (m *Model) openSelectedPr() tea.Cmd {
 	}
 	a.SetMessage(fmt.Sprintf("Opening %s#%d…", row.Repository.Slug(), row.Number))
 
+	ctx := m.inflight.replace(&m.inflight.open)
 	return func() tea.Msg {
 		backend, _, err := resolver.Get()
 		if err != nil {
 			return prOpenResultMsg{Gen: gen, Err: err}
 		}
-		load, err := fetchPullRequest(context.Background(), backend, target.Repository,
+		load, err := fetchPullRequest(ctx, backend, target.Repository,
 			target, highlighter, localCheckout)
 		return prOpenResultMsg{Gen: gen, Load: load, Err: err}
 	}
@@ -124,7 +125,7 @@ func (m *Model) handlePrOpenResult(msg prOpenResultMsg) tea.Cmd {
 	// SHA. Retire the outgoing session before swapping.
 	fresh := app.NewPrSession(msg.Load.Details)
 	if m.session != nil {
-		m.session.finish(a)
+		m.shutdown(a)
 	}
 	lifecycle, session := openPrSession(m.store, fresh, m.grantedEvents)
 	m.session = lifecycle
