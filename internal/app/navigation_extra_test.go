@@ -500,3 +500,36 @@ func TestGapSizeVariants(t *testing.T) {
 		t.Error("out-of-range file has no gap")
 	}
 }
+
+// TestFileRenderBodyHeightMatchesAnnotations pins the property the shared
+// walk exists for: the height arithmetic and the annotation list agree to
+// the row, in both view modes, with file and line comments present.
+func TestFileRenderBodyHeightMatchesAnnotations(t *testing.T) {
+	for _, mode := range []DiffViewMode{ViewUnified, ViewSideBySide} {
+		a := newTestApp(t)
+		a.DiffViewMode = mode
+		a.DiffState.ViewportWidth = 80
+		file := &a.DiffFiles[0]
+		path := file.DisplayPath()
+		review := a.Session.File(path)
+		if review == nil {
+			t.Fatalf("file %s missing from session", path)
+		}
+		review.AddFileComment(model.NewComment("file level", model.CommentTypeFromID("note"), nil))
+		side := model.LineSideNew
+		review.AddLineComment(3, model.NewComment("on line three\nsecond line", model.CommentTypeFromID("issue"), &side))
+		a.RebuildAnnotations()
+
+		// Body rows are everything after this file's header.
+		body := 0
+		for i, ann := range a.LineAnnotations {
+			if ann.Kind == AnnFileHeader && ann.FileIdx == 0 {
+				body = len(a.LineAnnotations) - i - 1
+				break
+			}
+		}
+		if got := a.fileRenderBodyHeight(0, file); got != body {
+			t.Errorf("mode %v: fileRenderBodyHeight = %d, annotations after the header = %d", mode, got, body)
+		}
+	}
+}
