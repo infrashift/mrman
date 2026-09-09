@@ -1,11 +1,11 @@
 ---
 title: Themes
-description: The 24 bundled themes, how light/dark pairing works, and the 41-slot format for writing your own.
+description: The 23 bundled themes, how light/dark pairing works, and the 41-slot format for writing your own.
 ---
 
 ## Bundled themes
 
-Twenty-four, in display order:
+Twenty-three, in display order:
 
 | Family | Names |
 |---|---|

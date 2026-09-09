@@ -84,6 +84,11 @@ environment lookup, a failing `token_cmd` is fatal rather than skipped: you
 configured it on purpose, so silently falling through to anonymous access would
 be the wrong kindness.
 
+A `token_cmd` that exits 0 with **empty output** is treated as "no token" rather than
+an error, and resolution falls through to `gh auth token` and then to anonymous
+access — so a secret-manager command that prints nothing is easy to mistake for
+a working one. Run it yourself and check it prints the token.
+
 ## TLS
 
 `ca_file` adds your organization's certificate authority for that host only.

@@ -74,7 +74,8 @@ See "Submitting" below.
    `--all` when you do not know the repository.
 
    Each row carries `slug`, `kind` (`local` or `pr`), `path`, `updated_at`,
-   `comment_count`, `reviewed_count`, `file_count`, `anchor` and `active`.
+   `comment_count`, `reviewed_count`, `file_count`, `anchor`, `active` and
+   `granted_events`.
 
 3. Pick the session:
    - Exactly one relevant row with `"active": true` — attach to it.

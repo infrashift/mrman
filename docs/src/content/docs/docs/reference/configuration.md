@@ -36,7 +36,7 @@ you get a precise warning in the status bar.
 | `export_legend` | `true` | Include the comment-type legend in exported markdown |
 | `username` | — | Author stamped on your comments; also distinguishes yours from an agent's |
 | `review_watch_interval_ms` | `1000` | Poll interval for external session changes; `0` disables |
-| `backend` | — | Accepted for tuicr compatibility and ignored: mrman uses the git CLI by design |
+| `backend` | — | Accepted for tuicr compatibility and ignored, with a warning at start: mrman uses the git CLI by design |
 
 `ignore_whitespace` applies to local git and Jujutsu diffs only. A pull
 request's diff arrives from the forge already rendered, so there is no flag
@@ -206,4 +206,6 @@ that a command an agent runs can never create one.
 
 `.gitignore` is honored automatically. A `.mrmanignore` at the repository
 root layers on top of it with the same syntax, `!` negation included, and
-excludes matching files from every review diff.
+excludes matching files from every review diff. Only the two root-level
+files are read — nested ignore files are not — and a merge request's diff
+is filtered only when mrman runs inside a checkout of that repository.
