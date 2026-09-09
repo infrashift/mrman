@@ -106,6 +106,12 @@ func render(t *testing.T, data *PatchData) string {
 
 func build(t *testing.T, s *model.ReviewSession, files []model.DiffFile, opts PatchOptions) *PatchData {
 	t.Helper()
+	// Fixture comments are all written by the default author, so unless a case
+	// says otherwise the reply is exported by that author and carries no
+	// badges — which is what the goldens below are pinning.
+	if opts.Author == (AuthorVisibility{}) {
+		opts.Author = AuthorVisibility{Username: model.DefaultAuthor}
+	}
 	data, err := BuildPatchData(s, files, opts)
 	if err != nil {
 		t.Fatalf("BuildPatchData: %v", err)
@@ -472,4 +478,48 @@ func TestSeriesQuotesEachPatchSeparately(t *testing.T) {
 		t.Errorf("both comments are placeable:\n%s", out)
 	}
 	checkGolden(t, "series_two_patches", out)
+}
+
+// TestReplyBadgesTheAuthor covers the reply's half of the author badge,
+// including the case the note template composes by hand: a badged comment
+// that also moved, where "[TYPE @author] (moved)" has to come out in order.
+func TestReplyBadgesTheAuthor(t *testing.T) {
+	s := patchSession(t, "drivers/foo.c")
+	mine := comment(t, s, "drivers/foo.c", 102, "note", "mine, unbadged")
+	mine.Author = "ryan"
+	theirs := comment(t, s, "drivers/foo.c", 103, "issue", "theirs, badged")
+	theirs.Author = "claude"
+
+	out := render(t, build(t, s, parseFixture(t, tabbedDiff), PatchOptions{
+		Author: AuthorVisibility{Username: "ryan"},
+		AnchorLabel: func(id string) string {
+			if id == theirs.ID {
+				return "moved"
+			}
+			return ""
+		},
+	}))
+
+	if !strings.Contains(out, "[ISSUE @claude] (moved) theirs, badged") {
+		t.Errorf("a badged comment that moved must render both, in order:\n%s", out)
+	}
+	if !strings.Contains(out, "[NOTE] mine, unbadged") {
+		t.Errorf("your own comment must stay unbadged:\n%s", out)
+	}
+}
+
+// TestReplyBadgesTypelessComment: with no type the badge brings its own
+// bracket, so attribution does not depend on having typed the comment.
+func TestReplyBadgesTypelessComment(t *testing.T) {
+	s := patchSession(t, "drivers/foo.c")
+	c := comment(t, s, "drivers/foo.c", 102, "", "plain remark")
+	c.Author = "claude"
+
+	out := render(t, build(t, s, parseFixture(t, tabbedDiff), PatchOptions{
+		Author: AuthorVisibility{Username: "ryan"},
+	}))
+
+	if !strings.Contains(out, "[@claude] plain remark") {
+		t.Errorf("typeless authored comment must carry a bare author bracket:\n%s", out)
+	}
 }

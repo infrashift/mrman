@@ -59,4 +59,4 @@ These comments could not be placed against the diff above:
 {{template "note" .}}
 {{- end}}
 {{end}}
-{{- define "note"}}{{if .Type}}[{{.Type}}]{{if .Anchor}} ({{.Anchor}}){{end}} {{else if .Anchor}}({{.Anchor}}) {{end}}{{.Content}}{{end}}
+{{- define "note"}}{{if .Tag}}[{{.Tag}}]{{if .Anchor}} ({{.Anchor}}){{end}} {{else if .Anchor}}({{.Anchor}}) {{end}}{{.Content}}{{end}}

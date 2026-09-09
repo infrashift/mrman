@@ -71,12 +71,19 @@ Comment types: NOTE (…), ISSUE (…), SUGGESTION (…), PRAISE (…)
 ## Local mrman Comments
 
 1. **[ISSUE]** `src/cache.go:75` - This drops the error on a full disk.
-2. **[NOTE]** `src/config.py:8` - Worth a comment saying why 30s.
+2. **[NOTE @claude]** `src/config.py:8` - Worth a comment saying why 30s.
 ```
 
 Numbering is continuous across the whole review, so "point 3" is unambiguous
 when they reply. Deleted-side lines are marked `path:~42`, and ranges render as
 `path:10-18`.
+
+Comments someone else wrote — an agent's, or a colleague's in a session you
+picked up — carry their author, as above. Yours stay bare unless you set
+`show_own_author = true`; setting [`username`](../../reference/configuration/)
+is what tells mrman which ones are yours. See
+[the author badge](../../reference/templates/#the-author-badge) for the full
+rule.
 
 Both the template and the legend are yours to change — see
 [Templates](../../reference/templates/) for the fields available, and

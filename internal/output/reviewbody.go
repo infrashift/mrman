@@ -16,6 +16,30 @@ type ReviewBodyComment struct {
 	Type    string // "" for untyped (marker suppressed)
 	Path    string // moved-to-summary items only
 	Content string
+	Author  string // "" for comments written before mrman stamped authors
+	// ShowAuthor is whether Author should be badged, resolved from the same
+	// rule the TUI badges by (AuthorVisibility.Shows).
+	ShowAuthor bool
+}
+
+// AuthorTag returns the comment's "@name" badge, or "" when the author is
+// unknown or is not badged for this reader.
+func (c ReviewBodyComment) AuthorTag() string {
+	return authorTag(c.Author, c.ShowAuthor)
+}
+
+// Tag returns the bracket contents for a summary item: the type, the author
+// badge, or both joined by a space. Review comments render no type marker, so
+// they use AuthorTag directly instead.
+func (c ReviewBodyComment) Tag() string {
+	tag := c.AuthorTag()
+	switch {
+	case c.Type == "":
+		return tag
+	case tag == "":
+		return strings.ToUpper(c.Type)
+	}
+	return strings.ToUpper(c.Type) + " " + tag
 }
 
 // ReviewBodyData feeds the review-body template: the summary text posted

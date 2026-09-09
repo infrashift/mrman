@@ -55,6 +55,7 @@ func renderExport(a *app.App, opts exportOptions) (string, error) {
 		ShowLegend:      opts.ShowLegend,
 		CommentTypes:    legendEntries(a.CommentTypes),
 		IncludeDiff:     opts.IncludeDiff,
+		Author:          a.AuthorVisibility(),
 	})
 	if err != nil {
 		return "", err
@@ -80,6 +81,7 @@ func renderPatchReply(a *app.App, opts exportOptions) (string, error) {
 		CommentTypes:    legendEntries(a.CommentTypes),
 		Context:         opts.PatchContext,
 		Reply:           opts.ReplyHeaders,
+		Author:          a.AuthorVisibility(),
 		// The anchor verdicts live on the app, and output must not import it,
 		// so they cross as functions.
 		Outdated:    a.HasOutdatedAnchor,

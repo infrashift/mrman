@@ -1,9 +1,9 @@
 {{- range $i, $c := .ReviewComments}}{{if $i}}
 
-{{end}}{{$c.Content}}{{end}}
+{{end}}{{if $c.AuthorTag}}**[{{$c.AuthorTag}}]** {{end}}{{$c.Content}}{{end}}
 {{- if .MovedToSummary}}{{if .ReviewComments}}
 
 {{end}}## Unplaced comments
 
-{{range .MovedToSummary}}- {{if .Type}}[{{upper .Type}}] {{end}}{{.Path}}: {{.Content}}
+{{range .MovedToSummary}}- {{if .Tag}}[{{.Tag}}] {{end}}{{.Path}}: {{.Content}}
 {{end}}{{end}}

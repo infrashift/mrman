@@ -169,6 +169,9 @@ type PatchOptions struct {
 	CommentTypes    []LegendEntry
 	Context         PatchContext
 	Reply           ReplyHeaders
+	// Author decides which comments carry an author badge. The zero value
+	// badges every authored comment.
+	Author AuthorVisibility
 	// Outdated reports whether a comment's anchor failed validation. Supplied
 	// by the caller because output must not import app; pass
 	// App.HasOutdatedAnchor.
@@ -229,7 +232,7 @@ func BuildPatchData(
 	}
 	for _, c := range session.ReviewComments {
 		data.ReviewComments = append(data.ReviewComments,
-			templateComment(c, reviewLocation, next(), opts.CommentTypes))
+			templateComment(c, reviewLocation, next(), opts.CommentTypes, opts.Author))
 	}
 
 	for _, entry := range patchOrderedEntries(session, files) {
@@ -306,7 +309,7 @@ func buildPatchFile(
 		if !diff.CommentBelongsTo(c) {
 			continue
 		}
-		file.Comments = append(file.Comments, templateComment(c, path, next(), opts.CommentTypes))
+		file.Comments = append(file.Comments, templateComment(c, path, next(), opts.CommentTypes, opts.Author))
 	}
 
 	// Everything that cannot be quoted becomes an orphan rather than a guess.
@@ -366,7 +369,7 @@ func placeComments(
 			if !diff.CommentBelongsTo(c) {
 				continue
 			}
-			tc := templateComment(c, lineLocation(path, line, c), next(), opts.CommentTypes)
+			tc := templateComment(c, lineLocation(path, line, c), next(), opts.CommentTypes, opts.Author)
 			if label := opts.anchorLabel(c.ID); label != "" {
 				tc.Anchor = label
 			}
@@ -471,7 +474,7 @@ func orphanAll(
 	var out []OrphanComment
 	for _, line := range lines {
 		for _, c := range review.LineComments[line] {
-			tc := templateComment(c, lineLocation(path, line, c), next(), opts.CommentTypes)
+			tc := templateComment(c, lineLocation(path, line, c), next(), opts.CommentTypes, opts.Author)
 			out = append(out, orphan(tc, reason, c))
 		}
 	}

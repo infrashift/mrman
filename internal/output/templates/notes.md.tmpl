@@ -1,4 +1,4 @@
-{{define "entry"}}{{.DiffBlock}}{{.Marker}} {{if .Type}}**[{{.Type}}]** {{end}}`{{.Location}}`{{if .CommitID}} (commit {{.CommitID}}){{end}} - {{.Body}}
+{{define "entry"}}{{.DiffBlock}}{{.Marker}} {{if .Tag}}**[{{.Tag}}]** {{end}}`{{.Location}}`{{if .CommitID}} (commit {{.CommitID}}){{end}} - {{.Body}}
 {{end}}{{if .Slug}}## Session: {{.Slug}}
 
 {{end}}I reviewed your code and have the following comments. Please address them.

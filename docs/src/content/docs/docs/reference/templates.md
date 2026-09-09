@@ -54,6 +54,7 @@ Every exported field and method below is stable; overrides may rely on them.
 |---|---|
 | `.Type` | Uppercased export label (`ISSUE`); empty for untyped |
 | `.Author` | Comment author (`user` for local drafts) |
+| `.ShowAuthor` | Whether `.Author` should be badged for this reader — see below |
 | `.Location` | The anchor without backticks — see below |
 | `.CommitID` | Short SHA the comment is scoped to, empty when unscoped |
 | `.Content` | Raw comment text, may span lines |
@@ -62,6 +63,8 @@ Every exported field and method below is stable; overrides may rely on them.
 | `.Marker` | Method: the numbered-list marker, e.g. `3.` |
 | `.Body` | Method: `.Content` with continuation lines indented under the marker |
 | `.DiffBlock` | Method: `.Diff` as a fenced block with its own surrounding blank lines, or empty |
+| `.AuthorTag` | Method: `@name`, or empty when the comment is not badged |
+| `.Tag` | Method: the bracket contents — `.Type`, `.AuthorTag`, or both joined by a space |
 
 `.Location` formats:
 
@@ -77,6 +80,25 @@ Every exported field and method below is stable; overrides may rely on them.
 Prefer `.Body` over `.Content` in a numbered list — it handles multi-line
 comments and strips stray carriage returns. `.Content` is there when you are
 building something other than a list.
+
+### The author badge
+
+`.Tag` is what the default template brackets, so a review written by more than
+one person exports as `**[ISSUE @claude]**` and an untyped comment as
+`**[@claude]**`. Use `.Tag` rather than `.Type` unless you want to drop
+attribution.
+
+Which comments carry a badge follows the same rule the TUI draws by:
+
+- Your own comments are bare — the badge marks what *someone else* wrote. Set
+  `show_own_author = true` to attribute every comment instead.
+- A comment with no author is never badged. That is a session written before
+  mrman stamped authors, and inventing one would be a guess.
+- With no `username` configured, nothing matches you, so every comment badges
+  as `@user`. Setting `username` is what quiets that.
+
+`.ShowAuthor` is the resolved verdict, already folded into `.AuthorTag` and
+`.Tag`; read it directly only if you are rendering the badge some other way.
 
 ### Quoted hunks
 
@@ -117,7 +139,7 @@ Worth reading before you replace it — it defines an `entry` template and reuse
 it for both review-level and per-file comments:
 
 ```go-template
-{{define "entry"}}{{.DiffBlock}}{{.Marker}} {{if .Type}}**[{{.Type}}]** {{end}}`{{.Location}}`{{if .CommitID}} (commit {{.CommitID}}){{end}} - {{.Body}}
+{{define "entry"}}{{.DiffBlock}}{{.Marker}} {{if .Tag}}**[{{.Tag}}]** {{end}}`{{.Location}}`{{if .CommitID}} (commit {{.CommitID}}){{end}} - {{.Body}}
 {{end}}{{if .Slug}}## Session: {{.Slug}}
 
 {{end}}I reviewed your code and have the following comments. Please address them.
@@ -162,21 +184,27 @@ locally.
 | `.MovedToSummary` | Comments that could not be anchored inline |
 
 Each carries `.Type` (empty when untyped), `.Path` (set on
-`MovedToSummary` items) and `.Content`. `upper` is available.
+`MovedToSummary` items), `.Content`, `.Author`/`.ShowAuthor`, and the
+`.AuthorTag`/`.Tag` methods described [above](#the-author-badge). `upper` is
+available — `.Tag` uppercases the type for you.
 
 The default:
 
 ```go-template
 {{- range $i, $c := .ReviewComments}}{{if $i}}
 
-{{end}}{{$c.Content}}{{end}}
+{{end}}{{if $c.AuthorTag}}**[{{$c.AuthorTag}}]** {{end}}{{$c.Content}}{{end}}
 {{- if .MovedToSummary}}{{if .ReviewComments}}
 
 {{end}}## Unplaced comments
 
-{{range .MovedToSummary}}- {{if .Type}}[{{upper .Type}}] {{end}}{{.Path}}: {{.Content}}
+{{range .MovedToSummary}}- {{if .Tag}}[{{.Tag}}] {{end}}{{.Path}}: {{.Content}}
 {{end}}{{end}}
 ```
+
+This body is posted to a forge, where `@name` may resolve to a real mention.
+Drop `.AuthorTag` from an override if that ping is unwanted — the badge in the
+notes export is unaffected.
 
 `MovedToSummary` is how mrman refuses to drop a comment it could not place —
 see [preflight](../../guides/merge-requests/#preflight) for the reasons a comment

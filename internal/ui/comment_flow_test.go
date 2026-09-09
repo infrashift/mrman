@@ -256,6 +256,10 @@ func TestExportLegendListsUsedCommentTypes(t *testing.T) {
 	}
 	press(m, "", tea.KeyEnter, 0)
 
+	// Export as the author who wrote it, so the type tag stands alone and this
+	// test stays about the legend. The author badge has its own tests.
+	m.App.Username = model.DefaultAuthor
+
 	// The built-in default type is NOTE, so this comment is a note.
 	text, err := renderExport(m.App, exportOptions{ShowLegend: true})
 	if err != nil {
@@ -422,5 +426,47 @@ func TestVimCommentBoxTitleWithSingleType(t *testing.T) {
 	}
 	if strings.Contains(title, "Tab:type") {
 		t.Errorf("a single-entry cycle must not advertise Tab even in Normal mode:\n%s", title)
+	}
+}
+
+// TestExportBadgesTheAuthorEndToEnd is the wiring this whole feature was
+// missing: the badge rule and the username both live on the app, and the
+// export never asked for either, so a session reviewed by a person and an
+// agent exported as one anonymous list.
+func TestExportBadgesTheAuthorEndToEnd(t *testing.T) {
+	_, m := testLifecycle(t)
+	m.App.Username = "ryan"
+	moveToDiffLine(t, m)
+	pressRune(m, 'c')
+	for _, r := range "mine" {
+		pressRune(m, r)
+	}
+	press(m, "", tea.KeyEnter, 0)
+
+	// A second comment from someone else, as an agent writing through the CLI
+	// would leave it.
+	theirs := model.NewComment("theirs", model.CommentTypeFromID("note"), nil)
+	theirs.Author = "claude"
+	m.App.Session.ReviewComments = append(m.App.Session.ReviewComments, theirs)
+
+	text, err := renderExport(m.App, exportOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(text, "**[NOTE @claude]**") {
+		t.Errorf("someone else's comment must be badged:\n%s", text)
+	}
+	if strings.Contains(text, "@ryan") {
+		t.Errorf("your own comment must not be badged:\n%s", text)
+	}
+
+	// show_own_author attributes everything, in the export as in the TUI.
+	m.App.ShowOwnAuthor = true
+	all, err := renderExport(m.App, exportOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(all, "**[NOTE @ryan]**") || !strings.Contains(all, "**[NOTE @claude]**") {
+		t.Errorf("show_own_author must attribute every comment:\n%s", all)
 	}
 }

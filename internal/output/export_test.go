@@ -67,6 +67,10 @@ func renderDefault(t *testing.T, session *model.ReviewSession, kind ScopeKind, c
 		DiffSourceLabel: kind.Label(),
 		ShowLegend:      showLegend,
 		CommentTypes:    types,
+		// Every fixture comment is written by the default author, so exporting
+		// as that author keeps these tests about what they are about: the
+		// unbadged shape mrman inherited from tuicr. Badging has its own tests.
+		Author: AuthorVisibility{Username: model.DefaultAuthor},
 	})
 	if err != nil {
 		t.Fatalf("BuildTemplateData: %v", err)
@@ -522,6 +526,10 @@ func TestBuildTemplateDataFieldsAndCounts(t *testing.T) {
 	if data.Files[0].Comments[0].Author != model.DefaultAuthor {
 		t.Errorf("Author = %q", data.Files[0].Comments[0].Author)
 	}
+	// No username configured here, so the default author reads as someone else.
+	if !data.Files[0].Comments[0].ShowAuthor || !data.ReviewComments[0].ShowAuthor {
+		t.Error("ShowAuthor must be resolved for file and review comments alike")
+	}
 	if len(data.CommentTypes) != 3 { // note, suggestion, issue used
 		t.Errorf("CommentTypes = %+v", data.CommentTypes)
 	}
@@ -577,5 +585,116 @@ func TestExportLineCommentsSortedByLineKey(t *testing.T) {
 		"3. **[NOTE]** `a.go:90` - late\n"
 	if !strings.Contains(got, want) {
 		t.Errorf("file comments first, line comments by key, got:\n%s", got)
+	}
+}
+
+// authoredSession builds a session whose comments were written by two
+// different people: one file comment by claude, one line comment by ryan.
+func authoredSession() *model.ReviewSession {
+	session := newSession()
+	session.AddFile("src/main.rs", model.StatusModified, 0)
+	review := session.File("src/main.rs")
+	review.AddFileComment(model.NewComment(
+		"Consider adding documentation", model.CommentTypeFromID("suggestion"), nil).WithAuthor("claude"))
+	side := model.LineSideNew
+	review.AddLineComment(42, model.NewComment(
+		"Magic number should be a constant", model.CommentTypeFromID("issue"), &side).WithAuthor("ryan"))
+	return session
+}
+
+// renderAs exports authoredSession as the given reader.
+func renderAs(t *testing.T, vis AuthorVisibility) string {
+	t.Helper()
+	tmpl, _ := LoadNotesTemplate("")
+	data, err := BuildTemplateData(authoredSession(), nil, "", ExportOptions{
+		CommentTypes: testLegend(),
+		Author:       vis,
+	})
+	if err != nil {
+		t.Fatalf("BuildTemplateData: %v", err)
+	}
+	out, err := RenderNotes(tmpl, data)
+	if err != nil {
+		t.Fatalf("RenderNotes: %v", err)
+	}
+	return out
+}
+
+// TestExportBadgesOtherAuthors is the point of the whole feature: an export
+// handed to someone else has to say who wrote what. Before this, every
+// attribution was dropped on the way out and a review by three people read as
+// one anonymous list.
+func TestExportBadgesOtherAuthors(t *testing.T) {
+	got := renderAs(t, AuthorVisibility{Username: "ryan"})
+	if !strings.Contains(got, "**[SUGGESTION @claude]**") {
+		t.Errorf("someone else's comment must be badged:\n%s", got)
+	}
+	if strings.Contains(got, "@ryan") {
+		t.Errorf("your own comment must not be badged by default:\n%s", got)
+	}
+}
+
+// TestExportShowOwnAuthorBadgesEveryone covers the opt-in.
+func TestExportShowOwnAuthorBadgesEveryone(t *testing.T) {
+	got := renderAs(t, AuthorVisibility{Username: "ryan", ShowOwnAuthor: true})
+	if !strings.Contains(got, "**[SUGGESTION @claude]**") || !strings.Contains(got, "**[ISSUE @ryan]**") {
+		t.Errorf("show_own_author must attribute every comment:\n%s", got)
+	}
+}
+
+// TestExportUnconfiguredUsernameBadgesEverything is the fresh-install state:
+// no username set, so the default author reads as someone else. This matches
+// what the TUI already draws, which is the whole reason the exports were wrong.
+func TestExportUnconfiguredUsernameBadgesEverything(t *testing.T) {
+	got := renderAs(t, AuthorVisibility{})
+	if !strings.Contains(got, "**[SUGGESTION @claude]**") || !strings.Contains(got, "**[ISSUE @ryan]**") {
+		t.Errorf("with no username configured every author is badged:\n%s", got)
+	}
+}
+
+// TestExportBadgesTypelessComment: with no type there is no bracket today, so
+// the badge has to bring its own.
+func TestExportBadgesTypelessComment(t *testing.T) {
+	session := newSession()
+	session.AddFile("src/main.rs", model.StatusModified, 0)
+	session.File("src/main.rs").AddFileComment(
+		model.NewComment("plain remark", model.CommentTypeFromID(""), nil).WithAuthor("claude"))
+
+	tmpl, _ := LoadNotesTemplate("")
+	data, err := BuildTemplateData(session, nil, "", ExportOptions{Author: AuthorVisibility{Username: "ryan"}})
+	if err != nil {
+		t.Fatalf("BuildTemplateData: %v", err)
+	}
+	got, err := RenderNotes(tmpl, data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(got, "**[@claude]** `src/main.rs` - plain remark") {
+		t.Errorf("typeless authored comment must render a bare author bracket:\n%s", got)
+	}
+}
+
+// TestExportLeavesUnauthoredCommentsAlone pins backward compatibility: a
+// session written before mrman stamped authors exports exactly as it did.
+func TestExportLeavesUnauthoredCommentsAlone(t *testing.T) {
+	session := newSession()
+	session.AddFile("src/main.rs", model.StatusModified, 0)
+	session.File("src/main.rs").AddFileComment(
+		model.NewComment("old note", model.CommentTypeFromID("issue"), nil).WithAuthor(""))
+
+	tmpl, _ := LoadNotesTemplate("")
+	data, err := BuildTemplateData(session, nil, "", ExportOptions{
+		CommentTypes: testLegend(),
+		Author:       AuthorVisibility{Username: "ryan"},
+	})
+	if err != nil {
+		t.Fatalf("BuildTemplateData: %v", err)
+	}
+	got, err := RenderNotes(tmpl, data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(got, "1. **[ISSUE]** `src/main.rs` - old note") {
+		t.Errorf("an unauthored comment must render unchanged:\n%s", got)
 	}
 }

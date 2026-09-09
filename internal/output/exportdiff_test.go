@@ -77,6 +77,8 @@ func renderExportWith(t *testing.T, s *model.ReviewSession, files []model.DiffFi
 	data, err := BuildTemplateData(s, files, "", ExportOptions{
 		CommentTypes: testLegend(),
 		IncludeDiff:  include,
+		// Unbadged, so these tests stay about the quoted hunk. See renderDefault.
+		Author: AuthorVisibility{Username: model.DefaultAuthor},
 	})
 	if err != nil {
 		t.Fatalf("BuildTemplateData: %v", err)

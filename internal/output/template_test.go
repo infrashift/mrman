@@ -147,3 +147,57 @@ func TestTemplateCommentMarkerAndBody(t *testing.T) {
 		t.Errorf("empty Body = %q", got)
 	}
 }
+
+// TestAuthorVisibilityShows pins the badge rule at the level every export
+// shares. App.ShowsAuthor delegates here, so the TUI and the exports cannot
+// drift apart.
+func TestAuthorVisibilityShows(t *testing.T) {
+	mine := AuthorVisibility{Username: "ryan"}
+	if mine.Shows("ryan") {
+		t.Error("your own author must not be badged by default")
+	}
+	if !mine.Shows("claude") {
+		t.Error("someone else's author must be badged")
+	}
+	if mine.Shows("") {
+		t.Error("an unauthored comment must never be badged")
+	}
+	opted := AuthorVisibility{Username: "ryan", ShowOwnAuthor: true}
+	if !opted.Shows("ryan") || !opted.Shows("claude") {
+		t.Error("show_own_author must badge everyone")
+	}
+	if opted.Shows("") {
+		t.Error("show_own_author must not invent an author")
+	}
+	// A fresh install: nothing configured, so the default author reads as
+	// someone else and every comment carries "@user".
+	if !(AuthorVisibility{}).Shows("user") {
+		t.Error("with no username configured the default author is badged")
+	}
+}
+
+// TestTemplateCommentTag covers the four shapes the bracket can take, since
+// Tag is what both the notes export and the reply render from.
+func TestTemplateCommentTag(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		comment    TemplateComment
+		wantTag    string
+		wantAuthor string
+	}{
+		{"type and author", TemplateComment{Type: "ISSUE", Author: "claude", ShowAuthor: true}, "ISSUE @claude", "@claude"},
+		{"type only", TemplateComment{Type: "ISSUE", Author: "ryan"}, "ISSUE", ""},
+		{"author only", TemplateComment{Author: "claude", ShowAuthor: true}, "@claude", "@claude"},
+		{"neither", TemplateComment{Author: "ryan"}, "", ""},
+		{"unauthored but shown", TemplateComment{Type: "NIT", ShowAuthor: true}, "NIT", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := tc.comment.Tag(); got != tc.wantTag {
+				t.Errorf("Tag = %q, want %q", got, tc.wantTag)
+			}
+			if got := tc.comment.AuthorTag(); got != tc.wantAuthor {
+				t.Errorf("AuthorTag = %q, want %q", got, tc.wantAuthor)
+			}
+		})
+	}
+}

@@ -109,6 +109,9 @@ type ExportOptions struct {
 	// TemplateComment.Diff. Off by default: it changes what every export
 	// looks like, so it is the export_diff setting's to turn on.
 	IncludeDiff bool
+	// Author decides which comments carry an author badge. The zero value
+	// badges every authored comment.
+	Author AuthorVisibility
 }
 
 // BuildTemplateData flattens a review session into the template data model:
@@ -151,7 +154,7 @@ func BuildTemplateData(
 	}
 	for _, c := range session.ReviewComments {
 		data.ReviewComments = append(data.ReviewComments,
-			templateComment(c, reviewLocation, next(), opts.CommentTypes))
+			templateComment(c, reviewLocation, next(), opts.CommentTypes, opts.Author))
 	}
 
 	paths := make([]string, 0, len(session.Files))
@@ -175,7 +178,7 @@ func BuildTemplateData(
 		file := TemplateFile{Path: path, Status: string(review.Status)}
 		for _, c := range review.FileComments {
 			file.Comments = append(file.Comments,
-				templateComment(c, path, next(), opts.CommentTypes))
+				templateComment(c, path, next(), opts.CommentTypes, opts.Author))
 		}
 		lines := make([]uint32, 0, len(review.LineComments))
 		for line := range review.LineComments {
@@ -184,7 +187,7 @@ func BuildTemplateData(
 		sort.Slice(lines, func(i, j int) bool { return lines[i] < lines[j] })
 		for _, line := range lines {
 			for _, c := range review.LineComments[line] {
-				tc := templateComment(c, lineLocation(path, line, c), next(), opts.CommentTypes)
+				tc := templateComment(c, lineLocation(path, line, c), next(), opts.CommentTypes, opts.Author)
 				tc.Diff = quoter.quote(path, line, c)
 				file.Comments = append(file.Comments, tc)
 			}
@@ -199,13 +202,21 @@ func BuildTemplateData(
 }
 
 // templateComment converts a model comment at the given location and number.
-func templateComment(c *model.Comment, location string, number int, configured []LegendEntry) TemplateComment {
+//
+// It is the single conversion point for every export, which is why the author
+// badge is resolved here: get it right once and the notes export, the reply
+// and the orphan list all agree about who wrote what.
+func templateComment(
+	c *model.Comment, location string, number int,
+	configured []LegendEntry, vis AuthorVisibility,
+) TemplateComment {
 	tc := TemplateComment{
-		Type:     exportTypeLabel(c.CommentType, configured),
-		Author:   c.Author,
-		Location: location,
-		Content:  c.Content,
-		Number:   number,
+		Type:       exportTypeLabel(c.CommentType, configured),
+		Author:     c.Author,
+		ShowAuthor: vis.Shows(c.Author),
+		Location:   location,
+		Content:    c.Content,
+		Number:     number,
 	}
 	if c.CommitID != nil {
 		tc.CommitID = shortSHA(*c.CommitID)

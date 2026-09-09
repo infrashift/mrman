@@ -2,7 +2,8 @@
 // to the system clipboard, ported from tuicr's src/output/markdown.rs. The
 // markdown shape is driven by a user-overridable text/template; the embedded
 // default template reproduces tuicr's export byte-for-byte (with the tool
-// word renamed: "## Local mrman Comments").
+// word renamed: "## Local mrman Comments") for every comment that carries no
+// author badge — tuicr had no authors to badge.
 package output
 
 import (
@@ -35,6 +36,43 @@ type LegendEntry struct {
 	Definition string
 }
 
+// AuthorVisibility is who is exporting, so an export badges exactly the
+// comments the TUI badges. It is the export-side half of App.ShowsAuthor,
+// which delegates here: output must not import app, so the rule lives at the
+// bottom rather than being called across.
+//
+// The zero value is a fresh install with no username configured. It badges
+// everything authored, including the "user" default — which is the state the
+// TUI renders in too, and the reason "@user" shows up before the setting is
+// configured.
+type AuthorVisibility struct {
+	// Username is the configured username, empty when unset.
+	Username string
+	// ShowOwnAuthor badges your own comments as well as everyone else's.
+	ShowOwnAuthor bool
+}
+
+// Shows reports whether a comment by the given author carries a badge.
+//
+// Your own comments are unbadged by default: the badge marks what someone
+// else wrote. An empty author — a comment written before mrman stamped
+// authors at all — is never badged, because inventing one would be a guess.
+func (v AuthorVisibility) Shows(author string) bool {
+	if author == "" {
+		return false
+	}
+	return v.ShowOwnAuthor || author != v.Username
+}
+
+// authorTag renders the "@name" badge, or "" when there is nothing to badge.
+// Shared by every comment shape that can carry an author.
+func authorTag(author string, show bool) string {
+	if author == "" || !show {
+		return ""
+	}
+	return "@" + author
+}
+
 // TemplateComment is one comment as seen by templates. It is part of the
 // stable, documented template data model.
 type TemplateComment struct {
@@ -44,6 +82,10 @@ type TemplateComment struct {
 	Type string
 	// Author is the comment author ("user" for local drafts).
 	Author string
+	// ShowAuthor is whether Author should be badged, resolved from the
+	// export's AuthorVisibility. Templates that want the badge should use
+	// AuthorTag or Tag rather than reading this directly.
+	ShowAuthor bool
 	// Location is the anchor without backticks: "src/x.go:42" for a line,
 	// "src/x.go:~42" on the old (deleted) side, "src/x.go:10-15" /
 	// "src/x.go:~10-~15" for ranges, "src/x.go" for a file comment, and
@@ -106,6 +148,31 @@ func (c TemplateComment) DiffBlock() string {
 		return ""
 	}
 	return "\n" + codefenceFn("diff", c.Diff) + "\n\n"
+}
+
+// AuthorTag returns the comment's "@name" badge, or "" when the author is
+// unknown or is not badged for this reader.
+func (c TemplateComment) AuthorTag() string {
+	return authorTag(c.Author, c.ShowAuthor)
+}
+
+// Tag returns the bracket contents for this comment: the type, the author
+// badge, or both joined by a space, matching the TUI's "[ISSUE @claude]".
+// It is "" when there is neither, which is what keeps an unbadged, typeless
+// comment rendering byte-for-byte as it always has.
+//
+// The composition lives here rather than in the templates for the same reason
+// DiffBlock does: the templates are user-overridable, and a three-way
+// {{if}} over two optional halves is not something to ask anyone to copy.
+func (c TemplateComment) Tag() string {
+	tag := c.AuthorTag()
+	switch {
+	case c.Type == "":
+		return tag
+	case tag == "":
+		return c.Type
+	}
+	return c.Type + " " + tag
 }
 
 // TemplateFile is one reviewed file carrying comments, as seen by templates.
