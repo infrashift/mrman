@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -281,5 +282,101 @@ func TestCancelSubmit(t *testing.T) {
 	a.CancelSubmit()
 	if a.Submit != nil || a.InputMode != input.ModeNormal {
 		t.Fatal("cancel must clear state")
+	}
+}
+
+// TestApplySubmitResultPartialLocksOnlyWhatPosted covers the GitLab and
+// Azure DevOps contract: the forge posted some inline comments, then
+// refused one. Only the posted ones (and the body, which both drivers post
+// first) may lock; the rest stay drafts so a second submit carries them.
+func TestApplySubmitResultPartialLocksOnlyWhatPosted(t *testing.T) {
+	a := prTestApp(t, allCaps())
+	first := addLineComment(t, a, "src/x.go", 1, "first")
+	second := addLineComment(t, a, "src/x.go", 2, "second")
+	third := addLineComment(t, a, "src/x.go", 3, "third")
+	body := model.NewComment("summary", model.CommentTypeFromID("note"), nil)
+	a.Session.ReviewComments = append(a.Session.ReviewComments, body)
+	if !a.StartSubmitWith(forge.SubmitComment, false) {
+		t.Fatal("submit must start")
+	}
+	if len(a.Submit.SentCommentIDs) != 3 {
+		t.Fatalf("sent = %v", a.Submit.SentCommentIDs)
+	}
+
+	cause := errors.New("HTTP 500")
+	outcome := a.ApplySubmitResult(&forge.SubmitResult{
+		State: "COMMENTED",
+		Partial: &forge.PartialFailure{
+			SucceededCommentIDs: []string{first.ID},
+			FailedAt:            1,
+			Cause:               cause,
+		},
+	}, forge.SubmitComment)
+
+	if outcome.Complete() {
+		t.Fatal("a partial result is not complete")
+	}
+	if outcome.Posted != 1 || outcome.Unposted != 2 {
+		t.Fatalf("outcome = %+v", outcome)
+	}
+	if first.LifecycleState != model.LifecycleSubmitted {
+		t.Error("the posted comment must lock")
+	}
+	if body.LifecycleState != model.LifecycleSubmitted {
+		t.Error("the body posts before any inline comment, so it must lock")
+	}
+	for _, c := range []*model.Comment{second, third} {
+		if c.LifecycleState != model.LifecycleLocalDraft {
+			t.Errorf("unposted comment %q locked as %v", c.Content, c.LifecycleState)
+		}
+	}
+	if a.Submit != nil {
+		t.Fatal("submit state must clear so the user can submit again")
+	}
+	msg := outcome.Message()
+	if !strings.Contains(msg, "1 of 3") || !strings.Contains(msg, "HTTP 500") || !strings.Contains(msg, "submit again") {
+		t.Fatalf("message = %q", msg)
+	}
+
+	// A second submit picks up exactly the two that stayed local.
+	if !a.StartSubmitWith(forge.SubmitComment, false) {
+		t.Fatal("second submit must start")
+	}
+	if len(a.Submit.SentCommentIDs) != 2 {
+		t.Fatalf("retry sent = %v, want the two unposted", a.Submit.SentCommentIDs)
+	}
+}
+
+func TestApplySubmitResultFinalStepFailure(t *testing.T) {
+	a := prTestApp(t, allCaps())
+	c := addLineComment(t, a, "src/x.go", 1, "only")
+	if !a.StartSubmitWith(forge.SubmitApprove, false) {
+		t.Fatal("submit must start")
+	}
+	outcome := a.ApplySubmitResult(&forge.SubmitResult{
+		Partial: &forge.PartialFailure{SucceededCommentIDs: []string{c.ID}, FailedAt: 1, Cause: errors.New("vote refused")},
+	}, forge.SubmitApprove)
+	if c.LifecycleState != model.LifecycleSubmitted {
+		t.Fatal("every inline comment posted, so all lock")
+	}
+	if msg := outcome.Message(); !strings.Contains(msg, "final step failed") || !strings.Contains(msg, "vote refused") {
+		t.Fatalf("message = %q", msg)
+	}
+}
+
+func TestPickerEventsFollowCapabilities(t *testing.T) {
+	caps := allCaps()
+	caps.DraftReviews = false
+	a := prTestApp(t, caps)
+	for _, event := range a.PickerEvents() {
+		if event == forge.SubmitDraft {
+			t.Fatal("a forge without draft reviews must not offer Draft")
+		}
+	}
+	if got := len(a.PickerEvents()); got != len(SubmitPickerEvents)-1 {
+		t.Fatalf("picker has %d rows, want %d", got, len(SubmitPickerEvents)-1)
+	}
+	if got := len(prTestApp(t, allCaps()).PickerEvents()); got != len(SubmitPickerEvents) {
+		t.Fatalf("full capabilities should keep every row, got %d", got)
 	}
 }

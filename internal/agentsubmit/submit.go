@@ -25,6 +25,7 @@ package agentsubmit
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -72,6 +73,7 @@ var submitEvents = map[string]forge.SubmitEvent{
 
 // SubmitResultOutput is what a successful submit prints.
 type SubmitResultOutput struct {
+	// Submitted is true only when every comment reached the forge.
 	Submitted     bool   `json:"submitted"`
 	Event         string `json:"event"`
 	ReviewID      string `json:"review_id,omitempty"`
@@ -81,7 +83,24 @@ type SubmitResultOutput struct {
 	OmittedCount  int    `json:"omitted_count"`
 	MovedToBody   int    `json:"moved_to_body"`
 	LockedComment int    `json:"locked_comments"`
+	// Partial is set when the forge accepted some comments and refused
+	// one; the unposted comments stay local and a second submit retries
+	// them. Forges that post comment by comment (GitLab, Azure DevOps) can
+	// end up here; atomic ones cannot.
+	Partial *PartialOutput `json:"partial,omitempty"`
 }
+
+// PartialOutput describes a submit that stopped partway.
+type PartialOutput struct {
+	PostedInline   int    `json:"posted_inline"`
+	UnpostedInline int    `json:"unposted_inline"`
+	FailedAt       int    `json:"failed_at"`
+	Error          string `json:"error"`
+}
+
+// ErrPartialSubmit is returned (after the JSON is written) when a submit
+// posted some comments but not all, so the command exits non-zero.
+var ErrPartialSubmit = errors.New("review partially submitted: some comments stay local")
 
 // Submit posts a review from the CLI, after checking the interlock.
 //
@@ -123,7 +142,7 @@ func Submit(store *persistence.Store, opts Options, out io.Writer) error {
 	moved := len(a.Submit.MovedToSummary())
 	omitted := len(a.Submit.Unmappable) - moved
 
-	result, _, err := app.SubmitReview(a, "")
+	result, outcome, _, err := app.SubmitReviewOutcome(a, "")
 	if err != nil {
 		return err
 	}
@@ -142,7 +161,23 @@ func Submit(store *persistence.Store, opts Options, out io.Writer) error {
 	if result != nil {
 		output.ReviewID, output.URL, output.State = result.ReviewID, result.URL, result.State
 	}
-	return json.NewEncoder(out).Encode(output)
+	if !outcome.Complete() {
+		output.Submitted = false
+		output.InlineCount = outcome.Posted
+		output.Partial = &PartialOutput{
+			PostedInline:   outcome.Posted,
+			UnpostedInline: outcome.Unposted,
+			FailedAt:       outcome.Partial.FailedAt,
+			Error:          outcome.Message(),
+		}
+	}
+	if err := json.NewEncoder(out).Encode(output); err != nil {
+		return err
+	}
+	if !outcome.Complete() {
+		return ErrPartialSubmit
+	}
+	return nil
 }
 
 // denial builds the refusal, with a message that says what a human must do.
