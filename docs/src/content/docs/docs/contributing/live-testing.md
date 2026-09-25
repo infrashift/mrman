@@ -428,3 +428,135 @@ gh pr close 1 --delete-branch
 Reviews themselves cannot be deleted through the API; only dismissed. That
 is a GitHub constraint, not an mrman one, and it is the main reason to point
 these tests at a scratch repository rather than anything real.
+
+## GitLab: a self-managed instance
+
+The GitLab driver was taken through the same exercise on 2026-09-25, against a
+self-managed **GitLab CE 19.3.2** served over plain http. As above, every
+command ran and every output is real. The host is shown as `HOST`, and the
+project as `OWNER/PROJECT`.
+
+### The fixture
+
+`scripts/gitlab-live-fixture.sh` builds the merge request the tests need
+without touching the project's default branch:
+
+- A scratch base branch holds the "before" files.
+- A head branch modifies, deletes, renames and adds a file.
+- The merge request targets the base branch and names the reviewer.
+
+Every commit creates its branch in the same call and says `[skip ci]`, because
+the project's pipeline ran on every push. An admin token authors the fixture,
+so the reviewer is never approving their own merge request. The same token
+mints the reviewer's one-day impersonation tokens.
+
+```console
+$ export GITLAB_URL=http://HOST:8093 ADMIN_TOKEN=… PROJECT=OWNER/PROJECT REVIEWER=chad
+$ scripts/gitlab-live-fixture.sh token api      "$S/api"
+$ scripts/gitlab-live-fixture.sh token read_api "$S/ro"
+$ scripts/gitlab-live-fixture.sh up
+created mrman-e2e-base from main
+http://HOST:8093/OWNER/PROJECT/-/merge_requests/1
+```
+
+All three pipelines the fixture triggered reported `skipped`.
+
+### The config
+
+The live tests read the same config file the binary does, so point
+`XDG_CONFIG_HOME` somewhere disposable. Point `XDG_DATA_HOME` somewhere
+disposable too, so the run's sessions stay out of your own:
+
+```toml
+[[forge.hosts]]
+host = "HOST"
+forge = "gitlab"
+api_base = "http://HOST:8093/api/v4"
+token_cmd = "cat /path/to/api"
+```
+
+A plain-http `api_base` works. mrman warns that the token travels unencrypted,
+which on this instance it did.
+
+### The run
+
+`TestLiveGitLabReview` walks one merge request through a whole review:
+
+- L1 read
+- L2 comments at every anchor kind
+- L3 draft notes
+- L4 request changes
+- L5 a push under an open agent session
+- L6 approve
+- L7 a `read_api` token
+
+After each step it reads the result back from GitLab over the SDK and GraphQL.
+It never trusts the driver's own report, because on GitLab the driver makes up
+the review state locally.
+
+```console
+$ MRMAN_LIVE_PR=http://HOST:8093/OWNER/PROJECT/-/merge_requests/1 MRMAN_LIVE_SUBMIT=1 \
+  MRMAN_LIVE_READONLY_TOKEN="$(cat "$S/ro")" \
+  go test -count=1 ./internal/forge/gitlabf/ -run TestLiveGitLabReview -v
+    live_test.go:310: hunk span: mrman-e2e/cache.go old=16 new=19 range=:5/5..:16/19
+    live_test.go:494: GitLab review state: map[chad:REQUESTED_CHANGES], approved by []
+    live_test.go:537: GitLab reported the pushed head after 5.5s
+    live_test.go:591: GitLab review state: map[chad:APPROVED], approved by [chad]
+    live_test.go:619: refused: status=403 hint="Cannot submit review: the GitLab token lacks merge request write permission. Use a token with the `api` scope and at least Reporter access to the project."
+--- PASS: TestLiveGitLabReview (35.14s)
+```
+
+With the same `MRMAN_LIVE_PR`, the generic live tests from the sections above
+also run against GitLab: `TestLiveAgentSubmit`, `TestLivePullRequestReview` and
+`TestLivePullRequestSubmit`. The GitHub-only driver test skips itself.
+
+Then the real thing ran, through the agent-submit grant:
+
+1. A person opened the merge request with `mrman pr <url> --auto=approve,request-changes`.
+2. An agent added five findings with `mrman review add` and submitted
+   `--event request-changes`.
+3. The author pushed a fix.
+4. The agent's `approve` on the stale session was refused: *"the merge request
+   advanced to dc4b3d3 since this session was opened (f5bf1eb); ask the user to
+   reload it in mrman"*.
+5. After `:e` in the TUI, the approve landed.
+
+GitLab showed the reviewer going `REQUESTED_CHANGES` → `APPROVED`.
+
+### What live testing caught on GitLab
+
+This time the product was wrong, twice, and unit tests had passed over both.
+
+**A range comment ending on an unchanged line was refused.** The first run
+stopped at L2:
+
+```console
+    live_test.go:293: partial submit: failed at 4 of 6: gitlab: create_review: validation failed (HTTP 400) on HOST: POST http://HOST:8093/api/v4/projects/…/merge_requests/1/discussions: 400 {message: 400 Bad request - Note {:line_code=>["can't be blank", "must be a valid line code"]}}
+```
+
+A whole-hunk comment starts and ends on context lines, and GitLab places an
+unchanged line only from *both* its line numbers. mrman sent the new-side
+number alone, and it built the range's line codes as if the endpoints were
+additions. The fixtures had only ever held ranges over added lines. Note that
+the partial-submit report did its job: it named the four comments that had
+landed.
+
+**After a moved-head `:e`, the TUI could no longer reach the forge.** The reload
+opened the new head's review, but a warning flashed and vanished, and a second
+`:e` failed with a sticky *"context canceled"*. Retiring the old session
+cancelled a context shared by every later request. The test forges ignored
+their context, which is why no unit test noticed. A probe that hammered the same
+calls against GitLab right after a push saw no failures at all, and that is what
+cleared the server.
+
+One thing that is not a bug, but is worth knowing: **GitLab moves a merge
+request's head asynchronously after a push**, taking about 1-6 s here. Until it
+does, mrman's stale-head check cannot see the push. The second run shows it: a
+submit pushed straight after a commit landed on the old head
+(`13 threads before, 14 after`). The test now waits for GitLab before asserting.
+
+### Cleaning up (GitLab)
+
+```sh
+scripts/gitlab-live-fixture.sh down   # close fixture MRs, delete mrman-e2e-* branches, revoke the tokens
+```

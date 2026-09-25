@@ -5,11 +5,18 @@ sidebar:
   order: 3
 ---
 
-:::caution[Experimental]
-The GitLab driver is implemented and unit-tested, but has not yet been
-exercised against a live instance the way the GitHub one has. Everything on
-this page describes what it does; what it has not had is a real server
-disagreeing with it. See [support levels](../../reference/forge-capabilities/#support-levels).
+:::note[Verified against a live instance]
+The GitLab driver was exercised end to end against a self-managed **GitLab CE
+19.3.2** (Free tier) on 2026-09-25. The run covered browsing, inline comments of
+every anchor kind, draft notes, request changes, approve, and an AI agent
+submitting through the grant. Every outcome was read back from GitLab itself.
+The run found two defects, both fixed before this note was written: a range
+comment ending on an unchanged line was refused, and the TUI lost its connection
+to the forge after a moved-head reload.
+
+gitlab.com itself, and a self-managed instance behind TLS with `ca_file`, have
+not been exercised yet. See [support levels](../../reference/forge-capabilities/#support-levels)
+and the [transcript](../../contributing/live-testing/#gitlab-a-self-managed-instance).
 :::
 
 mrman reviews GitLab **merge requests** with the same interface it uses on
@@ -116,6 +123,16 @@ it.
 GitLab has no REST endpoint for "request changes", so mrman uses the
 `mergeRequestRequestChanges` GraphQL mutation. **This requires GitLab 15.11 or
 newer.** On an older instance, use `:submit comment` and say so in the body.
+Verified on CE 19.3.2, where GitLab then reports the reviewer's state as
+`REQUESTED_CHANGES`. Only an assigned reviewer has been exercised.
+
+### After the author pushes
+
+mrman refuses to submit on a head that moved since you opened the review, and
+asks you to reload (`:e`). The check is only as current as GitLab's own view of
+the merge request, and GitLab updates it **asynchronously** after a push. That
+took about 1-6 s on the verified instance. A submit inside that window can
+still land on the previous head.
 
 ## Submitting
 

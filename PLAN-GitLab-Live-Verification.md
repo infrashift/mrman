@@ -21,7 +21,7 @@ gateway in front of `/api/v4`.
 | D1 | Live run of L1-L7 plus the agent-submit and UI live tests | **RESOLVED 2026-09-25** | `TestLiveAgentSubmit`, `TestLivePullRequestReview` and `TestLivePullRequestSubmit` pass on GitLab; the GitHub-only test skips |
 | D2 | Binary smoke: `mrman pr --json`, `review add`, submit without a grant is refused | **RESOLVED 2026-09-25, first try** | `review submit` exited 1 with `agent_submit_not_permitted` / `no_grant` |
 | D3 | AI-agent pass: TUI `--auto=approve,request-changes`, with Claude Code driving `skills/mrman` | **RESOLVED 2026-09-25, first try** | Claude added 5 findings (one a `16..18` range) and submitted request-changes: 5 DiffNotes, chad `REQUESTED_CHANGES`. root pushed `dc4b3d3`. The stale-session approve was refused ("advanced to dc4b3d3 … reload"). `:e` in the TUI opened a new-head session and the grant carried over. Approve: REST `approved_by=[chad]`, GraphQL `APPROVED` |
-| E | Docs: Experimental becomes verified, plus a GitLab transcript in `contributing/live-testing.md` | PENDING D3 | |
+| E | Docs: Experimental becomes verified, plus a GitLab transcript in `contributing/live-testing.md` | **RESOLVED 2026-09-25** | GitLab is Supported (self-managed, CE 19.3.2; gitlab.com and TLS `ca_file` not yet). Forgejo and Codeberg stay Experimental. `forges/gitlab.md` notes the async head refresh. Transcript section added; docs build (28 pages) |
 
 ## Findings from the live runs (GitLab CE 19.3.2, 2026-09-25)
 

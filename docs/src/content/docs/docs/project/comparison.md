@@ -57,7 +57,7 @@ behavioral spec — and adds a few things.
 
 | | |
 |---|---|
-| **Four forges** | GitHub, GitLab, Azure DevOps and Forgejo, through their APIs rather than by shelling out to `gh` and `glab`. GitLab and Forgejo are [experimental](../../reference/forge-capabilities/#support-levels) |
+| **Four forges** | GitHub, GitLab, Azure DevOps and Forgejo, through their APIs rather than by shelling out to `gh` and `glab`. Forgejo is [experimental](../../reference/forge-capabilities/#support-levels) |
 | **CUE-validated configuration** | Mistakes degrade to precise warnings instead of crashing or being silently ignored |
 | **Templatable markdown** | Both the exported notes and the submitted review body are Go templates you can override |
 | **Agent collaboration** | A JSON CLI for reading and writing a live review session, with a human-held submit interlock |

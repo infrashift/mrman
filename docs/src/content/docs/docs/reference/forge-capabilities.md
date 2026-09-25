@@ -11,20 +11,22 @@ has been leaned on.
 
 | Level | Forges | What it means |
 |---|---|---|
-| Supported | GitHub, GitHub Enterprise Server, Azure DevOps | Exercised end to end against a live instance, not only against recorded API shapes. |
-| **Experimental** | GitLab, Forgejo & Gitea, Codeberg | Implemented and unit-tested, but not yet exercised against a live instance. |
+| Supported | GitHub, GitHub Enterprise Server, Azure DevOps, GitLab (self-managed) | Exercised end to end against a live instance, not only against recorded API shapes. GitLab: CE 19.3.2, 2026-09-25; gitlab.com not yet. |
+| **Experimental** | Forgejo & Gitea, Codeberg | Implemented and unit-tested, but not yet exercised against a live instance. |
 
 Experimental does **not** mean unfinished — read the table below for what each
-driver actually does, which in GitLab's and Forgejo's case is most of it. It
+driver actually does, which in Forgejo's case is most of it. It
 means the API shapes come from documentation and recorded fixtures rather than
 from a real server answering back, so a mismatch between what a forge documents
 and what it returns would reach you before it reaches us.
 
 A rejected submit is reported as a failure and your comments stay unlocked in
-the local session, so nothing is lost. On **GitLab** the caveat below about
-[atomic submit](#atomic-submit) applies with more force than usual: there is no
-single-call endpoint, so a failure partway leaves some comments already posted.
-mrman names which ones — read that report before re-submitting.
+the local session, so nothing is lost. On **GitLab**, whatever its level, the
+caveat below about [atomic submit](#atomic-submit) applies with more force than
+usual: there is no single-call endpoint, so a failure partway leaves some
+comments already posted. mrman names which ones — read that report before
+re-submitting. The live GitLab run hit exactly this: four of six comments landed
+before a fifth was refused, and the report named the four.
 
 If you run mrman against one of these, [a bug report](https://github.com/infrashift/mrman/issues)
 is the thing that moves it off this list.
@@ -40,7 +42,7 @@ one the forge cannot do is refused before any request goes out.
 This table is the canonical one. Each row corresponds to a field the driver
 declares, so it does not drift from the code.
 
-| | GitHub | GitLab ⚗️ | Forgejo / Gitea ⚗️ | Azure DevOps |
+| | GitHub | GitLab | Forgejo / Gitea ⚗️ | Azure DevOps |
 |---|:--:|:--:|:--:|:--:|
 | Draft reviews | ✓ | ✓ | ✓ | **—** |
 | Approve | ✓ | ✓ | ✓ | ✓ (vote) |

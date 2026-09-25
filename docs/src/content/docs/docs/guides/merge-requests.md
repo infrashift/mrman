@@ -10,7 +10,7 @@ works the same way on all four forges; the per-forge pages cover
 authentication, URL shapes and the specific things a forge cannot do.
 
 Jump to yours: [GitHub](../../forges/github/) · [GitHub Enterprise
-Server](../../forges/github-enterprise/) · [GitLab](../../forges/gitlab/) ⚗️ ·
+Server](../../forges/github-enterprise/) · [GitLab](../../forges/gitlab/) ·
 [Azure DevOps](../../forges/azure-devops/) · [Forgejo &
 Gitea](../../forges/forgejo/) ⚗️ · [Codeberg](../../forges/codeberg/) ⚗️
 
