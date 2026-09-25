@@ -5,17 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"os"
 	"path/filepath"
-	"strconv"
-	"strings"
 	"testing"
 
 	"github.com/infrashift/mrman/internal/app"
-	"github.com/infrashift/mrman/internal/config"
 	"github.com/infrashift/mrman/internal/forge"
 	_ "github.com/infrashift/mrman/internal/forge/drivers" // register drivers
-	"github.com/infrashift/mrman/internal/forge/forgetypes"
+	"github.com/infrashift/mrman/internal/livetest"
 	"github.com/infrashift/mrman/internal/model"
 	"github.com/infrashift/mrman/internal/persistence"
 	"github.com/infrashift/mrman/internal/prload"
@@ -33,14 +29,12 @@ import (
 //	MRMAN_LIVE_PR=owner/repo#N MRMAN_LIVE_SUBMIT=1 \
 //	    go test ./internal/agentsubmit/ -run TestLiveAgentSubmit -v
 func TestLiveAgentSubmit(t *testing.T) {
-	target := os.Getenv("MRMAN_LIVE_PR")
-	if target == "" || os.Getenv("MRMAN_LIVE_SUBMIT") == "" {
-		t.Skip("set MRMAN_LIVE_PR and MRMAN_LIVE_SUBMIT=1 to post a real review")
-	}
-	repo, number := parseLiveTarget(t, target)
+	cfg := livetest.Config(t)
+	repo, number := livetest.Target(t, cfg)
+	livetest.RequireSubmit(t)
 
 	store := &persistence.Store{ReviewsDir: filepath.Join(t.TempDir(), "reviews")}
-	backend, err := forge.ForRepository(repo, config.Default().Forge)
+	backend, err := forge.ForRepository(repo, cfg)
 	if err != nil {
 		t.Fatalf("resolve driver: %v", err)
 	}
@@ -118,31 +112,21 @@ func TestLiveAgentSubmit(t *testing.T) {
 }
 
 // countReviews asks the forge how many reviews the pull request has, which
-// is the only assertion that actually proves a refusal refused.
+// is the only assertion that actually proves a refusal refused. A forge
+// without review summaries (GitLab) records a submitted review body as a
+// general MR note instead, which surfaces as a path-less review thread.
 func countReviews(t *testing.T, backend forge.Forge, details *forge.PullRequestDetails) int {
 	t.Helper()
+	if !backend.Capabilities().ReviewSummaries {
+		threads, err := backend.ListReviewThreads(context.Background(), details)
+		if err != nil {
+			t.Fatalf("list review threads: %v", err)
+		}
+		return len(threads)
+	}
 	summaries, err := backend.ListReviewSummaries(context.Background(), details)
 	if err != nil {
 		t.Fatalf("list review summaries: %v", err)
 	}
 	return len(summaries)
-}
-
-func parseLiveTarget(t *testing.T, target string) (forgetypes.Repository, uint64) {
-	t.Helper()
-	slug, numberText, ok := strings.Cut(target, "#")
-	if !ok {
-		t.Fatalf("MRMAN_LIVE_PR=%q, want owner/repo#N", target)
-	}
-	owner, name, ok := strings.Cut(slug, "/")
-	if !ok {
-		t.Fatalf("MRMAN_LIVE_PR=%q, want owner/repo#N", target)
-	}
-	number, err := strconv.ParseUint(numberText, 10, 64)
-	if err != nil {
-		t.Fatalf("bad pull request number in %q: %v", target, err)
-	}
-	return forgetypes.Repository{
-		Kind: forgetypes.KindGitHub, Host: "github.com", Owner: owner, Name: name,
-	}, number
 }

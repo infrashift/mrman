@@ -2,16 +2,13 @@ package ui
 
 import (
 	"context"
-	"os"
-	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/infrashift/mrman/internal/app"
-	"github.com/infrashift/mrman/internal/config"
 	"github.com/infrashift/mrman/internal/forge"
 	_ "github.com/infrashift/mrman/internal/forge/drivers" // register drivers
-	"github.com/infrashift/mrman/internal/forge/forgetypes"
+	"github.com/infrashift/mrman/internal/livetest"
 	"github.com/infrashift/mrman/internal/model"
 	"github.com/infrashift/mrman/internal/theme"
 	"github.com/infrashift/mrman/internal/vcs"
@@ -26,13 +23,10 @@ import (
 //
 //	MRMAN_LIVE_PR=infrashift/scratch#1 go test ./internal/ui/ -run Live -v
 func TestLivePullRequestReview(t *testing.T) {
-	target := os.Getenv("MRMAN_LIVE_PR")
-	if target == "" {
-		t.Skip("set MRMAN_LIVE_PR=owner/repo#N to run against a real pull request")
-	}
-	repo, number := parseLiveTarget(t, target)
+	cfg := livetest.Config(t)
+	repo, number := livetest.Target(t, cfg)
 
-	backend, err := forge.ForRepository(repo, config.Default().Forge)
+	backend, err := forge.ForRepository(repo, cfg)
 	if err != nil {
 		t.Fatalf("resolve driver: %v", err)
 	}
@@ -192,25 +186,6 @@ func TestLivePullRequestReview(t *testing.T) {
 
 // liveVcsInfo stands in for a checkout: PR mode reads nothing from it.
 var liveVcsInfo = vcs.Info{Type: vcs.TypeGit}
-
-func parseLiveTarget(t *testing.T, target string) (forgetypes.Repository, uint64) {
-	t.Helper()
-	slug, numberText, ok := strings.Cut(target, "#")
-	if !ok {
-		t.Fatalf("MRMAN_LIVE_PR=%q, want owner/repo#N", target)
-	}
-	owner, name, ok := strings.Cut(slug, "/")
-	if !ok {
-		t.Fatalf("MRMAN_LIVE_PR=%q, want owner/repo#N", target)
-	}
-	number, err := strconv.ParseUint(numberText, 10, 64)
-	if err != nil {
-		t.Fatalf("bad pull request number in %q: %v", target, err)
-	}
-	return forgetypes.Repository{
-		Kind: forgetypes.KindGitHub, Host: "github.com", Owner: owner, Name: name,
-	}, number
-}
 
 // countRemoteThreadRows is how many rows the forge's discussions occupy in
 // the annotation stream.

@@ -2,14 +2,13 @@ package ui
 
 import (
 	"context"
-	"os"
 	"strings"
 	"testing"
 
 	"github.com/infrashift/mrman/internal/app"
-	"github.com/infrashift/mrman/internal/config"
 	"github.com/infrashift/mrman/internal/forge"
 	_ "github.com/infrashift/mrman/internal/forge/drivers" // register drivers
+	"github.com/infrashift/mrman/internal/livetest"
 	"github.com/infrashift/mrman/internal/model"
 	"github.com/infrashift/mrman/internal/theme"
 )
@@ -27,13 +26,11 @@ import (
 //	MRMAN_LIVE_PR=infrashift/scratch#1 MRMAN_LIVE_SUBMIT=1 \
 //	    go test ./internal/ui/ -run TestLivePullRequestSubmit -v
 func TestLivePullRequestSubmit(t *testing.T) {
-	target := os.Getenv("MRMAN_LIVE_PR")
-	if target == "" || os.Getenv("MRMAN_LIVE_SUBMIT") == "" {
-		t.Skip("set MRMAN_LIVE_PR and MRMAN_LIVE_SUBMIT=1 to post a real review")
-	}
-	repo, number := parseLiveTarget(t, target)
+	cfg := livetest.Config(t)
+	repo, number := livetest.Target(t, cfg)
+	livetest.RequireSubmit(t)
 
-	backend, err := forge.ForRepository(repo, config.Default().Forge)
+	backend, err := forge.ForRepository(repo, cfg)
 	if err != nil {
 		t.Fatalf("resolve driver: %v", err)
 	}

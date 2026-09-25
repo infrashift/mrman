@@ -2,15 +2,14 @@ package githubf_test
 
 import (
 	"context"
-	"os"
 	"strconv"
 	"strings"
 	"testing"
 
-	"github.com/infrashift/mrman/internal/config"
 	"github.com/infrashift/mrman/internal/forge"
 	_ "github.com/infrashift/mrman/internal/forge/drivers" // register drivers
 	"github.com/infrashift/mrman/internal/forge/forgetypes"
+	"github.com/infrashift/mrman/internal/livetest"
 	"github.com/infrashift/mrman/internal/model"
 )
 
@@ -26,28 +25,11 @@ import (
 // It only reads, so it is safe against any pull request you can see;
 // submitting is covered separately because it writes.
 func TestLivePullRequest(t *testing.T) {
-	target := os.Getenv("MRMAN_LIVE_PR")
-	if target == "" {
-		t.Skip("set MRMAN_LIVE_PR=owner/repo#N to run against a real pull request")
-	}
+	cfg := livetest.Config(t)
+	repo, number := livetest.Target(t, cfg)
+	livetest.RequireKind(t, repo, forgetypes.KindGitHub)
 
-	slug, numberText, ok := strings.Cut(target, "#")
-	if !ok {
-		t.Fatalf("MRMAN_LIVE_PR=%q, want owner/repo#N", target)
-	}
-	owner, name, ok := strings.Cut(slug, "/")
-	if !ok {
-		t.Fatalf("MRMAN_LIVE_PR=%q, want owner/repo#N", target)
-	}
-	number, err := strconv.ParseUint(numberText, 10, 64)
-	if err != nil {
-		t.Fatalf("bad pull request number in %q: %v", target, err)
-	}
-
-	repo := forgetypes.Repository{
-		Kind: forgetypes.KindGitHub, Host: "github.com", Owner: owner, Name: name,
-	}
-	backend, err := forge.ForRepository(repo, config.Default().Forge)
+	backend, err := forge.ForRepository(repo, cfg)
 	if err != nil {
 		t.Fatalf("resolve driver: %v", err)
 	}
