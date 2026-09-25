@@ -42,11 +42,15 @@ func (r *inflightRequests) replace(slot *context.CancelFunc) context.Context {
 	return ctx
 }
 
-// shutdown cancels every request still running.
+// shutdown cancels every request still running, and drops the cancelled
+// root so the next request derives from a live one: a head-moved reload shuts
+// the outgoing session down and then fetches for the new one, and a kept root
+// would cancel that fetch — and every one after it — before it started.
 func (r *inflightRequests) shutdown() {
 	if r.cancelAll != nil {
 		r.cancelAll()
 	}
+	r.parent, r.cancelAll = nil, nil
 }
 
 // shutdown ends the session's bookkeeping and stops every request still in

@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -9,6 +10,7 @@ import (
 	"github.com/infrashift/mrman/internal/forge"
 	"github.com/infrashift/mrman/internal/input"
 	"github.com/infrashift/mrman/internal/model"
+	"github.com/infrashift/mrman/internal/persistence"
 	"github.com/infrashift/mrman/internal/syntax"
 	"github.com/infrashift/mrman/internal/vcs"
 )
@@ -184,5 +186,59 @@ func TestSubmitConfirmReloadKeyRefetchesTheStalePullRequest(t *testing.T) {
 	}
 	if m.App.Submit != nil {
 		t.Error("reloading must cancel the stale submit")
+	}
+}
+
+// ctxHonouringForge fails a call whose context is already cancelled, as every
+// real driver does; the plain fakes ignore the context, which is how a
+// cancelled-before-it-started request went unnoticed.
+type ctxHonouringForge struct{ *prTabForge }
+
+func (f ctxHonouringForge) GetPullRequest(ctx context.Context, target forge.Target) (*forge.PullRequestDetails, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return f.prTabForge.GetPullRequest(ctx, target)
+}
+
+func (f ctxHonouringForge) ListReviewThreads(ctx context.Context, pr *forge.PullRequestDetails) ([]forge.RemoteReviewThread, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return f.prTabForge.ListReviewThreads(ctx, pr)
+}
+
+// TestAHeadMovedReloadLeavesTheForgeReachable reproduces the live-GitLab
+// failure: after `:e` on a merge request whose head had moved, the new head's
+// comments failed to load at once, and every reload after that failed with
+// "context canceled" until mrman was restarted.
+func TestAHeadMovedReloadLeavesTheForgeReachable(t *testing.T) {
+	f := newPrTabForge()
+	f.details = &forge.PullRequestDetails{
+		PullRequestSummary: testPrSummary(7, "the pr", "ana", "feat"),
+		HeadSHA:            "newhead", BaseSHA: "basesha",
+	}
+	f.diff = prDiff
+	m := prReloadModel(t, f)
+	backend := ctxHonouringForge{f}
+	m.App.Pr.Backend = backend
+	m.forge = staticForgeResolver(backend, testRepo())
+	// A running TUI always holds an open session; the head-moved branch
+	// shuts it down, which is what poisoned every later request.
+	m.store = &persistence.Store{ReviewsDir: t.TempDir()}
+	m.session, _ = openPrSession(m.store, app.NewPrSession(m.App.Pr.Details), nil)
+
+	// The head moved: the outgoing session is shut down, the new one opened,
+	// and its existing comments fetched.
+	_, loadComments := m.Update(m.reloadPullRequest()())
+	runCmd(t, m, loadComments)
+	if m.App.Message != nil && strings.Contains(m.App.Message.Content, "Could not load existing comments") {
+		t.Fatalf("the new head's comments failed to load: %s", m.App.Message.Content)
+	}
+
+	// And the TUI can still reach the forge afterwards.
+	m.Update(m.reloadPullRequest()())
+	if m.App.Message != nil && strings.Contains(m.App.Message.Content, "Reload failed") {
+		t.Fatalf("a reload after a head-moved reload failed: %s", m.App.Message.Content)
 	}
 }

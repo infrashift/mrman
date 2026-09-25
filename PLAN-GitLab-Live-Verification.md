@@ -67,6 +67,25 @@ gateway in front of `/api/v4`.
    the old head (with its comments) and opens one for the new head. The TUI
    process's grant carries over, and the agent's `--session <slug>` resolves to the
    new head.
+9. **DEFECT, FIXED: after a head-moved `:e`, the TUI could no longer reach the
+   forge.** Found in D3. The reload opened the new head's session, but a warning
+   flashed and vanished, and a second `:e` then showed a sticky "Reload failed: …
+   context canceled" (confirmed on the live TUI).
+   - Cause: `inflightRequests.shutdown()` (`internal/ui/inflight.go`) cancelled the
+     shared root context but kept it. The head-moved branch shuts the old session
+     down and then fetches the new head's comments, so that fetch, and every
+     request after it, derived from an already-cancelled context.
+   - Effect: the transient warning was "Could not load existing comments: context
+     canceled". Every later reload, MR list or range diff failed until restart.
+     Opening a second MR from the selector (`prtab.go`) took the same path.
+   - Why nothing caught it: every test forge ignored its context, and the
+     head-moved test model had no open session, so `shutdown` never ran.
+   - Probe first: 40 s of reload-path calls against GitLab right after a push
+     showed zero failures, which cleared GitLab.
+   - Fix: `shutdown` drops the cancelled root. Regressions:
+     `TestRequestsAfterAShutdownAreLive`, plus
+     `TestAHeadMovedReloadLeavesTheForgeReachable` with a context-honouring forge
+     and a real session.
 6. **Cosmetic:** the TUI header renders a GitLab MR as `chad/python#1`, where GitLab
    notation is `!1`.
 
