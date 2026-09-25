@@ -206,8 +206,8 @@ func buildPosition(pr *forge.PullRequestDetails, comment *submit.InlineComment) 
 			startSide = *comment.StartSide
 		}
 		position.LineRange = &gitlab.LineRangeOptions{
-			Start: rangeEndpoint(newPath, startSide, *comment.StartLine),
-			End:   rangeEndpoint(newPath, comment.Side, comment.Line),
+			Start: rangeEndpoint(newPath, startSide, *comment.StartLine, comment.StartCounterpartLine),
+			End:   rangeEndpoint(newPath, comment.Side, comment.Line, comment.CounterpartLine),
 		}
 	}
 	return position
@@ -216,8 +216,21 @@ func buildPosition(pr *forge.PullRequestDetails, comment *submit.InlineComment) 
 // rangeEndpoint builds one endpoint of a GitLab line_range entry. GitLab
 // expects each endpoint to carry the type ("new"/"old"), the integer line
 // number on that side, and the line_code so the server can anchor the
-// range without re-walking the diff.
-func rangeEndpoint(newPath string, side submit.Side, line uint32) *gitlab.LinePositionOptions {
+// range without re-walking the diff. A context (unchanged) endpoint —
+// counterpart non-nil — is GitLab's untyped line: both numbers, and a
+// line_code naming both.
+func rangeEndpoint(newPath string, side submit.Side, line uint32, counterpart *uint32) *gitlab.LinePositionOptions {
+	if counterpart != nil {
+		oldLine, newLine := *counterpart, line
+		if side == submit.SideOld {
+			oldLine, newLine = line, *counterpart
+		}
+		return &gitlab.LinePositionOptions{
+			OldLine:  new(int64(oldLine)),
+			NewLine:  new(int64(newLine)),
+			LineCode: new(lineCode(newPath, oldLine, newLine)),
+		}
+	}
 	if side == submit.SideNew {
 		return &gitlab.LinePositionOptions{
 			Type:     new("new"),

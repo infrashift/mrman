@@ -15,13 +15,51 @@ gateway in front of `/api/v4`.
 
 | Part | What | Status | Evidence |
 |---|---|---|---|
-| A | Live tests forge-generic: `internal/livetest`, four live tests rewired, `countReviews` GitLab-aware | **DONE**, `make check` green | 85.7% coverage (gate 85%) |
-| B | `TestLiveGitLabReview` L1-L7 | WRITTEN, not yet run live | `internal/forge/gitlabf/live_test.go` |
-| C | Fixture runbook, `scripts/gitlab-live-fixture.sh` | WRITTEN, not yet run | shellcheck clean |
-| D1 | Live run of L1-L7 plus the agent-submit and UI live tests | BLOCKED: the gcloud-dc tunnel timed out on 2026-09-25 | |
-| D2 | Binary smoke: `mrman pr --json`, `review add`, submit without a grant is refused | PENDING | |
+| A | Live tests forge-generic: `internal/livetest`, four live tests rewired, `countReviews` GitLab-aware | **DONE**, `make check` green | 85.7% coverage (gate 85%), 643948a |
+| B | `TestLiveGitLabReview` L1-L7 | **RESOLVED 2026-09-25, NOT first try.** Run 1 failed at L2 (defect 2, FIXED). Run 2 failed at L5 (finding 5, the test now waits). Run 3 passed 7/7. | `chad/python!1` on gcloud-dc, 35 s |
+| C | Fixture runbook, `scripts/gitlab-live-fixture.sh` | **RESOLVED, first try.** `[skip ci]` held: 3/3 fixture pipelines `skipped` | base, head and `!1` created by root; chad api and read_api tokens |
+| D1 | Live run of L1-L7 plus the agent-submit and UI live tests | **RESOLVED 2026-09-25** | `TestLiveAgentSubmit`, `TestLivePullRequestReview` and `TestLivePullRequestSubmit` pass on GitLab; the GitHub-only test skips |
+| D2 | Binary smoke: `mrman pr --json`, `review add`, submit without a grant is refused | **RESOLVED 2026-09-25, first try** | `review submit` exited 1 with `agent_submit_not_permitted` / `no_grant` |
 | D3 | AI-agent pass: TUI `--auto=approve,request-changes`, with Claude Code driving `skills/mrman` | PENDING (interactive) | |
-| E | Docs: Experimental becomes verified, plus a GitLab transcript in `contributing/live-testing.md` | PENDING D | |
+| E | Docs: Experimental becomes verified, plus a GitLab transcript in `contributing/live-testing.md` | PENDING D3 | |
+
+## Findings from the live runs (GitLab CE 19.3.2, 2026-09-25)
+
+1. **Request changes works.** `mergeRequestRequestChanges` exists in CE 19.3 (Free)
+   and accepts the `PRIVATE-TOKEN` header on `/api/graphql`. GitLab then reports
+   `REQUESTED_CHANGES` for the reviewer (L4). Only an **assigned reviewer** was
+   exercised; an unassigned user is untested.
+2. **DEFECT, FIXED: a range ending on a context line was refused.** The first live
+   run failed at L2 on the whole-hunk span with `400 … line_code can't be blank, must
+   be a valid line code`, after four of six comments had landed. Two things were
+   missing:
+   - `mapRange` never set `CounterpartLine`, so the top-level position sent
+     `new_line` without the `old_line` an unchanged line needs.
+   - `rangeEndpoint` encoded context endpoints as typed `new` lines with
+     `line_code` `sha_0_N`.
+
+   Fix: `submit.InlineComment` gained `StartCounterpartLine`, `mapRange` fills both
+   counterparts, and GitLab encodes a context endpoint as an untyped line with both
+   numbers and `sha_old_new`. Regressions:
+   `TestRangeEndpointsOnContextLinesCarryCounterparts` and two siblings, plus
+   `TestCreateReviewContextRangeEndpoints`. Live, the hunk span now lands as
+   `:5/5..:16/19`. Only GitLab reads `CounterpartLine` (GitHub and Forgejo document
+   ignoring it), so no other driver's payload changes. Every whole-hunk comment
+   (the TUI's hunk comment) hit this, because a span starts and ends on context
+   lines as a rule.
+3. **Open:** `ListReviewThreads` does not read `line_range` back, so a range thread
+   round-trips as a single line (its end). L2 asserts only the end line.
+4. **Confirmed, harmless:** a submit whose only content is a review body reports an
+   empty `review_id` (`review=` in `TestLiveAgentSubmit`), because the note ID is
+   discarded.
+5. **Limitation: the moved-head guard cannot see a push until GitLab refreshes the
+   MR.** GitLab moves `diff_refs` asynchronously after a push. Run 2 pushed a
+   commit, and the granted submit landed on the old head because GitLab still
+   reported it (13 → 14 threads). The measured refresh lag was 5.5 s. The guard is
+   only as current as the forge's own view. The test now waits for the refresh so
+   that it asserts the guard itself.
+6. **Cosmetic:** the TUI header renders a GitLab MR as `chad/python#1`, where GitLab
+   notation is `!1`.
 
 ## Facts the design rests on
 

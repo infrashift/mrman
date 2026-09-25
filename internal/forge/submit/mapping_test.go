@@ -408,3 +408,45 @@ func TestMapsHunkDerivedRangeOnAPureDeletion(t *testing.T) {
 		t.Errorf("Side: got %v, want %v", inline.Side, SideOld)
 	}
 }
+
+// TestRangeEndpointsOnContextLinesCarryCounterparts is the live-GitLab
+// regression: a whole-hunk span starts and ends on context lines, and GitLab
+// resolves a context line only from both its line numbers. Without the
+// counterparts the discussion was refused with "line_code can't be blank".
+func TestRangeEndpointsOnContextLinesCarryCounterparts(t *testing.T) {
+	file := typicalFile()
+	span, side, _ := file.Hunks[0].CommentSpan()
+
+	inline := mustInline(t, MapComment(commentRange(side, span), RangeAnchor(), file, true))
+
+	if inline.CounterpartLine == nil || *inline.CounterpartLine != 12 {
+		t.Errorf("end CounterpartLine: got %v, want 12", inline.CounterpartLine)
+	}
+	if inline.StartCounterpartLine == nil || *inline.StartCounterpartLine != 10 {
+		t.Errorf("StartCounterpartLine: got %v, want 10", inline.StartCounterpartLine)
+	}
+}
+
+func TestRangeEndpointsOnAddedLinesCarryNoCounterparts(t *testing.T) {
+	file := fileWithHunks(hunk(
+		line(model.OriginAddition, new(uint32(20)), nil),
+		line(model.OriginAddition, new(uint32(21)), nil),
+	))
+
+	inline := mustInline(t, MapComment(commentRange(model.LineSideNew, model.NewLineRange(20, 21)), RangeAnchor(), file, true))
+
+	if inline.CounterpartLine != nil || inline.StartCounterpartLine != nil {
+		t.Errorf("added-line range carries counterparts %v/%v", inline.StartCounterpartLine, inline.CounterpartLine)
+	}
+}
+
+func TestSingleLineRangeOnAContextLineCarriesItsCounterpart(t *testing.T) {
+	inline := mustInline(t, MapComment(commentRange(model.LineSideNew, model.SingleLineRange(12)), RangeAnchor(), typicalFile(), true))
+
+	if inline.StartLine != nil {
+		t.Fatalf("a single-line range must flatten, got StartLine %v", inline.StartLine)
+	}
+	if inline.CounterpartLine == nil || *inline.CounterpartLine != 12 {
+		t.Errorf("CounterpartLine: got %v, want 12", inline.CounterpartLine)
+	}
+}

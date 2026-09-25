@@ -214,11 +214,58 @@ func TestCreateReviewMultiLineRangeGolden(t *testing.T) {
 	}
 }
 
+// TestCreateReviewContextRangeEndpoints is the live-GitLab regression: a
+// range whose endpoints are context lines must send both line numbers at the
+// top level and in each line_range endpoint, with a line_code of
+// {sha}_{old}_{new}. GitLab 19.3 refused the old encoding (new_line only,
+// line_code {sha}_0_{new}) with "line_code can't be blank".
+func TestCreateReviewContextRangeEndpoints(t *testing.T) {
+	mux := newFixtureMux(t)
+	var discussions []map[string]any
+	mux.Handle("POST "+projectPrefix+"/discussions",
+		captureJSON(t, &discussions, `{"id": "disc-1"}`))
+	d := newTestDriver(t, mux)
+
+	_, err := d.CreateReview(context.Background(), testPR(), forge.CreateReviewRequest{
+		Event: forge.SubmitComment,
+		Comments: []submit.InlineComment{{
+			Path:                 "src/lib.rs",
+			Line:                 12,
+			Side:                 submit.SideNew,
+			CounterpartLine:      new(uint32(13)),
+			StartLine:            new(uint32(10)),
+			StartSide:            new(submit.SideNew),
+			StartCounterpartLine: new(uint32(10)),
+			Body:                 "hunk comment",
+			CommentID:            "c1",
+		}},
+	})
+	if err != nil {
+		t.Fatalf("CreateReview: %v", err)
+	}
+	pos := position(t, discussions[0])
+	if pos["new_line"] != float64(12) || pos["old_line"] != float64(13) {
+		t.Errorf("top-level position lines = old %v new %v, want 13/12", pos["old_line"], pos["new_line"])
+	}
+	lineRange, _ := pos["line_range"].(map[string]any)
+	start, _ := lineRange["start"].(map[string]any)
+	end, _ := lineRange["end"].(map[string]any)
+	if start["old_line"] != float64(10) || start["new_line"] != float64(10) || start["line_code"] != sha1LibRS+"_10_10" {
+		t.Errorf("start = %v, want old 10 new 10 code %s_10_10", start, sha1LibRS)
+	}
+	if end["old_line"] != float64(13) || end["new_line"] != float64(12) || end["line_code"] != sha1LibRS+"_13_12" {
+		t.Errorf("end = %v, want old 13 new 12 code %s_13_12", end, sha1LibRS)
+	}
+	if _, typed := start["type"]; typed {
+		t.Errorf("a context endpoint carries no type (GitLab's unchanged line), got %v", start["type"])
+	}
+}
+
 func TestCreateReviewOldSideRangeEndpointLineCode(t *testing.T) {
 	if got := lineCode("src/lib.rs", 9, 0); got != sha1LibRS+"_9_0" {
 		t.Errorf("lineCode = %q", got)
 	}
-	endpoint := rangeEndpoint("src/lib.rs", submit.SideOld, 9)
+	endpoint := rangeEndpoint("src/lib.rs", submit.SideOld, 9, nil)
 	if *endpoint.Type != "old" || *endpoint.OldLine != 9 || endpoint.NewLine != nil {
 		t.Errorf("endpoint = %+v", endpoint)
 	}

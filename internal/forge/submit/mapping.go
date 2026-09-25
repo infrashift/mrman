@@ -50,6 +50,9 @@ type InlineComment struct {
 	StartLine *uint32
 	// StartSide is the side of StartLine, nil for single-line comments.
 	StartSide *Side
+	// StartCounterpartLine is CounterpartLine for StartLine: the other
+	// side's number when the range starts on a context line, nil otherwise.
+	StartCounterpartLine *uint32
 	// OldPath is the base-side path when the file was renamed or copied
 	// under a new name; nil when both sides share Path.
 	OldPath *string
@@ -302,28 +305,36 @@ func mapRange(comment *model.Comment, file *model.DiffFile, commentTypePrefix bo
 	}
 
 	oldPath := renamedOldPath(file)
+	// A range endpoint on a context line needs its other-side number too:
+	// GitLab resolves an unchanged line only from both (a whole-hunk span
+	// starts and ends on context lines as a rule).
+	endCounterpart, _ := findLineWithCounterpart(file, lineRange.End, side)
 	if lineRange.IsSingle() {
 		return inline(&InlineComment{
-			Path:      path,
-			Line:      lineRange.Start,
-			Side:      SideFromLineSide(side),
-			OldPath:   oldPath,
-			Body:      BuildInlineBody(comment, false, commentTypePrefix),
-			CommentID: comment.ID,
+			Path:            path,
+			Line:            lineRange.Start,
+			Side:            SideFromLineSide(side),
+			CounterpartLine: endCounterpart,
+			OldPath:         oldPath,
+			Body:            BuildInlineBody(comment, false, commentTypePrefix),
+			CommentID:       comment.ID,
 		})
 	}
 
 	start := lineRange.Start
 	startSide := SideFromLineSide(side)
+	startCounterpart, _ := findLineWithCounterpart(file, start, side)
 	return inline(&InlineComment{
-		Path:      path,
-		Line:      lineRange.End,
-		Side:      SideFromLineSide(side),
-		StartLine: &start,
-		StartSide: &startSide,
-		OldPath:   oldPath,
-		Body:      BuildInlineBody(comment, false, commentTypePrefix),
-		CommentID: comment.ID,
+		Path:                 path,
+		Line:                 lineRange.End,
+		Side:                 SideFromLineSide(side),
+		CounterpartLine:      endCounterpart,
+		StartLine:            &start,
+		StartSide:            &startSide,
+		StartCounterpartLine: startCounterpart,
+		OldPath:              oldPath,
+		Body:                 BuildInlineBody(comment, false, commentTypePrefix),
+		CommentID:            comment.ID,
 	})
 }
 

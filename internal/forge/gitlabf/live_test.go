@@ -516,7 +516,7 @@ func (lv *liveMR) headMoved(t *testing.T) {
 	// [skip ci]: the commit exists only to move the head; a project whose
 	// pipeline runs on every push would otherwise build it.
 	branch := lv.load.Details.HeadRefName
-	_, _, err = lv.api.Commits.CreateCommit(lv.pid, &gitlab.CreateCommitOptions{
+	pushed, _, err := lv.api.Commits.CreateCommit(lv.pid, &gitlab.CreateCommitOptions{
 		Branch:        new(branch),
 		CommitMessage: new("[skip ci] mrman live L5 " + lv.stamp + ": move the head"),
 		Actions: []*gitlab.CommitActionOptions{{
@@ -528,6 +528,13 @@ func (lv *liveMR) headMoved(t *testing.T) {
 	if err != nil {
 		t.Fatalf("push a commit to %s: %v", branch, err)
 	}
+	// GitLab moves the merge request's diff_refs asynchronously after a
+	// push, and the guard can only see what GitLab reports: until then a
+	// submit lands on the old head (observed live on CE 19.3, see
+	// PLAN-GitLab-Live-Verification.md). Wait for GitLab to catch up, so
+	// this asserts the guard rather than the refresh latency.
+	lag := lv.awaitHead(t, pushed.ID)
+	t.Logf("GitLab reported the pushed head after %s", lag.Round(100*time.Millisecond))
 
 	err = agentsubmit.Submit(store, agentsubmit.Options{
 		Options: reviewcli.Options{Session: path}, Event: "request-changes",
@@ -539,6 +546,24 @@ func (lv *liveMR) headMoved(t *testing.T) {
 		t.Errorf("a refused submit reached GitLab: %d threads before, %d after", before, after)
 	}
 	lv.refetch(t) // later steps review the new head
+}
+
+// awaitHead polls the merge request until GitLab reports sha as its head.
+func (lv *liveMR) awaitHead(t *testing.T, sha string) time.Duration {
+	t.Helper()
+	start := time.Now()
+	for time.Since(start) < 90*time.Second {
+		mr, _, err := lv.api.MergeRequests.GetMergeRequest(lv.pid, lv.iid, nil)
+		if err != nil {
+			t.Fatalf("GET merge request: %v", err)
+		}
+		if mr.DiffRefs.HeadSha == sha {
+			return time.Since(start)
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	t.Fatalf("GitLab still does not report %.12s as the head after 90s", sha)
+	return 0
 }
 
 // --- L6: approve ---
