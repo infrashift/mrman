@@ -20,7 +20,7 @@ gateway in front of `/api/v4`.
 | C | Fixture runbook, `scripts/gitlab-live-fixture.sh` | **RESOLVED, first try.** `[skip ci]` held: 3/3 fixture pipelines `skipped` | base, head and `!1` created by root; chad api and read_api tokens |
 | D1 | Live run of L1-L7 plus the agent-submit and UI live tests | **RESOLVED 2026-09-25** | `TestLiveAgentSubmit`, `TestLivePullRequestReview` and `TestLivePullRequestSubmit` pass on GitLab; the GitHub-only test skips |
 | D2 | Binary smoke: `mrman pr --json`, `review add`, submit without a grant is refused | **RESOLVED 2026-09-25, first try** | `review submit` exited 1 with `agent_submit_not_permitted` / `no_grant` |
-| D3 | AI-agent pass: TUI `--auto=approve,request-changes`, with Claude Code driving `skills/mrman` | PENDING (interactive) | |
+| D3 | AI-agent pass: TUI `--auto=approve,request-changes`, with Claude Code driving `skills/mrman` | **RESOLVED 2026-09-25, first try** | Claude added 5 findings (one a `16..18` range) and submitted request-changes: 5 DiffNotes, chad `REQUESTED_CHANGES`. root pushed `dc4b3d3`. The stale-session approve was refused ("advanced to dc4b3d3 … reload"). `:e` in the TUI opened a new-head session and the grant carried over. Approve: REST `approved_by=[chad]`, GraphQL `APPROVED` |
 | E | Docs: Experimental becomes verified, plus a GitLab transcript in `contributing/live-testing.md` | PENDING D3 | |
 
 ## Findings from the live runs (GitLab CE 19.3.2, 2026-09-25)
@@ -58,6 +58,15 @@ gateway in front of `/api/v4`.
    reported it (13 → 14 threads). The measured refresh lag was 5.5 s. The guard is
    only as current as the forge's own view. The test now waits for the refresh so
    that it asserts the guard itself.
+7. **Skill friction:** `mrman review list` returns `[]` when run outside a checkout
+   of the MR's repository. It needs `--repo chad/python` to show the session and its
+   `granted_events`, yet `skills/mrman/SKILL.md` says "Check before attempting:
+   `review list`". An agent working from a scratch directory sees no grant even
+   when one exists.
+8. **By design, and worth documenting:** after a push, `:e` retires the session for
+   the old head (with its comments) and opens one for the new head. The TUI
+   process's grant carries over, and the agent's `--session <slug>` resolves to the
+   new head.
 6. **Cosmetic:** the TUI header renders a GitLab MR as `chad/python#1`, where GitLab
    notation is `!1`.
 
