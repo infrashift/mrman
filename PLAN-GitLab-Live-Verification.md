@@ -82,6 +82,9 @@ gateway in front of `/api/v4`.
      head-moved test model had no open session, so `shutdown` never ran.
    - Probe first: 40 s of reload-path calls against GitLab right after a push
      showed zero failures, which cleared GitLab.
+   - **Verified live 2026-09-25:** with the rebuilt binary (3bce066), the head moved
+     to `48c1026`, and two `:e` in the TUI went clean. The first opened the new-head
+     review with its threads and no warning; the second reloaded without error.
    - Fix: `shutdown` drops the cancelled root. Regressions:
      `TestRequestsAfterAShutdownAreLive`, plus
      `TestAHeadMovedReloadLeavesTheForgeReachable` with a context-honouring forge
