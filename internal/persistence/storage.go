@@ -155,7 +155,10 @@ func (s *Store) saveSessionUnlocked(sess *model.ReviewSession) (string, error) {
 		return "", err
 	}
 
-	manifest := loadManifestOrDefault(s.ReviewsDir)
+	manifest, err := s.loadManifestForWrite()
+	if err != nil {
+		return "", err
+	}
 	manifest.Upsert(sl.String(), entryFromSession(sess, relative, manifestAnchorFor(sl)))
 	if err := SaveManifest(s.ReviewsDir, manifest); err != nil {
 		return "", err
@@ -259,7 +262,10 @@ func (s *Store) removeSessionAt(path string, sess *model.ReviewSession) error {
 		relative = rel
 	}
 
-	manifest := loadManifestOrDefault(s.ReviewsDir)
+	manifest, err := s.loadManifestForWrite()
+	if err != nil {
+		return err
+	}
 	if bucket, ok := manifest.Entries[sl.String()]; ok {
 		kept := bucket[:0]
 		for _, entry := range bucket {
@@ -307,7 +313,10 @@ func (s *Store) LoadLatestSessionForContext(
 		return "", nil, false, err
 	}
 
-	manifest := loadManifestOrDefault(s.ReviewsDir)
+	manifest, err := s.loadManifest()
+	if err != nil {
+		return "", nil, false, err
+	}
 	entry := manifest.GetLocal(sl.String(), canonicalPath(repoPath))
 	if entry == nil {
 		return "", nil, false, nil
@@ -392,8 +401,11 @@ func (s *Store) AdoptSessionForNewHead(
 	var adopted *AdoptedSession
 	err = s.withLock(func() error {
 		// Recheck under the lock; see the note above on the unlocked miss.
-		if entry := loadManifestOrDefault(s.ReviewsDir).
-			GetLocal(targetLocal.String(), canonical); entry != nil {
+		manifest, merr := s.loadManifest()
+		if merr != nil {
+			return merr
+		}
+		if entry := manifest.GetLocal(targetLocal.String(), canonical); entry != nil {
 			path := filepath.Join(s.ReviewsDir, entry.Path)
 			sess, lerr := s.LoadSession(path)
 			if lerr != nil {
@@ -461,7 +473,11 @@ func (s *Store) findCarryForwardCandidate(
 	targetStr := target.String()
 	var best carryForwardCandidate
 	found := false
-	loadManifestOrDefault(s.ReviewsDir).each(func(slugStr string, entry ManifestEntry) {
+	manifest, err := s.loadManifest()
+	if err != nil {
+		return best, false // best-effort: carry-forward is an optimisation
+	}
+	manifest.each(func(slugStr string, entry ManifestEntry) {
 		if !entry.Kind.IsLocal() || slugStr == targetStr {
 			return
 		}
@@ -487,7 +503,10 @@ func (s *Store) findCarryForwardCandidate(
 // removeSessionAt it takes the slug explicitly, because a carried-forward
 // session no longer derives the slug it was filed under.
 func (s *Store) removeManifestEntry(slugStr, relative string) error {
-	manifest := loadManifestOrDefault(s.ReviewsDir)
+	manifest, err := s.loadManifestForWrite()
+	if err != nil {
+		return err
+	}
 	bucket, ok := manifest.Entries[slugStr]
 	if !ok {
 		return nil
@@ -515,7 +534,10 @@ func (s *Store) LoadPrSession(key *forgetypes.PrSessionKey) (string, *model.Revi
 		return "", nil, false, err
 	}
 	sl := prSlugForKey(key)
-	manifest := loadManifestOrDefault(s.ReviewsDir)
+	manifest, err := s.loadManifest()
+	if err != nil {
+		return "", nil, false, err
+	}
 	entry := manifest.GetPr(sl.String())
 	if entry == nil {
 		return "", nil, false, nil
@@ -543,7 +565,10 @@ func (s *Store) ListSessions(coordinate string) ([]SessionSummary, error) {
 		return nil, err
 	}
 	selector := resolveRepoSelector(coordinate)
-	manifest := loadManifestOrDefault(s.ReviewsDir)
+	manifest, err := s.loadManifest()
+	if err != nil {
+		return nil, err
+	}
 	active := s.activeSessionPathsOrEmpty()
 
 	var summaries []SessionSummary
@@ -561,7 +586,10 @@ func (s *Store) ListAllSessions() ([]SessionSummary, error) {
 	if err := s.maybeMigrate(); err != nil {
 		return nil, err
 	}
-	manifest := loadManifestOrDefault(s.ReviewsDir)
+	manifest, err := s.loadManifest()
+	if err != nil {
+		return nil, err
+	}
 	active := s.activeSessionPathsOrEmpty()
 
 	var summaries []SessionSummary
