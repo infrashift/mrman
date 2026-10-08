@@ -223,7 +223,20 @@ func digestChange(change *git.GitPullRequestChange) iterationChange {
 			out.isFolder = true
 		}
 	}
+
+	// A deleted file has no current-side item: Azure DevOps sends a null
+	// item path and names the file in originalPath (seen live). Without
+	// this every deleted file was skipped and vanished from the review.
+	if out.path == "" && isDeleteChange(out.changeType) {
+		out.path = out.originalPath
+	}
 	return out
+}
+
+// isDeleteChange reports whether an ADO change type deletes the file
+// ("delete", possibly combined), as opposed to "undelete".
+func isDeleteChange(kind string) bool {
+	return strings.Contains(kind, "delete") && !strings.Contains(kind, "undelete")
 }
 
 // GetDiff synthesizes the PR's cumulative unified diff: Azure DevOps has no
@@ -291,7 +304,7 @@ func (d *Driver) synthesizeFileDiff(ctx context.Context, op, project, repoName s
 	}
 	kind := change.changeType
 	isAdd := strings.Contains(kind, "add")
-	isDelete := strings.Contains(kind, "delete") && !strings.Contains(kind, "undelete")
+	isDelete := isDeleteChange(kind)
 
 	oldContent, newContent := "", ""
 	if isAdd {
@@ -304,7 +317,8 @@ func (d *Driver) synthesizeFileDiff(ctx context.Context, op, project, repoName s
 		oldContent = content
 	}
 	if isDelete {
-		// Deletes report the removed item's path on the current side.
+		// A delete's path is the removed file's (digestChange fills it
+		// from originalPath); it has no current side.
 		oldPath = newPath
 		newPath = ""
 	} else {
