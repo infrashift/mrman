@@ -479,7 +479,7 @@ func (a *App) CollapseGap(gapID GapID) {
 func (a *App) ClearExpandedGaps() {
 	a.ExpandedTop = map[GapID][]model.DiffLine{}
 	a.ExpandedBottom = map[GapID][]model.DiffLine{}
-	a.FileLineCountCache = map[int]uint32{}
+	a.FileLineCountCache = nil // refilled on the next rebuild
 }
 
 // eofGapEnabled reports whether end-of-file gap expansion is meaningful for

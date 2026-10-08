@@ -204,7 +204,7 @@ func (a *App) ToggleSingleFileView() {
 // order within a directory), matching tuicr's BTreeMap walk. When
 // resetPosition is false the previously focused file stays focused.
 func (a *App) SortFilesByDirectory(resetPosition bool) {
-	a.FileLineCountCache = map[int]uint32{}
+	a.FileLineCountCache = nil // indices move: refill on the next rebuild
 
 	var currentPath string
 	haveCurrent := false
