@@ -3,6 +3,7 @@ package input
 import (
 	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
 // CommandKind enumerates the `:` commands, ported from tuicr's COMMAND_SPECS.
@@ -215,7 +216,8 @@ func longestCommonPrefix(items []string) string {
 	prefix := items[0]
 	for _, item := range items[1:] {
 		for !strings.HasPrefix(item, prefix) {
-			prefix = prefix[:len(prefix)-1]
+			_, size := utf8.DecodeLastRuneInString(prefix)
+			prefix = prefix[:len(prefix)-size]
 			if prefix == "" {
 				return ""
 			}
