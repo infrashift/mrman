@@ -415,6 +415,62 @@ func TestApplySubmitResultFinalStepFailure(t *testing.T) {
 	}
 }
 
+// TestMovedToSummaryLocksWithTheBody: an unplaced comment the resolver moves
+// into the review body is posted as part of that body, so it must lock like
+// one. Left as a draft, every later submit posted it again.
+func TestMovedToSummaryLocksWithTheBody(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		result *forge.SubmitResult
+	}{
+		{"complete", &forge.SubmitResult{ReviewID: "R1", State: "COMMENTED"}},
+		{"partial", &forge.SubmitResult{State: "COMMENTED", Partial: &forge.PartialFailure{
+			FailedAt: 1, Cause: errors.New("HTTP 500"),
+		}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a := prTestApp(t, allCaps())
+			inline := addLineComment(t, a, "src/x.go", 1, "inline")
+			moved := addLineComment(t, a, "src/x.go", 9998, "moved")
+			omitted := addLineComment(t, a, "src/x.go", 9999, "omitted")
+			if !a.StartSubmitWith(forge.SubmitComment, false) {
+				t.Fatal("submit must start")
+			}
+			for i := range a.Submit.Unmappable {
+				if a.Submit.Unmappable[i].Comment.ID == omitted.ID {
+					a.Submit.ResolverCursor = i
+					a.ResolverToggle()
+				}
+			}
+			a.ApplySubmitResult(tc.result, forge.SubmitComment)
+
+			if moved.LifecycleState != model.LifecycleSubmitted {
+				t.Errorf("moved-to-summary comment is %v, want submitted", moved.LifecycleState)
+			}
+			if omitted.LifecycleState != model.LifecycleLocalDraft {
+				t.Errorf("omitted comment is %v, want a local draft", omitted.LifecycleState)
+			}
+			wantInline := model.LifecycleSubmitted
+			if tc.result.Partial != nil {
+				wantInline = model.LifecycleLocalDraft // the forge named no inline comment as posted
+			}
+			if inline.LifecycleState != wantInline {
+				t.Errorf("inline comment is %v, want %v", inline.LifecycleState, wantInline)
+			}
+
+			// The retry carries the omitted comment again, never the moved one.
+			if !a.StartSubmitWith(forge.SubmitComment, false) {
+				t.Fatal("second submit must start: the omitted comment is still a draft")
+			}
+			for _, item := range a.Submit.Unmappable {
+				if item.Comment.ID == moved.ID {
+					t.Fatal("second submit would post the moved comment again")
+				}
+			}
+		})
+	}
+}
+
 func TestPickerEventsFollowCapabilities(t *testing.T) {
 	caps := allCaps()
 	caps.DraftReviews = false
