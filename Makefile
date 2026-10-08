@@ -1,7 +1,9 @@
 # mrman — build tooling
 BINARY      := mrman
 MODULE      := github.com/infrashift/mrman
-VERSION     ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+# Only mrman's own vX.Y.Z tags name a version: the charmkit/vX.Y.Z module
+# tags would otherwise win git describe and put a "/" in archive names.
+VERSION     ?= $(shell git describe --tags --match 'v[0-9]*' --always --dirty 2>/dev/null || echo dev)
 COMMIT      := $(shell git rev-parse --short HEAD 2>/dev/null || echo none)
 DATE        := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 LDFLAGS     := -s -w \
@@ -12,7 +14,7 @@ GOFLAGS     := -trimpath
 BIN_DIR     := bin
 DIST_DIR    := dist
 COVER_FILE  := coverage.out
-PLATFORMS   := linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64
+PLATFORMS   ?= linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64
 
 # Tool locations that survive minimal PATHs: gofmt ships in GOROOT, installed
 # dev tools land in GOBIN (default GOPATH/bin).
@@ -25,7 +27,7 @@ GOVULNCHECK   := $(GOBIN_DIR)/govulncheck
 .DEFAULT_GOAL := build
 
 .PHONY: all build install run test test-race cover cover-html cover-check bench lint fmt vet vuln tidy \
-        generate check check-charmkit package clean tools help docs-dev docs-build
+        generate check check-charmkit package version clean tools help docs-dev docs-build
 
 all: check build
 
@@ -99,8 +101,13 @@ docs-dev: ## Run the Astro documentation site locally (bun)
 docs-build: ## Build the documentation site into docs/dist
 	cd docs && bun install --frozen-lockfile && bun --bun run build
 
-package: ## Cross-compile release tarballs/zips into ./dist
-	@mkdir -p $(DIST_DIR)
+version: ## Print the version a build would embed
+	@echo $(VERSION)
+
+# package starts from an empty dist/, so SHA256SUMS lists exactly this run's
+# archives. release.yml publishes dist/ as a GitHub release.
+package: ## Cross-compile release tarballs/zips and SHA256SUMS into ./dist
+	@rm -rf $(DIST_DIR) && mkdir -p $(DIST_DIR)
 	@for platform in $(PLATFORMS); do \
 		os=$${platform%/*}; arch=$${platform#*/}; \
 		ext=""; [ "$$os" = "windows" ] && ext=".exe"; \

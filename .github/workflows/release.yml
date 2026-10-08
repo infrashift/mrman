@@ -1,0 +1,140 @@
+name: Release
+
+# Cut a release by pushing a semantic-version tag on a commit that is on main
+# (see Contributing → Releasing):
+#
+#   git tag vX.Y.Z && git push origin vX.Y.Z
+#
+# charmkit's own module tags (charmkit/vX.Y.Z) do not match the trigger.
+#
+# Every build job is read-only. Only `publish` can write, and it only creates
+# this tag's GitHub release, with the archives `make package` builds and the
+# SHA256SUMS manifest that lists them.
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: The tag is a semantic version on main
+        run: |
+          if ! [[ "${GITHUB_REF_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::tag ${GITHUB_REF_NAME} is not vMAJOR.MINOR.PATCH[-PRERELEASE]"
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "${GITHUB_SHA}" origin/main; then
+            echo "::error::tag ${GITHUB_REF_NAME} points at ${GITHUB_SHA}, which is not on main"
+            exit 1
+          fi
+      - name: The version the build embeds is the tag
+        run: test "$(make -s version)" = "${GITHUB_REF_NAME}"
+      - name: Builds the way go install will
+        # Workspace off: charmkit resolves as the tagged module go.mod
+        # requires, through the public module proxy and checksum database.
+        run: GOWORK=off go build ./...
+      - run: make vet test
+
+  package:
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      # Pure Go with CGO off, so one runner cross-compiles every platform.
+      - run: make package VERSION="${GITHUB_REF_NAME}"
+      - run: cat dist/SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+
+  smoke:
+    # Each archive is unpacked and run on the platform it is for, so a
+    # binary that cannot start never reaches the release. darwin_amd64 is
+    # built and checksummed but not run: GitHub is retiring its Intel macOS
+    # runners, and a job waiting on a missing runner would block the release.
+    name: smoke (${{ matrix.platform }})
+    needs: package
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux_amd64
+            os: ubuntu-latest
+          - platform: linux_arm64
+            os: ubuntu-24.04-arm
+          - platform: darwin_arm64
+            os: macos-latest
+          - platform: windows_amd64
+            os: windows-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+      - name: Run the archived binary (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          name="mrman_${GITHUB_REF_NAME}_${{ matrix.platform }}"
+          (cd dist && grep " ${name}.tar.gz\$" SHA256SUMS | shasum -a 256 -c -)
+          tar -xzf "dist/${name}.tar.gz" -C "$RUNNER_TEMP"
+          "$RUNNER_TEMP/${name}/mrman" --version | grep -F "${GITHUB_REF_NAME}"
+      - name: Run the archived binary (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $name = "mrman_$($env:GITHUB_REF_NAME)_${{ matrix.platform }}"
+          $zip = "dist/$name.zip"
+          $want = (Select-String -Path dist/SHA256SUMS -Pattern " $name.zip$").Line.Split(' ')[0]
+          $got = (Get-FileHash -Algorithm SHA256 $zip).Hash.ToLower()
+          if ($got -ne $want) { throw "checksum mismatch for $zip" }
+          Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP
+          $out = & "$env:RUNNER_TEMP/$name/mrman.exe" --version
+          if ($out -notmatch [regex]::Escape($env:GITHUB_REF_NAME)) { throw "unexpected version: $out" }
+
+  publish:
+    needs: [package, smoke]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          prerelease=""
+          [[ "${GITHUB_REF_NAME}" == *-* ]] && prerelease="--prerelease"
+          gh release create "${GITHUB_REF_NAME}" dist/* \
+            --repo "${GITHUB_REPOSITORY}" \
+            --verify-tag \
+            --title "${GITHUB_REF_NAME}" \
+            --generate-notes \
+            ${prerelease}

@@ -123,18 +123,43 @@ as the module version `go.mod` requires (`charmkit/v0.1.0` today). CI's
 `release-shape` job checks that on every change. A charmkit change that mrman
 needs therefore ships as a new charmkit tag first.
 
-### Releasing
+### Releasing charmkit
 
-Order matters:
+A charmkit change that mrman needs ships as a charmkit tag first; order
+matters:
 
 ```sh
 git tag charmkit/vX.Y.Z && git push origin charmkit/vX.Y.Z
 go mod edit -require=github.com/infrashift/mrman/charmkit@vX.Y.Z
-git commit go.mod && git tag vX.Y.Z && git push --tags
+git commit go.mod    # through a pull request, like any change
 ```
 
 `GOWORK=off go build ./...` must keep passing. Treat a failure there as a
 release blocker, not a local-setup problem.
+
+## Releasing mrman
+
+A release is a semantic-version tag on a commit that is already on `main`:
+
+```sh
+git switch main && git pull
+git tag vX.Y.Z      # vX.Y.Z-rc.1 and the like publish as pre-releases
+git push origin vX.Y.Z
+```
+
+The tag runs `.github/workflows/release.yml`:
+
+| Job | Does |
+|---|---|
+| `verify` | Refuses a tag that is not `vMAJOR.MINOR.PATCH[-PRERELEASE]` or not on `main`; checks the build embeds the tag as its version; builds with the workspace off, as `go install` will; runs `make vet test` |
+| `package` | `make package VERSION=<tag>`: tarballs for Linux and macOS (amd64, arm64), a zip for Windows, and `SHA256SUMS` |
+| `smoke` | Verifies each archive's checksum, unpacks it and runs `mrman --version` on its own platform (Linux amd64/arm64, macOS arm64, Windows) |
+| `publish` | The only job that can write: creates the GitHub release with the archives and `SHA256SUMS`, and notes generated from the merged pull requests |
+
+`make version` prints the version a build would embed: the nearest `vX.Y.Z`
+tag, or the commit until there is one. charmkit's `charmkit/vX.Y.Z` tags
+never count. CI's `release-shape` job packages and runs a Linux archive on
+every change, so a broken release is caught before a tag is cut.
 
 ## Testing against a real forge
 
@@ -142,14 +167,15 @@ Every unit test runs against fakes. Fakes cannot catch a driver that builds a
 request the forge then rejects, or a pane that renders correctly from invented
 data and wrongly from real data.
 
-Three opt-in tests exercise a real forge. They skip unless their environment
-variables are set, so `make check` is unaffected:
+Opt-in live tests exercise a real forge. They skip unless `MRMAN_LIVE_PR` is
+set, so `make check` is unaffected. It takes any target `mrman pr` does, on
+any forge, and `scripts/live-fixture.sh URL up` builds a scratch merge request
+for it on GitHub, GitLab, Azure DevOps or Codeberg:
 
 ```sh
-MRMAN_LIVE_PR=owner/repo#1 go test ./internal/forge/githubf/ -run Live -v
-MRMAN_LIVE_PR=owner/repo#1 go test ./internal/ui/ -run LivePullRequestReview -v
+MRMAN_LIVE_PR=owner/repo#1 go test -count=1 -run Live ./...        # reads only
 MRMAN_LIVE_PR=owner/repo#1 MRMAN_LIVE_SUBMIT=1 \
-    go test ./internal/ui/ -run LivePullRequestSubmit -v   # posts a real review
+    go test -count=1 -run Live ./...                               # also posts reviews
 ```
 
 [Testing Against a Real Forge](../../contributing/live-testing/) walks through
@@ -172,7 +198,10 @@ page, so Starlight's content sits one level down. A page's sidebar slug in
 `docs/reference/keybindings` for
 `docs/src/content/docs/docs/reference/keybindings.md`.
 
-Every page is deployed from `main` by `.github/workflows/docs-release.yml`.
+Every page is deployed from `main` by `.github/workflows/docs-release.yml`,
+which needs the repository's Pages source set to **GitHub Actions**. CI's
+`docs` job builds the site on every pull request, with the same pinned bun
+version, so a page that does not build fails review rather than the deploy.
 
 ## Filing issues and MRs
 
