@@ -142,12 +142,14 @@ func bodyThread(body string) *git.GitPullRequestCommentThread {
 // the ForgePayload carries iteration data, the pull-request thread context
 // pins the comment to iteration 1..latest and the file's change-tracking
 // id so Azure DevOps can track it across future iterations.
+//
+// The file path is always the file's current path, also for a comment on
+// the old side of a renamed file: that is the form Azure DevOps stores, and
+// the change-tracking ids are keyed by it. Using the old path found no
+// tracking id, leaving such a comment untracked (seen live: Azure DevOps
+// rewrites an old-path thread to the new path when it can track it).
 func inlineThread(comment *submit.InlineComment, payload forgePayload) *git.GitPullRequestCommentThread {
-	path := comment.Path
-	if comment.Side == submit.SideOld && comment.OldPath != nil {
-		path = *comment.OldPath
-	}
-	filePath := "/" + path
+	filePath := "/" + comment.Path
 
 	end := position(comment.Line)
 	start := end
