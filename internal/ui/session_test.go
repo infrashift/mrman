@@ -17,7 +17,7 @@ func testLifecycle(t *testing.T) (*sessionLifecycle, *Model) {
 	t.Helper()
 	store := &persistence.Store{ReviewsDir: t.TempDir()}
 	m := testModel(t)
-	lc, session := openSession(store, m.App.Session)
+	lc, session := openSession(store, m.App.Session, nil)
 	m.App.Session = session
 	m.session = lc
 	lc.watchEvery = 0 // no interval throttling in tests
@@ -40,7 +40,7 @@ func TestOpenSessionPersistsEagerly(t *testing.T) {
 func TestOpenSessionReusesExisting(t *testing.T) {
 	store := &persistence.Store{ReviewsDir: t.TempDir()}
 	m := testModel(t)
-	lc1, session := openSession(store, m.App.Session)
+	lc1, session := openSession(store, m.App.Session, nil)
 	// Leave a comment so the session survives.
 	session.ReviewComments = append(session.ReviewComments,
 		model.NewComment("keep me", model.CommentTypeFromID("note"), nil))
@@ -52,7 +52,7 @@ func TestOpenSessionReusesExisting(t *testing.T) {
 
 	// A second open with the same context resumes the same session.
 	fresh := model.NewReviewSession(session.RepoPath, session.BaseCommit, session.BranchName, session.DiffSource)
-	lc2, resumed := openSession(store, fresh)
+	lc2, resumed := openSession(store, fresh, nil)
 	if lc2.wasCreated {
 		t.Fatal("existing session must be resumed, not recreated")
 	}

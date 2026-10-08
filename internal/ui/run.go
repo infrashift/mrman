@@ -227,7 +227,7 @@ func Run(opts cli.TuiOptions) error {
 		session   = fresh
 	)
 	if !selectorStart {
-		lifecycle, session = openSession(store, fresh)
+		lifecycle, session = openSession(store, fresh, files)
 	}
 
 	a := app.NewApp(backend, info, files, session, source)
