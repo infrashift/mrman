@@ -18,7 +18,9 @@ func TestErrorTranslationTable(t *testing.T) {
 		wantKind forge.ErrorKind
 		wantHint string
 	}{
-		{"unauthorized", http.StatusUnauthorized, forge.ErrorAuth, hintAuth},
+		{"unauthorized", http.StatusUnauthorized, forge.ErrorAuth,
+			"GitLab authentication failed. Set GITLAB_TOKEN (or configure a token for this host) " +
+				"with the `api` scope — create one at https://gitlab.com/-/user_settings/personal_access_tokens."},
 		{"forbidden", http.StatusForbidden, forge.ErrorForbidden, hintForbidden},
 		{"not found", http.StatusNotFound, forge.ErrorNotFound, hintNotFound},
 		{"rate limited", http.StatusTooManyRequests, forge.ErrorRateLimited, hintRateLimited},
