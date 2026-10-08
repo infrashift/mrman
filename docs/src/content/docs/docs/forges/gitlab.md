@@ -14,9 +14,13 @@ The run found two defects, both fixed before this note was written: a range
 comment ending on an unchanged line was refused, and the TUI lost its connection
 to the forge after a moved-head reload.
 
-gitlab.com itself, and a self-managed instance behind TLS with `ca_file`, have
-not been exercised yet. See [support levels](../../reference/forge-capabilities/#support-levels)
-and the [transcript](../../contributing/live-testing/#gitlab-a-self-managed-instance).
+**gitlab.com** passed the same run on 2026-10-08, with every step read back:
+comments of every anchor kind, a draft, request changes, the moved-head
+guard, approve, and the agent interlock. It also covered a file over
+gitlab.com's diff limits and a refused (repeat) approval. A self-managed
+instance behind TLS with `ca_file` has not been exercised yet. See [support
+levels](../../reference/forge-capabilities/#support-levels) and the
+[transcript](../../contributing/live-testing/#gitlab-a-self-managed-instance).
 :::
 
 mrman reviews GitLab **merge requests** with the same interface it uses on
@@ -59,6 +63,11 @@ regardless of what the path looks like.
 
 `api` scope. A read-only `read_api` token is enough to browse and review; you
 need `api` to post comments or approve.
+
+GitLab's newer **fine-grained** personal access tokens grant permissions one
+by one instead. One without `Project: Read` and `User: Read` cannot open a
+merge request at all: GitLab answers `403 insufficient_granular_scope`. A
+classic token with `api` is the simplest choice.
 
 ## Open a merge request
 
