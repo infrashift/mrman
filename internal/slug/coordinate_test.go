@@ -188,6 +188,7 @@ func TestParseRepoCoordinateAcceptsPRURLsAndSlugs(t *testing.T) {
 		{"https://gitlab.com/infrashift-group/sub/scratch/-/merge_requests/3/diffs", coord("sub", "scratch")},
 		{"https://dev.azure.com/org/project/_git/repo/pullrequest/9", coord("project", "repo")},
 		{"gh:github.com/infrashift/scratch/pr/2", coord("infrashift", "scratch")},
+		{"gl:gitlab.com/group/sub/proj/mr/5", coord("sub", "proj")},
 		{"github.com/pull/pull", coord("pull", "pull")}, // a repo named "pull" is still a repo
 	}
 	for _, tt := range tests {

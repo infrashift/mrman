@@ -77,7 +77,8 @@ func ParseRepoCoordinate(input string) (RepoCoordinate, error) {
 // trimPRSuffix cuts a pull request's part off a path, so a PR's web URL or
 // session slug names its repository: .../pull/N and .../pulls/N (GitHub,
 // Forgejo), .../-/merge_requests/N (GitLab), .../pullrequest/N (Azure
-// DevOps, after "_git" is dropped) and .../pr/N (mrman's own PR slugs),
+// DevOps, after "_git" is dropped) and .../pr/N or .../mr/N (mrman's own
+// PR slugs),
 // with any tab segments after them.
 func trimPRSuffix(segments []string) []string {
 	for i := 1; i+1 < len(segments); i++ {
@@ -93,7 +94,7 @@ func trimPRSuffix(segments []string) []string {
 
 func isPRMarker(s string) bool {
 	switch s {
-	case "pull", "pulls", "pullrequest", "pr":
+	case "pull", "pulls", "pullrequest", "pr", "mr":
 		return true
 	}
 	return false
