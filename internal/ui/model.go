@@ -1066,6 +1066,10 @@ func (m *Model) View() tea.View {
 		copy(diffInner[colH-len(modal):], modal)
 	}
 	if peek := m.diffPane.commentPeekOverlay(a, diffW, colH); len(peek) > 0 {
+		// The panel is never under three rows; a shorter pane shows its tail.
+		if len(peek) > colH {
+			peek = peek[len(peek)-colH:]
+		}
 		copy(diffInner[colH-len(peek):], peek)
 	}
 	mainCols = append(mainCols, m.titledPanel(
