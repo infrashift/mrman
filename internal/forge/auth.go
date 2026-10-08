@@ -247,7 +247,7 @@ type RedirectRefused struct {
 }
 
 func (e *RedirectRefused) Error() string {
-	return fmt.Sprintf("refusing redirect from %s to %s: credentials stay on the configured host", e.From, e.To)
+	return fmt.Sprintf("refusing redirect from %s to %s: credentials stay on the hosts they were sent to", e.From, e.To)
 }
 
 // BuildHTTPClient builds the *http.Client injected into every forge SDK,
@@ -294,8 +294,9 @@ func BuildHTTPClient(hc HostConfig) (*http.Client, error) {
 	return client, nil
 }
 
-// allowedOrigin is the scheme://host[:port] a host's requests may land on:
-// api_base when configured, else https on the host itself.
+// allowedOrigin is the configured scheme://host[:port] for a host: api_base
+// when configured, else https on the host itself. Redirects may also land
+// there (see pinnedRedirectPolicy).
 func allowedOrigin(hc HostConfig) *url.URL {
 	if hc.APIBase != "" {
 		if u, err := url.Parse(hc.APIBase); err == nil && u.Host != "" {
@@ -305,14 +306,20 @@ func allowedOrigin(hc HostConfig) *url.URL {
 	return &url.URL{Scheme: "https", Host: hc.Host}
 }
 
-// pinnedRedirectPolicy follows redirects only within the allowed origin,
-// and never from https down to http.
+// pinnedRedirectPolicy follows a redirect only when it stays on the origin
+// the request was first sent to, or lands on the configured origin, and
+// never from https down to http. Either way the credentials reach no origin
+// that was not already trusted with them.
+//
+// The request origin matters because a forge's API host is not always its
+// configured host: github.com's API is api.github.com, which answers a
+// renamed repository with a 301 to another api.github.com path.
 func pinnedRedirectPolicy(allowed *url.URL) func(*http.Request, []*http.Request) error {
 	return func(req *http.Request, via []*http.Request) error {
 		if len(via) >= maxRedirects {
 			return fmt.Errorf("stopped after %d redirects", maxRedirects)
 		}
-		if !sameOrigin(req.URL, allowed) {
+		if !sameOrigin(req.URL, via[0].URL) && !sameOrigin(req.URL, allowed) {
 			return &RedirectRefused{From: via[0].URL.Host, To: req.URL.Host}
 		}
 		return nil

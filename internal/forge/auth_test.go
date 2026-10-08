@@ -474,6 +474,38 @@ func TestBuildHTTPClientAllowsSameHostRedirect(t *testing.T) {
 	}
 }
 
+// TestBuildHTTPClientFollowsRedirectsWithinTheRequestOrigin: GitHub's API
+// lives on api.github.com, not on the configured host github.com, and
+// answers a renamed or transferred repository with a 301 to another path on
+// api.github.com. A redirect that stays on the origin the request was sent
+// to carries the credentials nowhere new, so it is followed.
+func TestBuildHTTPClientFollowsRedirectsWithinTheRequestOrigin(t *testing.T) {
+	hits := 0
+	var srv *httptest.Server
+	srv = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/repos/old/name" {
+			http.Redirect(w, r, srv.URL+"/repositories/42", http.StatusMovedPermanently)
+			return
+		}
+		hits++
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(srv.Close)
+	// The configured host differs from the API host the request goes to.
+	client, err := BuildHTTPClient(HostConfig{Host: "github.com", InsecureSkipVerify: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := client.Get(srv.URL + "/repos/old/name")
+	if err != nil {
+		t.Fatalf("same-origin redirect refused: %v", err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusOK || hits != 1 {
+		t.Fatalf("status = %d hits = %d", resp.StatusCode, hits)
+	}
+}
+
 func TestBuildHTTPClientPinsToAPIBaseOrigin(t *testing.T) {
 	// With api_base on another origin, the redirect target that matches
 	// api_base is allowed even though it is not hc.Host.
