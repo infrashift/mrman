@@ -139,6 +139,13 @@ func parseFile(src *lineSource, header string, format Format, h *syntax.Highligh
 		file.IsBinary = true
 		return file, nil
 	}
+	if peekOK && peeked == vcs.TooLargeDiffMarker {
+		if _, _, err := src.advance(); err != nil {
+			return model.DiffFile{}, err
+		}
+		file.IsTooLarge = true
+		return file, nil
+	}
 
 	filePath := ""
 	switch {
@@ -335,7 +342,8 @@ func parseFileHeader(src *lineSource, format Format) (oldPath, newPath *string, 
 		if err != nil {
 			return nil, nil, h.status, err
 		}
-		if !ok || strings.HasPrefix(line, "@@") || strings.HasPrefix(line, "diff ") {
+		if !ok || strings.HasPrefix(line, "@@") || strings.HasPrefix(line, "diff ") ||
+			line == vcs.TooLargeDiffMarker {
 			break
 		}
 		if isBinaryPatchLine(line) {

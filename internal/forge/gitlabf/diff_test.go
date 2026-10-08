@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 	"testing"
+
+	"github.com/infrashift/mrman/internal/vcs/diffparser"
 )
 
 func TestSynthesizeUnifiedDiffGolden(t *testing.T) {
@@ -113,5 +115,44 @@ func TestGetDiffPagesAndSynthesizes(t *testing.T) {
 		"--- /dev/null\n+++ b/added.txt\n@@ -0,0 +1 @@\n+hi\n"
 	if diff != want {
 		t.Errorf("diff:\n%s\nwant:\n%s", diff, want)
+	}
+}
+
+// TestGetDiffMarksTooLargeFiles: GitLab sends a file over its diff limits
+// with an empty diff and too_large (or collapsed) set. Synthesized as a bare
+// header, it parsed as a file with no changes; it must read as too large.
+func TestGetDiffMarksTooLargeFiles(t *testing.T) {
+	mux := newFixtureMux(t)
+	mux.Handle("GET "+projectPrefix+"/diffs", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`[
+			{"old_path": "big.json", "new_path": "big.json", "diff": "", "too_large": true},
+			{"old_path": "gen.lock", "new_path": "gen.lock", "diff": "", "collapsed": true},
+			{"old_path": "small.go", "new_path": "small.go", "diff": "@@ -1 +1 @@\n-a\n+b\n", "collapsed": true},
+			{"old_path": "old.txt", "new_path": "new.txt", "diff": "", "renamed_file": true}
+		]`))
+	})
+	d := newTestDriver(t, mux)
+	diff, err := d.GetDiff(context.Background(), testPR())
+	if err != nil {
+		t.Fatalf("GetDiff: %v", err)
+	}
+	files, err := diffparser.Parse(diff, diffparser.GitStyle, nil)
+	if err != nil {
+		t.Fatalf("Parse: %v\n%s", err, diff)
+	}
+	want := map[string]bool{"big.json": true, "gen.lock": true, "small.go": false, "new.txt": false}
+	if len(files) != len(want) {
+		t.Fatalf("parsed %d files, want %d:\n%s", len(files), len(want), diff)
+	}
+	for _, f := range files {
+		if f.IsTooLarge != want[f.DisplayPath()] {
+			t.Errorf("%s: IsTooLarge = %v, want %v", f.DisplayPath(), f.IsTooLarge, want[f.DisplayPath()])
+		}
+	}
+	for _, f := range files {
+		if f.DisplayPath() == "small.go" && len(f.Hunks) != 1 {
+			t.Errorf("a collapsed file that still carries its diff keeps its hunks")
+		}
 	}
 }

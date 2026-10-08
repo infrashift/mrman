@@ -98,14 +98,15 @@ func (d *Driver) GetDiff(ctx context.Context, pr *forge.PullRequestDetails) (str
 		}
 		for _, row := range rows {
 			files = append(files, fileDiff{
-				OldPath: row.OldPath,
-				NewPath: row.NewPath,
-				AMode:   row.AMode,
-				BMode:   row.BMode,
-				Body:    row.Diff,
-				New:     row.NewFile,
-				Renamed: row.RenamedFile,
-				Deleted: row.DeletedFile,
+				OldPath:  row.OldPath,
+				NewPath:  row.NewPath,
+				AMode:    row.AMode,
+				BMode:    row.BMode,
+				Body:     row.Diff,
+				New:      row.NewFile,
+				Renamed:  row.RenamedFile,
+				Deleted:  row.DeletedFile,
+				TooLarge: row.TooLarge || row.Collapsed,
 			})
 		}
 		if resp == nil || resp.NextPage == 0 {

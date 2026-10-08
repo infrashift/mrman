@@ -166,3 +166,10 @@ func (UnsupportedBase) WorkingTreeWithCommitsDiff([]string, *syntax.Highlighter)
 func (UnsupportedBase) StageFile(string) error {
 	return errs.Unsupportedf("staging")
 }
+
+// TooLargeDiffMarker is the line a synthesized diff carries in place of the
+// hunks of a file the forge declined to diff because it is too large. The
+// parser marks that file IsTooLarge, as it marks a binary file from git's
+// "Binary files ... differ", so it renders as too large rather than as a
+// file with no changes.
+const TooLargeDiffMarker = "Diff too large to display"
