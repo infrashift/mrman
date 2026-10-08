@@ -168,6 +168,9 @@ func TestParseReviewRejectsTuiFlags(t *testing.T) {
 		{"-w", "review", "list"},
 		{"--theme", "dark", "review", "comments", "--session", "s"},
 		{"--stdout", "review", "add", "--session", "s", "hi"},
+		// Both used to be accepted and silently ignored.
+		{"--json", "review", "list"},
+		{"--auto=comment", "review", "submit", "--session", "s"},
 	} {
 		_, err := Parse(argv)
 		if err == nil {

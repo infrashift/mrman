@@ -316,7 +316,7 @@ func rejectTuiFlags(cmd *cobra.Command) error {
 	tuiFlags := []string{
 		"revisions", "theme", "appearance", "path", "working-tree",
 		"file", "all-files", "stdout", "repo-url", "forge",
-		"patch", "patch-strip",
+		"patch", "patch-strip", "json", "auto",
 	}
 	root := cmd.Root()
 	for _, name := range tuiFlags {
