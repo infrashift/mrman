@@ -9,12 +9,6 @@ on:
 permissions:
   contents: read
 
-# charmkit is a tagged module inside this private repository, so every go
-# command that loads the module graph must fetch its go.mod through git
-# with the job's token, and skip the public checksum database for it.
-env:
-  GOPRIVATE: github.com/infrashift
-
 jobs:
   check:
     name: check (${{ matrix.os }})
@@ -29,8 +23,6 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - name: Authenticate module fetches for this repository
-        run: git config --global url."https://x-access-token:${{ github.token }}@github.com/".insteadOf "https://github.com/"
       - name: Install dev tools
         run: make tools
       - name: Formatting is clean
@@ -60,23 +52,18 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - name: Authenticate module fetches for this repository
-        run: git config --global url."https://x-access-token:${{ github.token }}@github.com/".insteadOf "https://github.com/"
       - run: go build ./... && go vet ./...
       - run: cd charmkit && go build ./... && go vet ./...
 
   release-shape:
     # `go install github.com/infrashift/mrman@vX.Y.Z` builds with the workspace
-    # disabled, resolving charmkit as a tagged module from this repository.
-    # The repository is private, so the module fetch authenticates with the
-    # job's own token and skips the public checksum database.
+    # disabled, resolving charmkit as a tagged module from this repository
+    # through the public module proxy and checksum database, as this job does.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - name: Authenticate module fetches for this repository
-        run: git config --global url."https://x-access-token:${{ github.token }}@github.com/".insteadOf "https://github.com/"
       - run: GOWORK=off go build ./...
       - run: make tidy
