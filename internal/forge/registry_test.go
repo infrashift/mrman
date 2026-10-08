@@ -511,12 +511,15 @@ func TestKindFromConfigNameAliases(t *testing.T) {
 		"github": forgetypes.KindGitHub, "gitlab": forgetypes.KindGitLab,
 		"azuredevops": forgetypes.KindAzureDevOps, "azure_devops": forgetypes.KindAzureDevOps,
 		"ado": forgetypes.KindAzureDevOps, "forgejo": forgetypes.KindForgejo,
-		"gitea": forgetypes.KindForgejo, " GitLab ": forgetypes.KindGitLab,
+		"gitea": forgetypes.KindForgejo, "GitLab": forgetypes.KindGitLab,
 	}
 	for name, want := range cases {
 		if got, ok := kindFromConfigName(name); !ok || got != want {
 			t.Errorf("kindFromConfigName(%q) = %v, %v; want %v", name, got, ok, want)
 		}
+	}
+	if got, ok := kindFromConfigName("  gitlab\t"); !ok || got != forgetypes.KindGitLab {
+		t.Errorf("surrounding whitespace must be ignored: got %v, %v", got, ok)
 	}
 	if _, ok := kindFromConfigName("bitbucket"); ok {
 		t.Error("an unknown forge name must not resolve")
