@@ -135,14 +135,19 @@ func announceSessionDuringRun(session *model.ReviewSession) {
 
 // save persists the live session with merge-on-write and refreshes the
 // snapshot and file state.
+//
+// Changes merged in from the file (an agent's `mrman review add` since the
+// last poll) are redrawn here: the refreshed file state matches what this
+// save wrote, so no later poll will see them as new.
 func (lc *sessionLifecycle) save(a *app.App) error {
 	if lc.store == nil {
 		return nil
 	}
+	externalChanges := 0
 	path, merged, err := lc.store.SaveSessionByIdentity(a.Session,
 		func(persisted *model.ReviewSession) (*model.ReviewSession, error) {
 			if persisted != nil && lc.snapshot != nil {
-				app.MergeExternalSessionChanges(a.Session, lc.snapshot, persisted)
+				externalChanges = app.MergeExternalSessionChanges(a.Session, lc.snapshot, persisted)
 			}
 			return a.Session, nil
 		})
@@ -153,6 +158,9 @@ func (lc *sessionLifecycle) save(a *app.App) error {
 	lc.snapshot = merged.Clone()
 	lc.fileState = statFile(path)
 	a.Dirty = false
+	if externalChanges > 0 {
+		a.RebuildAnnotations()
+	}
 	return nil
 }
 

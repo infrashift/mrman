@@ -61,14 +61,56 @@ func TestOpenSessionReusesExisting(t *testing.T) {
 	}
 }
 
-func TestSaveClearsDirty(t *testing.T) {
+func TestSaveClearsDirtyAndPersists(t *testing.T) {
 	lc, m := testLifecycle(t)
+	m.App.Session.ReviewComments = append(m.App.Session.ReviewComments,
+		model.NewComment("local note", model.CommentTypeFromID("note"), nil))
 	m.App.Dirty = true
 	if err := lc.save(m.App); err != nil {
 		t.Fatal(err)
 	}
 	if m.App.Dirty {
 		t.Fatal("save must clear dirty")
+	}
+	persisted, err := lc.store.LoadSession(lc.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(persisted.ReviewComments) != 1 || persisted.ReviewComments[0].Content != "local note" {
+		t.Fatalf("persisted comments = %+v, want the local note", persisted.ReviewComments)
+	}
+}
+
+// TestSaveShowsCommentsItMerged: an agent adds a comment, and before the
+// watcher's next poll the TUI saves its own change. The save merges the
+// agent's comment into the live session; it must also reach the screen. The
+// save leaves the file's stat matching what it wrote, so no later poll will
+// notice and redraw it.
+func TestSaveShowsCommentsItMerged(t *testing.T) {
+	lc, m := testLifecycle(t)
+	err := reviewcli.Add(lc.store, reviewcli.Options{
+		Session: lc.path, Comment: "agent finding", Type: "issue",
+	}, &bytes.Buffer{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	m.App.Session.ReviewComments = append(m.App.Session.ReviewComments,
+		model.NewComment("local note", model.CommentTypeFromID("note"), nil))
+	m.App.RebuildAnnotations() // as the TUI's own comment commands do
+	m.App.Dirty = true
+	if err := lc.save(m.App); err != nil {
+		t.Fatal(err)
+	}
+	if lc.pollExternalChanges(m.App, false) != 0 {
+		t.Fatal("the save already merged the agent's comment; a poll must find nothing new")
+	}
+
+	view := plainView(m)
+	for _, want := range []string{"agent finding", "local note"} {
+		if !strings.Contains(view, want) {
+			t.Errorf("%q is in the session but not on screen", want)
+		}
 	}
 }
 
