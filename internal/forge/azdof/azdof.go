@@ -109,9 +109,9 @@ func (d *Driver) ID() forgetypes.Kind { return forgetypes.KindAzureDevOps }
 // Capabilities reports the honest Azure DevOps capability set.
 //
 //   - DraftReviews false: there is no server-side pending-review concept.
-//   - ReviewSummaries false: ADO has no review-level bodies; the driver
-//     approximates them from context-less threads in ListReviewSummaries,
-//     but the capability stays false so the app knows they are threads.
+//   - ReviewSummaries false: ADO has no review object. ListReviewSummaries
+//     returns its context-less threads (general discussions, review bodies
+//     included), which the app fetches from every driver.
 //   - ThreadOutdated false: outdated state is approximated (a thread with
 //     no pull-request tracking context is assumed stale).
 //   - CommitRangeDiff false: no server-side text diff exists at all; the

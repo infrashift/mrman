@@ -92,10 +92,10 @@ project and everything before it is the namespace.
 ### No review summaries
 
 GitLab does not model "a review" as an object with a body the way GitHub does.
-Existing threads render inline as you would expect, but there is no separate
-summary block above them, because there is nothing on the GitLab side to read.
-
-Your own review body still posts — as a general merge-request note.
+Existing threads render inline as you would expect. General merge-request
+notes, the ones with no diff position, appear in the overview above the diff,
+where GitHub's review summaries go. Your own review body posts as one of those
+notes, so it shows up there too.
 
 ### No atomic submit
 

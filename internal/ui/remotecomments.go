@@ -37,13 +37,13 @@ func (m *Model) drainRemoteCommentsLoad() tea.Cmd {
 		if err != nil {
 			return remoteCommentsResultMsg{Gen: req.Gen, Key: req.Key, Err: err}
 		}
-		// Review summaries and review metadata are separate calls behind
-		// separate capabilities; a forge without either still gets its
-		// inline threads. Both are best-effort for the same reason.
-		var summaries []forge.RemoteReviewSummary
-		if caps.ReviewSummaries {
-			summaries, _ = backend.ListReviewSummaries(ctx, details)
-		}
+		// Summaries are asked of every forge: one without a review object
+		// (GitLab, Azure DevOps) returns its general, file-less discussions
+		// here, and review bodies are among them. Gating this on the
+		// ReviewSummaries capability hid them entirely, because path-less
+		// threads are not drawn. Summaries and metadata are best-effort, so
+		// a forge without either still gets its inline threads.
+		summaries, _ := backend.ListReviewSummaries(ctx, details)
 		var meta *forge.ReviewMetadata
 		if caps.CommitScopedReviews {
 			meta, _ = backend.ReviewMetadata(ctx, details)

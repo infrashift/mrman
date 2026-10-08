@@ -10,8 +10,10 @@ type Capabilities struct {
 	Approve bool
 	// RequestChanges means the forge supports a changes-requested event.
 	RequestChanges bool
-	// ReviewSummaries means review-level bodies exist distinct from
-	// threads.
+	// ReviewSummaries means the forge has a review object whose body is
+	// distinct from its threads. The app asks every driver for summaries
+	// regardless: a forge without review objects returns its general,
+	// file-less discussions there instead.
 	ReviewSummaries bool
 	// ReviewThreads means the forge exposes discussion threads.
 	ReviewThreads bool
