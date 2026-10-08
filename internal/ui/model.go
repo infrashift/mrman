@@ -615,7 +615,7 @@ func (m *Model) dispatchCommand(action input.Action) bool {
 		m.completion = nil
 	case input.DeleteChar:
 		if a.CommandBuffer != "" {
-			a.CommandBuffer = a.CommandBuffer[:len(a.CommandBuffer)-1]
+			a.CommandBuffer = dropLastRune(a.CommandBuffer)
 		}
 		m.completion = nil
 	case input.ClearLine:
@@ -868,7 +868,7 @@ func (m *Model) dispatchSearch(action input.Action) bool {
 		a.SearchBuffer += string(action.Ch)
 	case input.DeleteChar:
 		if a.SearchBuffer != "" {
-			a.SearchBuffer = a.SearchBuffer[:len(a.SearchBuffer)-1]
+			a.SearchBuffer = dropLastRune(a.SearchBuffer)
 		}
 	case input.ClearLine:
 		a.SearchBuffer = ""
@@ -1066,6 +1066,10 @@ func (m *Model) View() tea.View {
 		copy(diffInner[colH-len(modal):], modal)
 	}
 	if peek := m.diffPane.commentPeekOverlay(a, diffW, colH); len(peek) > 0 {
+		// The panel is never under three rows; a shorter pane shows its tail.
+		if len(peek) > colH {
+			peek = peek[len(peek)-colH:]
+		}
 		copy(diffInner[colH-len(peek):], peek)
 	}
 	mainCols = append(mainCols, m.titledPanel(
@@ -1183,15 +1187,11 @@ func (m *Model) titledPanel(content, title string, focused bool, innerW, innerH 
 		Width(innerW).Height(innerH + 1).
 		Render(content)
 
-	titleW := 0
-	if title != "" {
-		titleW = len([]rune(title))
-	}
+	// Display columns, not runes: a wide character in a file path (the diff
+	// panel's title) takes two, and a title counted short overflowed the
+	// border row and wrapped the frame.
+	title, titleW := truncateToWidth(title, innerW)
 	fill := innerW - titleW
-	if fill < 0 {
-		title = string([]rune(title)[:innerW])
-		fill = 0
-	}
 	topStyle := borderStyle.UnsetBorderStyle().UnsetWidth().UnsetHeight()
 	top := topStyle.Render("╭"+title+strings.Repeat("─", fill)+"╮") + "\n"
 	return top + body

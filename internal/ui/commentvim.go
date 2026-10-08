@@ -93,7 +93,7 @@ func (v *vimState) handleKey(a *app.App, k tea.Key) vimOutcome {
 			if *v.cmdline == "" {
 				v.cmdline = nil
 			} else {
-				trimmed := (*v.cmdline)[:len(*v.cmdline)-1]
+				trimmed := dropLastRune(*v.cmdline)
 				v.cmdline = &trimmed
 			}
 			return vimContinue

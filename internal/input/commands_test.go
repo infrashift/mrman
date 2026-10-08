@@ -121,3 +121,12 @@ func TestCommandNamesStable(t *testing.T) {
 		t.Fatalf("names[0] = %v", names[:3])
 	}
 }
+
+// TestLongestCommonPrefixKeepsWholeCharacters: completion candidates that
+// share a lead byte but differ in a multibyte character ("é" and "è" both
+// start 0xC3) used to complete to half a character.
+func TestLongestCommonPrefixKeepsWholeCharacters(t *testing.T) {
+	if got := longestCommonPrefix([]string{"café", "cafè"}); got != "caf" {
+		t.Errorf("longestCommonPrefix = %q, want %q", got, "caf")
+	}
+}
