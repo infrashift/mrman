@@ -777,10 +777,9 @@ func TestUpdateSessionPropagatesCallbackError(t *testing.T) {
 	if _, err := store.UpdateSession(path, func(*model.ReviewSession) error { return boom }); !errors.Is(err, boom) {
 		t.Fatalf("err = %v, want boom", err)
 	}
-	if !fileExists(t, filepath.Join(store.ReviewsDir, lockFilename)) {
-		return // lock released, as expected
+	if !lockIsFree(t, store) {
+		t.Fatal("lock must be released after a failed update")
 	}
-	t.Fatal("lock must be released after a failed update")
 }
 
 func TestSaveSessionByIdentityMergesPersisted(t *testing.T) {

@@ -296,7 +296,7 @@ Listing the host is what turns authentication on.
 | `~/.local/share/mrman/reviews/` | Saved sessions (`sessions/<repo>@<what>-<hash>.json`), owner-only: directories 0700, files 0600 |
 | `~/.local/share/mrman/reviews/index.json` | The session manifest; rebuilt from the session files if lost |
 | `~/.local/share/mrman/reviews/active_sessions.json` | Which sessions live TUIs hold, and any agent-submit grant |
-| `~/.local/share/mrman/reviews/.mrman.lock` | Advisory lock around store writes; a stale one is reaped by pid |
+| `~/.local/share/mrman/reviews/.mrman.flock` | Kernel lock (flock, or LockFileEx on Windows) around store writes; released automatically when its holder exits |
 | `~/.local/share/mrman/reviews.bakN/` | A pre-1.0 layout moved aside on first run, announced on stderr |
 | `<repo>/.mrmanignore` | Per-repository ignore rules |
 

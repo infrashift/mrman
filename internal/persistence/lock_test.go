@@ -1,8 +1,10 @@
 package persistence
 
 import (
+	"bufio"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -42,11 +44,23 @@ func lockPath(store *Store) string {
 	return filepath.Join(store.ReviewsDir, lockFilename)
 }
 
+// lockIsFree reports whether the store lock can be taken right now.
+func lockIsFree(t *testing.T, store *Store) bool {
+	t.Helper()
+	withDuration(t, &lockTimeout, 0)
+	release, err := store.acquireLock()
+	if err != nil {
+		return false
+	}
+	release()
+	return true
+}
+
 func TestLockReleasedAfterSave(t *testing.T) {
 	store := newTestStore(t)
 	mustSave(t, store, makeLocalSession(t, makeRepo(t), "abc1234", new("main"), model.SourceWorkingTree, nil))
 
-	if fileExists(t, lockPath(store)) {
+	if !lockIsFree(t, store) {
 		t.Fatal("lock must be released after save")
 	}
 }
@@ -73,79 +87,91 @@ func TestLockBodyRecordsPidAndTimestamp(t *testing.T) {
 	}
 
 	release()
-	if fileExists(t, lockPath(store)) {
-		t.Fatal("release must remove the lock file")
+	if !lockIsFree(t, store) {
+		t.Fatal("release must free the lock")
 	}
 }
 
-func TestRecoverStaleLockWithGarbageContent(t *testing.T) {
+// TestLockTimesOutWhileHeld: a second writer waits for the holder and gives
+// up after lockTimeout, leaving the holder's lock in place.
+func TestLockTimesOutWhileHeld(t *testing.T) {
 	store := newLockTestStore(t)
-	writeTestFile(t, lockPath(store), "stale lock")
-	// An unparseable lock is only reclaimed after its grace period.
-	withDuration(t, &lockUnparseableStaleAfter, 0)
-
-	path := mustSave(t, store, makeLocalSession(t, makeRepo(t), "abc1234", new("main"), model.SourceWorkingTree, nil))
-
-	if !fileExists(t, path) {
-		t.Fatal("save should succeed after reclaiming the stale lock")
-	}
-	if fileExists(t, lockPath(store)) {
-		t.Fatal("stale lock should be gone")
-	}
-}
-
-func TestKeepFreshGarbageLockUntilGracePeriod(t *testing.T) {
-	store := newLockTestStore(t)
-	writeTestFile(t, lockPath(store), "stale lock")
-	withDuration(t, &lockTimeout, 60*time.Millisecond)
-	withDuration(t, &lockRetryInterval, 5*time.Millisecond)
-
-	_, err := store.SaveSession(makeLocalSession(t, makeRepo(t), "abc1234", new("main"), model.SourceWorkingTree, nil))
-	if err == nil || !strings.Contains(err.Error(), "timed out") {
-		t.Fatalf("err = %v, want lock timeout", err)
-	}
-}
-
-func TestRecoverStaleLockWithDeadPid(t *testing.T) {
-	store := newLockTestStore(t)
-	writeTestFile(t, lockPath(store), "4194304 2026-01-01T00:00:00Z")
-	withProcessAlive(t, func(int) bool { return false })
-
-	path := mustSave(t, store, makeLocalSession(t, makeRepo(t), "abc1234", new("main"), model.SourceWorkingTree, nil))
-
-	if !fileExists(t, path) {
-		t.Fatal("save should succeed after reclaiming a dead pid's lock")
-	}
-}
-
-func TestRecoverStaleLockOlderThanReuseGuard(t *testing.T) {
-	store := newLockTestStore(t)
-	// The owner pid is alive (it is us), but the lock is so old the pid may
-	// have been recycled: the reuse guard reclaims it.
-	writeTestFile(t, lockPath(store), fmt.Sprintf("%d 2026-01-01T00:00:00Z", os.Getpid()))
-	old := time.Now().Add(-13 * time.Hour)
-	if err := os.Chtimes(lockPath(store), old, old); err != nil {
+	release, err := store.acquireLock()
+	if err != nil {
 		t.Fatal(err)
 	}
-
-	path := mustSave(t, store, makeLocalSession(t, makeRepo(t), "abc1234", new("main"), model.SourceWorkingTree, nil))
-
-	if !fileExists(t, path) {
-		t.Fatal("save should succeed after reclaiming an ancient lock")
-	}
-}
-
-func TestLockTimeoutWhenHeldByLivePid(t *testing.T) {
-	store := newLockTestStore(t)
-	writeTestFile(t, lockPath(store), fmt.Sprintf("%d %s", os.Getpid(), time.Now().Format(time.RFC3339)))
+	defer release()
 	withDuration(t, &lockTimeout, 60*time.Millisecond)
 	withDuration(t, &lockRetryInterval, 5*time.Millisecond)
 
-	_, err := store.SaveSession(makeLocalSession(t, makeRepo(t), "abc1234", new("main"), model.SourceWorkingTree, nil))
+	_, err = store.SaveSession(makeLocalSession(t, makeRepo(t), "abc1234", new("main"), model.SourceWorkingTree, nil))
 	if err == nil || !strings.Contains(err.Error(), "timed out") {
 		t.Fatalf("err = %v, want lock timeout", err)
 	}
-	if !fileExists(t, lockPath(store)) {
-		t.Fatal("a live holder's lock must not be removed")
+}
+
+// TestLegacyPidLockDoesNotBlock: a .mrman.lock pid file left by an older
+// release, even one naming a live pid, is not this lock.
+func TestLegacyPidLockDoesNotBlock(t *testing.T) {
+	store := newLockTestStore(t)
+	writeTestFile(t, filepath.Join(store.ReviewsDir, ".mrman.lock"),
+		fmt.Sprintf("%d %s", os.Getpid(), time.Now().Format(time.RFC3339)))
+
+	if !lockIsFree(t, store) {
+		t.Fatal("a legacy pid file must not hold the lock")
 	}
+}
+
+// lockHolderEnv makes the test binary, re-executed by
+// TestLockFreedWhenHolderDies, take the lock in the given reviews dir and
+// hold it until killed.
+const lockHolderEnv = "MRMAN_TEST_HOLD_LOCK_IN"
+
+func TestMain(m *testing.M) {
+	if dir := os.Getenv(lockHolderEnv); dir != "" {
+		if _, err := (&Store{ReviewsDir: dir}).acquireLock(); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(2)
+		}
+		fmt.Println("held")
+		select {} // hold until killed
+	}
+	os.Exit(m.Run())
+}
+
+// TestLockFreedWhenHolderDies is the case the pid file needed reaping for:
+// a writer killed while holding the lock. The kernel releases it with the
+// process, so the next writer gets it with no staleness rule involved.
+func TestLockFreedWhenHolderDies(t *testing.T) {
+	store := newLockTestStore(t)
+	cmd := exec.Command(os.Args[0], "-test.run=^$")
+	cmd.Env = append(os.Environ(), lockHolderEnv+"="+store.ReviewsDir)
+	out, err := cmd.StdoutPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	line, err := bufio.NewReader(out).ReadString('\n')
+	if err != nil || strings.TrimSpace(line) != "held" {
+		_ = cmd.Process.Kill()
+		t.Fatalf("holder did not take the lock: %q, %v", line, err)
+	}
+	if lockIsFree(t, store) {
+		_ = cmd.Process.Kill()
+		t.Fatal("another process holds the lock, yet it was free")
+	}
+
+	if err := cmd.Process.Kill(); err != nil {
+		t.Fatal(err)
+	}
+	_ = cmd.Wait()
+
+	withDuration(t, &lockTimeout, 5*time.Second)
+	release, err := store.acquireLock()
+	if err != nil {
+		t.Fatalf("lock not freed after its holder died: %v", err)
+	}
+	release()
 }

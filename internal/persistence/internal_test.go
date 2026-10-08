@@ -220,24 +220,6 @@ func TestLoadLatestSessionForContextCorruptFileErrors(t *testing.T) {
 	}
 }
 
-func TestRemoveStaleLockMissingFileIsNotStale(t *testing.T) {
-	removed, err := removeStaleLock(filepath.Join(t.TempDir(), "missing.lock"))
-	if err != nil || removed {
-		t.Fatalf("removeStaleLock = %v, %v; want false, nil", removed, err)
-	}
-}
-
-func TestReadLockOwnerPidHandlesEmptyAndMissing(t *testing.T) {
-	if _, ok := readLockOwnerPid(filepath.Join(t.TempDir(), "missing")); ok {
-		t.Fatal("missing lock file must yield no pid")
-	}
-	empty := filepath.Join(t.TempDir(), "empty")
-	writeTestFile(t, empty, "   \n")
-	if _, ok := readLockOwnerPid(empty); ok {
-		t.Fatal("empty lock body must yield no pid")
-	}
-}
-
 func TestWriteAtomicFailsWhenParentIsAFile(t *testing.T) {
 	blocker := filepath.Join(t.TempDir(), "blocker")
 	writeTestFile(t, blocker, "")
