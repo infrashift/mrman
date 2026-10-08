@@ -10,7 +10,7 @@ func TestParseCommandAliases(t *testing.T) {
 		"clip": CmdExport, "export": CmdExport,
 		"clear": CmdClear, "clearc": CmdClearCommentsOnly,
 		"help": CmdHelp, "h": CmdHelp, "version": CmdVersion,
-		"set wrap": CmdSetWrap, "set wrap!": CmdToggleWrap, "wrap": CmdToggleWrap,
+		"set wrap": CmdSetWrap, "set nowrap": CmdSetNoWrap, "set wrap!": CmdToggleWrap, "wrap": CmdToggleWrap,
 		"vim": CmdToggleVim, "set vim!": CmdToggleVim, "set vim": CmdSetVim,
 		"novim": CmdSetNoVim, "set novim": CmdSetNoVim,
 		"set commits": CmdSetCommitsVisible, "set nocommits": CmdSetCommitsHidden,

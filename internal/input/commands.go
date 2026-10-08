@@ -29,6 +29,7 @@ const (
 	CmdAgentStatus
 	CmdAgentOff
 	CmdSetWrap
+	CmdSetNoWrap
 	CmdToggleWrap
 	CmdToggleVim
 	CmdSetVim
@@ -89,6 +90,7 @@ var commandSpecs = []struct {
 	{"agent", CmdAgentStatus},
 	{"agent off", CmdAgentOff},
 	{"set wrap", CmdSetWrap},
+	{"set nowrap", CmdSetNoWrap},
 	{"set wrap!", CmdToggleWrap}, {"wrap", CmdToggleWrap},
 	{"vim", CmdToggleVim}, {"set vim!", CmdToggleVim},
 	{"set vim", CmdSetVim},
