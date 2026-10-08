@@ -2,6 +2,7 @@ package vcs
 
 import (
 	"errors"
+	"math"
 	"os"
 	"path/filepath"
 	"testing"
@@ -137,4 +138,16 @@ func contains(s, sub string) bool {
 		}
 	}
 	return false
+}
+
+// TestSliceContextLinesStopsAtTheEnd: callers may ask for an open-ended
+// range to read a whole file in one request, and an empty file has no
+// lines at all.
+func TestSliceContextLinesStopsAtTheEnd(t *testing.T) {
+	if got := SliceContextLines("a\nb\n", 1, math.MaxUint32); len(got) != 2 || got[1].Content != "b" {
+		t.Errorf("open-ended range = %+v, want the two lines", got)
+	}
+	if got := SliceContextLines("", 1, math.MaxUint32); len(got) != 0 {
+		t.Errorf("empty file = %+v, want no lines", got)
+	}
 }

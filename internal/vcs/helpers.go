@@ -24,8 +24,11 @@ func Tabify(s string) string {
 
 // SliceContextLines slices [startLine, endLine] (1-indexed, inclusive) of
 // content into context DiffLines with both linenos set.
+//
+// A range past the end of the file stops at its last line, and an empty
+// file has no lines (not one empty line).
 func SliceContextLines(content string, startLine, endLine uint32) []model.DiffLine {
-	if startLine > endLine || startLine == 0 {
+	if startLine > endLine || startLine == 0 || content == "" {
 		return nil
 	}
 	lines := strings.Split(strings.TrimSuffix(content, "\n"), "\n")
