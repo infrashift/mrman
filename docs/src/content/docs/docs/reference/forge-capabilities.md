@@ -11,8 +11,8 @@ has been leaned on.
 
 | Level | Forges | What it means |
 |---|---|---|
-| Supported | GitHub, GitHub Enterprise Server, Azure DevOps, GitLab (self-managed) | Exercised end to end against a live instance, not only against recorded API shapes. GitLab: CE 19.3.2, 2026-09-25; gitlab.com not yet. |
-| **Experimental** | Forgejo & Gitea, Codeberg | Implemented and unit-tested, but not yet exercised against a live instance. |
+| Supported | GitHub, GitHub Enterprise Server, Azure DevOps, GitLab (self-managed), Codeberg | Exercised end to end against a live instance, not only against recorded API shapes. GitLab: CE 19.3.2, 2026-09-25; gitlab.com not yet. Codeberg: Forgejo 16, 2026-10-08. |
+| **Experimental** | Self-hosted Forgejo & Gitea | The Forgejo driver passed against Codeberg; other Forgejo versions, and Gitea, have not been exercised. |
 
 Experimental does **not** mean unfinished — read the table below for what each
 driver actually does, which in Forgejo's case is most of it. It

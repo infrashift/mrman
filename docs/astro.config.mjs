@@ -46,7 +46,7 @@ export default defineConfig({
 						{ label: 'GitLab', slug: 'docs/forges/gitlab' },
 						{ label: 'Azure DevOps', slug: 'docs/forges/azure-devops' },
 						{ label: 'Forgejo & Gitea', slug: 'docs/forges/forgejo', badge: { text: 'Experimental', variant: 'caution' } },
-						{ label: 'Codeberg', slug: 'docs/forges/codeberg', badge: { text: 'Experimental', variant: 'caution' } },
+						{ label: 'Codeberg', slug: 'docs/forges/codeberg' },
 					],
 				},
 				{
