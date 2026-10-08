@@ -226,3 +226,37 @@ func TestSessionCommentCount(t *testing.T) {
 		t.Fatalf("count = %d, want 3", got)
 	}
 }
+
+// TestMergeAppliesExternalLineAndReviewDeletes covers the deletion branches
+// the file-comment test does not reach: a line keeps its other comments
+// when one goes, a line whose last comment goes disappears from the map,
+// and a review-level comment goes too.
+func TestMergeAppliesExternalLineAndReviewDeletes(t *testing.T) {
+	base := mergeTestSession()
+	review := base.File(mainFile)
+	review.AddLineComment(3, namedComment("keep", "stays"))
+	review.AddLineComment(3, namedComment("drop-one", "goes"))
+	review.AddLineComment(9, namedComment("drop-last", "goes, and the line with it"))
+	base.ReviewComments = append(base.ReviewComments, namedComment("drop-review", "goes"))
+
+	current := base.Clone()
+	latest := base.Clone()
+	latestReview := latest.File(mainFile)
+	latestReview.LineComments[3] = latestReview.LineComments[3][:1] // "keep"
+	delete(latestReview.LineComments, 9)
+	latest.ReviewComments = nil
+
+	if changed := MergeExternalSessionChanges(current, base, latest); changed != 3 {
+		t.Fatalf("changed = %d, want 3", changed)
+	}
+	got := current.File(mainFile).LineComments
+	if len(got[3]) != 1 || got[3][0].ID != "keep" {
+		t.Errorf("line 3 = %+v, want only the kept comment", got[3])
+	}
+	if _, ok := got[9]; ok {
+		t.Error("a line whose last comment was deleted must leave the map")
+	}
+	if len(current.ReviewComments) != 0 {
+		t.Errorf("review comments = %+v, want none", current.ReviewComments)
+	}
+}
