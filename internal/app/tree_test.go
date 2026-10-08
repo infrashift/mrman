@@ -219,7 +219,7 @@ func TestToggleDiffViewMode(t *testing.T) {
 	if !anyAnnotation(a, func(l *AnnotatedLine) bool { return l.Kind == AnnSideBySideLine }) {
 		t.Error("side-by-side annotations should render")
 	}
-	assertEq(t, a.TotalLines(), len(a.LineAnnotations), "heights match in sbs mode")
+	assertEq(t, a.renderedHeight(), len(a.LineAnnotations), "heights match in sbs mode")
 
 	a.ToggleDiffViewMode()
 	assertEq(t, a.DiffViewMode, ViewUnified, "toggled back to unified")

@@ -413,7 +413,26 @@ func (a *App) commentNavigatorItemForKey(key CommentNavigatorKey, targetAnnotati
 // BuildCommentNavigatorItems walks the annotation stream and returns one
 // item per rendered comment, in display order — local drafts and the
 // forge's own read-only discussions alike.
+//
+// The result is cached until the next RebuildAnnotations: the panel asks for
+// it three times a frame, and the 100 ms tick redraws even when idle, so on
+// a large diff the walk dominated an idle frame. Callers must not modify
+// the returned slice.
 func (a *App) BuildCommentNavigatorItems() []CommentNavigatorItem {
+	if a.navItems != nil && a.navItemsGen == a.annotationGen {
+		return a.navItems
+	}
+	items := a.buildCommentNavigatorItems()
+	if items == nil {
+		items = []CommentNavigatorItem{}
+	}
+	a.navItems, a.navItemsGen = items, a.annotationGen
+	return items
+}
+
+// buildCommentNavigatorItems is BuildCommentNavigatorItems without the
+// cache.
+func (a *App) buildCommentNavigatorItems() []CommentNavigatorItem {
 	var items []CommentNavigatorItem
 	var lastKey *CommentNavigatorKey
 	commitSet, hasCommitSet := a.selectedCommitSet()

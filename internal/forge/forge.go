@@ -219,8 +219,9 @@ type FileLinesRequest struct {
 	Status model.FileStatus
 	// Side to read from; the caller picks it per SideForStatus.
 	Side FileSide
-	// StartLine and EndLine bound the inclusive 1-based line range; the
-	// caller clamps them.
+	// StartLine and EndLine bound the inclusive 1-based line range. A range
+	// running past the end of the file stops at its last line, so
+	// EndLine = math.MaxUint32 reads the whole file in one request.
 	StartLine uint32
 	EndLine   uint32
 }

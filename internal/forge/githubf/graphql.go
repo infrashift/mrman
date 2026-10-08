@@ -49,9 +49,13 @@ type gqlThreadNode struct {
 	OriginalLine *uint32
 	StartLine    *uint32
 	DiffSide     string
-	Comments     struct {
-		Nodes []gqlThreadComment
-	} `graphql:"comments(first: 100)"`
+	Comments     gqlThreadComments `graphql:"comments(first: 100)"`
+}
+
+// gqlThreadComments is one page of a thread's comments.
+type gqlThreadComments struct {
+	PageInfo gqlPageInfo
+	Nodes    []gqlThreadComment
 }
 
 // ListReviewThreads fetches all review threads with their resolved and
@@ -76,13 +80,49 @@ func (d *Driver) ListReviewThreads(ctx context.Context, pr *forge.PullRequestDet
 		}
 		conn := q.Repository.PullRequest.ReviewThreads
 		for i := range conn.Nodes {
-			threads = append(threads, convertThread(&conn.Nodes[i]))
+			node := &conn.Nodes[i]
+			if node.Comments.PageInfo.HasNextPage {
+				if err := d.restOfThread(ctx, node); err != nil {
+					return nil, d.wrap(op, err)
+				}
+			}
+			threads = append(threads, convertThread(node))
 		}
 		if !nextCursor(variables, conn.PageInfo) {
 			break
 		}
 	}
 	return threads, nil
+}
+
+// restOfThread appends the comments past a thread's first page. The thread
+// query fetches 100 comments per thread; a longer discussion used to end
+// silently at the hundredth.
+func (d *Driver) restOfThread(ctx context.Context, node *gqlThreadNode) error {
+	variables := map[string]any{
+		"id":    githubv4.ID(node.ID),
+		"after": (*githubv4.String)(nil),
+	}
+	page := node.Comments.PageInfo
+	for range maxGraphQLPages {
+		if !nextCursor(variables, page) {
+			return nil
+		}
+		var q struct {
+			Node struct {
+				Thread struct {
+					Comments gqlThreadComments `graphql:"comments(first: 100, after: $after)"`
+				} `graphql:"... on PullRequestReviewThread"`
+			} `graphql:"node(id: $id)"`
+		}
+		if err := d.gql.Query(ctx, &q, variables); err != nil {
+			return err
+		}
+		more := q.Node.Thread.Comments
+		node.Comments.Nodes = append(node.Comments.Nodes, more.Nodes...)
+		page = more.PageInfo
+	}
+	return nil
 }
 
 // convertThread maps a GraphQL thread node to the neutral type. When `line`

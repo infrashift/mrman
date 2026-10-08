@@ -46,7 +46,7 @@ func TestLineCommentsInterleaveInUnifiedMode(t *testing.T) {
 	// Each single-line comment renders 3 rows.
 	got := countAnnotations(a, func(ann *AnnotatedLine) bool { return ann.Kind == AnnLineComment })
 	assertEq(t, got, 9, "three comments, three rows each")
-	assertEq(t, a.TotalLines(), len(a.LineAnnotations), "unified lockstep")
+	assertEq(t, a.renderedHeight(), len(a.LineAnnotations), "unified lockstep")
 
 	// The old-side comment follows the deleted line, not an added one.
 	for i := range a.LineAnnotations {
@@ -68,7 +68,7 @@ func TestLineCommentsInterleaveInSideBySideMode(t *testing.T) {
 
 	got := countAnnotations(a, func(ann *AnnotatedLine) bool { return ann.Kind == AnnLineComment })
 	assertEq(t, got, 9, "three comments, three rows each")
-	assertEq(t, a.TotalLines(), len(a.LineAnnotations), "side-by-side lockstep")
+	assertEq(t, a.renderedHeight(), len(a.LineAnnotations), "side-by-side lockstep")
 
 	// The file height helpers agree with the emitted rows.
 	assertEq(t, a.FileRenderHeight(0, &a.DiffFiles[0]), len(a.LineAnnotations)-1, "file height excludes review header")
@@ -134,7 +134,7 @@ func TestReviewCommentEmissionKeepsOverviewLockstep(t *testing.T) {
 
 	got := countAnnotations(a, func(ann *AnnotatedLine) bool { return ann.Kind == AnnReviewComment })
 	assertEq(t, got, 3+4, "review comment rows")
-	assertEq(t, a.TotalLines(), len(a.LineAnnotations), "overview lockstep")
+	assertEq(t, a.renderedHeight(), len(a.LineAnnotations), "overview lockstep")
 	if !a.IsCursorInOverview() {
 		t.Fatal("cursor 0 sits in the overview block")
 	}
@@ -162,5 +162,5 @@ func TestSingleFileViewSkipsOtherFilesComments(t *testing.T) {
 	if anyAnnotation(a, func(ann *AnnotatedLine) bool { return ann.Kind == AnnFileComment }) {
 		t.Fatal("single-file view must not annotate the other file's comments")
 	}
-	assertEq(t, a.TotalLines(), len(a.LineAnnotations), "single-file lockstep")
+	assertEq(t, a.renderedHeight(), len(a.LineAnnotations), "single-file lockstep")
 }

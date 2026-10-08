@@ -149,12 +149,19 @@ func (a *App) ensureFileLineCountCached(fileIdx int) {
 	file := &a.DiffFiles[fileIdx]
 	count, err := a.contextProvider().FileLineCount(file.OldPath, file.NewPath, file.Status)
 	if err == nil {
+		if a.FileLineCountCache == nil {
+			a.FileLineCountCache = map[int]uint32{}
+		}
 		a.FileLineCountCache[fileIdx] = count
 	}
 }
 
 // populateFileLineCountCache fills the cache for all eligible files. Only
 // enabled for diff sources where the worktree/index is the correct snapshot.
+//
+// A nil cache means "not filled yet"; once filled it stays non-nil even if
+// every count failed, so a rebuild does not spawn one subprocess per file
+// again. Whatever invalidates the cache sets it back to nil.
 func (a *App) populateFileLineCountCache() {
 	a.FileLineCountCache = map[int]uint32{}
 	if !a.eofGapEnabled() {
@@ -172,11 +179,12 @@ func (a *App) populateFileLineCountCache() {
 // files change, expansion state changes, or the diff view mode changes.
 // (Later milestones also call it when comments change.)
 func (a *App) RebuildAnnotations() {
-	if len(a.FileLineCountCache) == 0 {
+	if a.FileLineCountCache == nil {
 		a.populateFileLineCountCache()
 	}
 
 	a.LineAnnotations = a.LineAnnotations[:0]
+	a.annotationGen++
 
 	// Per-rebuild lookups shared by every builder below.
 	ctx := a.newAnnBuildCtx()
