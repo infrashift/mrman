@@ -21,6 +21,11 @@ everything else mrman stands on is credited in
 
 ## Install
 
+Download an archive for your platform from the
+[releases page](https://github.com/infrashift/mrman/releases), check it
+against the release's `SHA256SUMS`, and put the `mrman` binary on your `PATH`.
+Or build it:
+
 ```sh
 go install github.com/infrashift/mrman@latest
 # or from a checkout:
