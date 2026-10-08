@@ -232,10 +232,12 @@ func (m *Model) handleTerminalEvent(msg tea.Msg) (tea.Cmd, bool) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
-		m.syncViewport()
+		// Hide the file list before measuring: the diff pane's width, and
+		// so where comments wrap, depends on it.
 		if msg.Width < 100 {
 			m.App.ShowFileList = false
 		}
+		m.syncViewport()
 	case tea.KeyboardEnhancementsMsg:
 		m.App.SupportsKeyboardEnhancement = msg.SupportsEventTypes()
 	case tea.KeyReleaseMsg:

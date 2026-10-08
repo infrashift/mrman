@@ -37,6 +37,10 @@ jobs:
         run: make fmt && git diff --exit-code
       - name: Vet, lint, test, coverage gate, charmkit
         run: make vet lint test cover-check check-charmkit
+      - name: Race detector
+        # The TUI runs forge requests, session saves and agent merges on
+        # several goroutines; the plain test run cannot see a data race.
+        run: make test-race
       - name: Fuzz smoke
         run: |
           for pkg in ./internal/vcs/diffparser ./internal/patch; do
