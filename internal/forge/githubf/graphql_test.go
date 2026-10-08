@@ -225,3 +225,43 @@ func TestGraphQLErrorsAreWrapped(t *testing.T) {
 		t.Errorf("error should carry the GraphQL message: %v", fe)
 	}
 }
+
+// TestListReviewThreadsPagesLongThreads: a thread's comments came from one
+// comments(first: 100) page, so a longer discussion silently ended at the
+// hundredth comment.
+func TestListReviewThreadsPagesLongThreads(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /graphql", func(w http.ResponseWriter, r *http.Request) {
+		var req gqlRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Errorf("decode graphql request: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case strings.Contains(req.Query, "reviewThreads"):
+			_, _ = fmt.Fprint(w, `{"data":{"repository":{"pullRequest":{"reviewThreads":{
+			  "pageInfo":{"hasNextPage":false,"endCursor":null},
+			  "nodes":[{"id":"PRRT_long","path":"a.go","line":3,"diffSide":"RIGHT",
+			    "comments":{"pageInfo":{"hasNextPage":true,"endCursor":"T1"},
+			      "nodes":[{"id":"c1","body":"first page"}]}}]}}}}}`)
+		case strings.Contains(req.Query, "node(id: $id)"):
+			if req.Variables["id"] != "PRRT_long" || req.Variables["after"] != "T1" {
+				t.Errorf("continuation variables = %v", req.Variables)
+			}
+			_, _ = fmt.Fprint(w, `{"data":{"node":{"comments":{
+			  "pageInfo":{"hasNextPage":false,"endCursor":null},
+			  "nodes":[{"id":"c2","body":"second page"}]}}}}`)
+		default:
+			t.Errorf("unexpected query %s", req.Query)
+		}
+	})
+	d := newTestDriver(t, mux)
+
+	threads, err := d.ListReviewThreads(context.Background(), testPR())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(threads) != 1 || len(threads[0].Comments) != 2 || threads[0].Comments[1].Body != "second page" {
+		t.Fatalf("threads = %+v, want one thread with both pages of comments", threads)
+	}
+}

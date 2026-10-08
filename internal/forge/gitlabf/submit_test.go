@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/infrashift/mrman/internal/forge"
@@ -506,5 +507,27 @@ func TestCreateReviewEventFailureAfterCommentsIsPartial(t *testing.T) {
 	}
 	if result.State != "COMMENTED" {
 		t.Errorf("State = %q, want COMMENTED when the event step failed", result.State)
+	}
+	// The comment just posted with this token, so the 401 cannot be an
+	// authentication failure: GitLab refuses a repeat or disallowed approval
+	// with it.
+	fe := mustForgeErr(t, result.Partial.Cause)
+	if fe.Kind == forge.ErrorAuth || fe.Hint != hintApproveRefused {
+		t.Errorf("cause = %v (hint %q), want the approval-refused explanation", fe.Kind, fe.Hint)
+	}
+}
+
+func TestCreateReviewApproveRefusedWithNothingPosted(t *testing.T) {
+	mux := newFixtureMux(t)
+	mux.Handle("POST "+projectPrefix+"/approve", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"message": "401 Unauthorized"}`))
+	})
+	d := newTestDriver(t, mux)
+
+	_, err := d.CreateReview(context.Background(), testPR(), forge.CreateReviewRequest{Event: forge.SubmitApprove})
+	fe := mustForgeErr(t, err)
+	if fe.Hint != hintApproveRefused || strings.Contains(fe.Hint, "HOST") {
+		t.Errorf("hint = %q, want the approval-refused explanation", fe.Hint)
 	}
 }

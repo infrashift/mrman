@@ -126,8 +126,12 @@ preflight: 2 inline, 0 unmappable, 1 review-level
   inline: src/config.py:8 side=new
 ```
 
-A comment that cannot become an inline comment is not dropped. It moves into
-an **Unplaced comments** section of the review body, with the reason:
+A comment that cannot become an inline comment is not silently dropped. The
+submit stops at a resolver listing each one with its reason, and you choose
+per comment: **move** it into an *Unplaced comments* section of the review
+body (the default), or **omit** it, which keeps it as a local draft and posts
+nothing. A moved comment is posted with the body and locks with it, so a
+second submit does not post it again. Reasons:
 
 | Reason | Meaning |
 |---|---|

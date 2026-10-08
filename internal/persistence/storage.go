@@ -155,7 +155,10 @@ func (s *Store) saveSessionUnlocked(sess *model.ReviewSession) (string, error) {
 		return "", err
 	}
 
-	manifest := loadManifestOrDefault(s.ReviewsDir)
+	manifest, err := s.loadManifestForWrite()
+	if err != nil {
+		return "", err
+	}
 	manifest.Upsert(sl.String(), entryFromSession(sess, relative, manifestAnchorFor(sl)))
 	if err := SaveManifest(s.ReviewsDir, manifest); err != nil {
 		return "", err
@@ -259,7 +262,10 @@ func (s *Store) removeSessionAt(path string, sess *model.ReviewSession) error {
 		relative = rel
 	}
 
-	manifest := loadManifestOrDefault(s.ReviewsDir)
+	manifest, err := s.loadManifestForWrite()
+	if err != nil {
+		return err
+	}
 	if bucket, ok := manifest.Entries[sl.String()]; ok {
 		kept := bucket[:0]
 		for _, entry := range bucket {
@@ -307,7 +313,10 @@ func (s *Store) LoadLatestSessionForContext(
 		return "", nil, false, err
 	}
 
-	manifest := loadManifestOrDefault(s.ReviewsDir)
+	manifest, err := s.loadManifest()
+	if err != nil {
+		return "", nil, false, err
+	}
 	entry := manifest.GetLocal(sl.String(), canonicalPath(repoPath))
 	if entry == nil {
 		return "", nil, false, nil
@@ -392,8 +401,11 @@ func (s *Store) AdoptSessionForNewHead(
 	var adopted *AdoptedSession
 	err = s.withLock(func() error {
 		// Recheck under the lock; see the note above on the unlocked miss.
-		if entry := loadManifestOrDefault(s.ReviewsDir).
-			GetLocal(targetLocal.String(), canonical); entry != nil {
+		manifest, merr := s.loadManifest()
+		if merr != nil {
+			return merr
+		}
+		if entry := manifest.GetLocal(targetLocal.String(), canonical); entry != nil {
 			path := filepath.Join(s.ReviewsDir, entry.Path)
 			sess, lerr := s.LoadSession(path)
 			if lerr != nil {
@@ -461,7 +473,11 @@ func (s *Store) findCarryForwardCandidate(
 	targetStr := target.String()
 	var best carryForwardCandidate
 	found := false
-	loadManifestOrDefault(s.ReviewsDir).each(func(slugStr string, entry ManifestEntry) {
+	manifest, err := s.loadManifest()
+	if err != nil {
+		return best, false // best-effort: carry-forward is an optimisation
+	}
+	manifest.each(func(slugStr string, entry ManifestEntry) {
 		if !entry.Kind.IsLocal() || slugStr == targetStr {
 			return
 		}
@@ -487,7 +503,10 @@ func (s *Store) findCarryForwardCandidate(
 // removeSessionAt it takes the slug explicitly, because a carried-forward
 // session no longer derives the slug it was filed under.
 func (s *Store) removeManifestEntry(slugStr, relative string) error {
-	manifest := loadManifestOrDefault(s.ReviewsDir)
+	manifest, err := s.loadManifestForWrite()
+	if err != nil {
+		return err
+	}
 	bucket, ok := manifest.Entries[slugStr]
 	if !ok {
 		return nil
@@ -515,7 +534,10 @@ func (s *Store) LoadPrSession(key *forgetypes.PrSessionKey) (string, *model.Revi
 		return "", nil, false, err
 	}
 	sl := prSlugForKey(key)
-	manifest := loadManifestOrDefault(s.ReviewsDir)
+	manifest, err := s.loadManifest()
+	if err != nil {
+		return "", nil, false, err
+	}
 	entry := manifest.GetPr(sl.String())
 	if entry == nil {
 		return "", nil, false, nil
@@ -543,8 +565,11 @@ func (s *Store) ListSessions(coordinate string) ([]SessionSummary, error) {
 		return nil, err
 	}
 	selector := resolveRepoSelector(coordinate)
-	manifest := loadManifestOrDefault(s.ReviewsDir)
-	active := s.activeSessionPathsOrEmpty()
+	manifest, err := s.loadManifest()
+	if err != nil {
+		return nil, err
+	}
+	active := s.activeSessionGrants()
 
 	var summaries []SessionSummary
 	manifest.each(func(slugStr string, entry ManifestEntry) {
@@ -561,8 +586,11 @@ func (s *Store) ListAllSessions() ([]SessionSummary, error) {
 	if err := s.maybeMigrate(); err != nil {
 		return nil, err
 	}
-	manifest := loadManifestOrDefault(s.ReviewsDir)
-	active := s.activeSessionPathsOrEmpty()
+	manifest, err := s.loadManifest()
+	if err != nil {
+		return nil, err
+	}
+	active := s.activeSessionGrants()
 
 	var summaries []SessionSummary
 	manifest.each(func(slugStr string, entry ManifestEntry) {
@@ -572,22 +600,30 @@ func (s *Store) ListAllSessions() ([]SessionSummary, error) {
 	return summaries, nil
 }
 
-// activeSessionPathsOrEmpty is ActiveSessionPaths degraded to best-effort for
-// listings, where a broken active file must not fail the whole listing.
-func (s *Store) activeSessionPathsOrEmpty() map[string]bool {
-	active, err := s.ActiveSessionPaths()
-	if err != nil {
-		return map[string]bool{}
+// activeSessionGrants maps each live session's normalized path to its
+// granted agent events (nil when none), reading the active-sessions file
+// once for a whole listing. It is best-effort: a broken active file must not
+// fail the listing, it just shows nothing active.
+func (s *Store) activeSessionGrants() map[string][]string {
+	if err := s.maybeMigrate(); err != nil {
+		return map[string][]string{}
 	}
-	return active
+	grants := map[string][]string{}
+	for _, e := range s.loadActiveSessionsOrDefault().Sessions {
+		if e.isFresh() {
+			grants[normalizeActivePath(e.Path)] = e.GrantedEvents
+		}
+	}
+	return grants
 }
 
-func (s *Store) summaryFromEntry(slugStr string, entry ManifestEntry, active map[string]bool) SessionSummary {
+func (s *Store) summaryFromEntry(slugStr string, entry ManifestEntry, active map[string][]string) SessionSummary {
 	kind := SummaryKindLocal
 	if entry.Kind.IsPr() {
 		kind = SummaryKindPr
 	}
 	fullPath := filepath.Join(s.ReviewsDir, entry.Path)
+	granted, isActive := active[normalizeActivePath(fullPath)]
 	return SessionSummary{
 		Path:          fullPath,
 		Slug:          slugStr,
@@ -597,8 +633,8 @@ func (s *Store) summaryFromEntry(slugStr string, entry ManifestEntry, active map
 		ReviewedCount: entry.Display.ReviewedCount,
 		FileCount:     entry.Display.FileCount,
 		Anchor:        entry.Display.Anchor,
-		Active:        active[normalizeActivePath(fullPath)],
-		GrantedEvents: s.GrantedEventsForPath(fullPath),
+		Active:        isActive,
+		GrantedEvents: granted,
 	}
 }
 
@@ -624,6 +660,13 @@ var originRemoteURL = func(dir string) (string, error) {
 		return "", fmt.Errorf("resolve origin remote: %w", err)
 	}
 	return strings.TrimSpace(string(out)), nil
+}
+
+// HasOriginRemote reports whether dir is a checkout with an origin remote,
+// the only kind of directory whose sessions a coordinate can find.
+func HasOriginRemote(dir string) bool {
+	url, err := originRemoteURL(dir)
+	return err == nil && url != ""
 }
 
 // repoSelector is how ListSessions interprets its argument: an optional

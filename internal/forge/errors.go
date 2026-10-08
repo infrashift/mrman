@@ -152,6 +152,22 @@ func (e *Error) render() string {
 	return b.String()
 }
 
+// Describe is the one-line form of err for a status bar. For a forge error
+// that carries a hint it is the failure kind, status and host followed by
+// the hint, without the SDK's own message: that message (usually the full
+// request URL and response body) came first, so the hint, the part that
+// says what to do, was cut off at the edge of the screen. Any other error
+// reads as its Error().
+func Describe(err error) string {
+	fe, ok := errors.AsType[*Error](err)
+	if !ok || fe.Hint == "" {
+		return err.Error()
+	}
+	short := *fe
+	short.Err = nil
+	return short.Error()
+}
+
 // Unwrap exposes the wrapped error to errors.Is/As.
 func (e *Error) Unwrap() error {
 	return e.Err
@@ -186,17 +202,23 @@ func WrapError(forgeID forgetypes.Kind, op, host string, err error) *Error {
 }
 
 // Classify infers an ErrorKind from an arbitrary error: context
-// cancellation and deadlines map to ErrorCanceled, errs.ErrUnsupported to
+// cancellation maps to ErrorCanceled, errs.ErrUnsupported to
 // ErrorUnsupported, net errors to ErrorNetwork, existing *Error keeps its
 // kind, and anything else defaults to ErrorNetwork (the common transport
 // case for non-HTTP failures).
+//
+// A deadline is a network error, not a cancellation: the only deadline on a
+// forge request is the HTTP client's request timeout, and a request that
+// timed out must be reported, where a cancellation is discarded silently.
 func Classify(err error) ErrorKind {
 	var fe *Error
 	switch {
 	case errors.As(err, &fe):
 		return fe.Kind
-	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+	case errors.Is(err, context.Canceled):
 		return ErrorCanceled
+	case errors.Is(err, context.DeadlineExceeded):
+		return ErrorNetwork
 	case errors.Is(err, errs.ErrUnsupported):
 		return ErrorUnsupported
 	}

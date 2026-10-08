@@ -42,10 +42,9 @@ func NewApp(backend vcs.Backend, info *vcs.Info, files []model.DiffFile, session
 		ShowFileList:        true,
 		CursorLineHighlight: true,
 
-		ExpandedDirs:       map[string]bool{},
-		ExpandedTop:        map[GapID][]model.DiffLine{},
-		ExpandedBottom:     map[GapID][]model.DiffLine{},
-		FileLineCountCache: map[int]uint32{},
+		ExpandedDirs:   map[string]bool{},
+		ExpandedTop:    map[GapID][]model.DiffLine{},
+		ExpandedBottom: map[GapID][]model.DiffLine{},
 
 		CommitPageSize:  DefaultCommitPageSize,
 		CommitDiffCache: map[model.IndexRange][]model.DiffFile{},

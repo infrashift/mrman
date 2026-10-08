@@ -216,14 +216,14 @@ func TestCommitScopedCommentHiddenFromAnnotations(t *testing.T) {
 	if !anyAnnotation(a, func(ann *AnnotatedLine) bool { return ann.Kind == AnnLineComment }) {
 		t.Fatal("comment visible with no selector")
 	}
-	assertEq(t, a.TotalLines(), len(a.LineAnnotations), "heights stay in lockstep (no selector)")
+	assertEq(t, a.renderedHeight(), len(a.LineAnnotations), "heights stay in lockstep (no selector)")
 
 	a.CommitSelectionRange = selection(0, 0) // only "aaa": comment hidden
 	a.RebuildAnnotations()
 	if anyAnnotation(a, func(ann *AnnotatedLine) bool { return ann.Kind == AnnLineComment }) {
 		t.Fatal("comment scoped to unselected commit must not be annotated")
 	}
-	assertEq(t, a.TotalLines(), len(a.LineAnnotations), "heights stay in lockstep (filtered)")
+	assertEq(t, a.renderedHeight(), len(a.LineAnnotations), "heights stay in lockstep (filtered)")
 
 	// The cursor on stale rows resolves to no comment under the filter.
 	if _, ok := a.FindCommentAtCursor(); ok {

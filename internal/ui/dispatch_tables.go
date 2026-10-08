@@ -48,6 +48,7 @@ var commandTable = map[input.CommandKind]commandHandler{
 	},
 	input.CmdToggleWrap:  appCmd(func(a *app.App) { a.ToggleDiffWrap() }),
 	input.CmdSetWrap:     appCmd(func(a *app.App) { a.SetDiffWrap(true) }),
+	input.CmdSetNoWrap:   appCmd(func(a *app.App) { a.SetDiffWrap(false) }),
 	input.CmdDiff:        appCmd(func(a *app.App) { a.ToggleDiffViewMode() }),
 	input.CmdHelp:        appCmd(func(a *app.App) { a.ToggleHelp() }),
 	input.CmdFocus:       appCmd(func(a *app.App) { a.ToggleSingleFileView() }),
@@ -138,10 +139,9 @@ var normalActions = map[input.Kind]actionHandler{
 	input.Quit: func(*Model, input.Action) bool { return true },
 	input.ExitMode: appAct(func(a *app.App, _ input.Action) {
 		// Esc discards a half-typed count, as in vim. With nothing typed
-		// and nothing loaded it would otherwise do nothing at all — which
-		// is exactly the state Esc out of the startup selector lands in,
-		// an empty pane with no key that leads anywhere. Reopen the
-		// selector the review came from instead of stranding the user.
+		// and nothing loaded, the model reopens the target selector before
+		// this runs (see the ExitMode check in model.go), so Esc out of the
+		// startup selector never strands the user on an empty pane.
 		if a.PendingCount != nil {
 			a.PendingCount = nil
 		}

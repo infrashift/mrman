@@ -14,9 +14,13 @@ The run found two defects, both fixed before this note was written: a range
 comment ending on an unchanged line was refused, and the TUI lost its connection
 to the forge after a moved-head reload.
 
-gitlab.com itself, and a self-managed instance behind TLS with `ca_file`, have
-not been exercised yet. See [support levels](../../reference/forge-capabilities/#support-levels)
-and the [transcript](../../contributing/live-testing/#gitlab-a-self-managed-instance).
+**gitlab.com** passed the same run on 2026-10-08, with every step read back:
+comments of every anchor kind, a draft, request changes, the moved-head
+guard, approve, and the agent interlock. It also covered a file over
+gitlab.com's diff limits and a refused (repeat) approval. A self-managed
+instance behind TLS with `ca_file` has not been exercised yet. See [support
+levels](../../reference/forge-capabilities/#support-levels) and the
+[transcript](../../contributing/live-testing/#gitlab-a-self-managed-instance).
 :::
 
 mrman reviews GitLab **merge requests** with the same interface it uses on
@@ -60,6 +64,11 @@ regardless of what the path looks like.
 `api` scope. A read-only `read_api` token is enough to browse and review; you
 need `api` to post comments or approve.
 
+GitLab's newer **fine-grained** personal access tokens grant permissions one
+by one instead. One without `Project: Read` and `User: Read` cannot open a
+merge request at all: GitLab answers `403 insufficient_granular_scope`. A
+classic token with `api` is the simplest choice.
+
 ## Open a merge request
 
 ```sh
@@ -92,10 +101,10 @@ project and everything before it is the namespace.
 ### No review summaries
 
 GitLab does not model "a review" as an object with a body the way GitHub does.
-Existing threads render inline as you would expect, but there is no separate
-summary block above them, because there is nothing on the GitLab side to read.
-
-Your own review body still posts — as a general merge-request note.
+Existing threads render inline as you would expect. General merge-request
+notes, the ones with no diff position, appear in the overview above the diff,
+where GitHub's review summaries go. Your own review body posts as one of those
+notes, so it shows up there too.
 
 ### No atomic submit
 
@@ -110,6 +119,11 @@ If a step fails partway, mrman **does not** lie about it. It reports a partial
 submit naming exactly which comments made it to GitLab, and marks only those as
 submitted locally. The rest stay editable so you can retry them without
 double-posting the ones that landed.
+
+mrman never resends a write on its own. A `5xx` from a proxy in front of
+GitLab can arrive after GitLab already created the note, so only reads are
+retried on server errors. A rate-limit `429`, which GitLab answers without
+acting, is retried for any request.
 
 ### Drafts
 
@@ -129,10 +143,16 @@ Verified on CE 19.3.2, where GitLab then reports the reviewer's state as
 ### After the author pushes
 
 mrman refuses to submit on a head that moved since you opened the review, and
-asks you to reload (`:e`). The check is only as current as GitLab's own view of
-the merge request, and GitLab updates it **asynchronously** after a push. That
-took about 1-6 s on the verified instance. A submit inside that window can
-still land on the previous head.
+asks you to reload: `r` on the submit confirmation, or `:e`. The check is only
+as current as GitLab's own view of the merge request, and GitLab updates it
+**asynchronously** after a push. That took about 1-6 s on the verified
+instance. A submit inside that window can still land on the previous head.
+
+A review is a session per head commit. Reloading onto a new head retires the
+old head's session, with its comments, and opens one for the new head; an
+agent-submit grant from `--auto` carries over to it. An agent's
+`--session <slug>` keeps working, because a PR slug names the merge request,
+not the head, and resolves to the newest session.
 
 ## Submitting
 
@@ -146,14 +166,26 @@ still land on the previous head.
 
 Approve calls the merge-request approvals endpoint, so it respects your
 project's approval rules — including "approvals required" counts and
-eligibility. If your project forbids self-approval, GitLab refuses and mrman
-shows you the refusal.
+eligibility. GitLab answers a refused approval (you already approved, or the
+project forbids authors approving their own merge requests) with `401`, so
+mrman reports it as a refused approval rather than as a bad token.
 
 ## Reading the merge request
 
 Existing discussions render inline, read-only, resolved ones hidden until
-`:comments all`. `:e` refetches. `(` / `)` narrows to a single commit, which
-GitLab supports properly.
+`:comments all`, and a multi-line discussion keeps its whole range. `:e`
+refetches. `(` / `)` narrows to a single commit, which GitLab supports
+properly. The header writes the merge request as `#N`, like every other
+forge, rather than GitLab's `!N`.
+
+A file over the instance's diff limits arrives from GitLab without its diff;
+mrman shows it as *(file too large to display)* rather than as unchanged.
+
+"Commits since your last review" works from your approvals and comments, each
+placed on the merge request version that was current when you made it.
+GitLab keeps an approval across later pushes unless the project resets
+approvals, so an approval given before a push does not count as having
+reviewed what came after.
 
 `r` in the merge-request list toggles between everything open and what is
 waiting on your review.

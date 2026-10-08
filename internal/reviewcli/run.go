@@ -48,17 +48,32 @@ type Options struct {
 	Comment    string
 }
 
+// listNotes receives List's notes for a human; stdout stays JSON. A var so
+// tests can capture it.
+var listNotes io.Writer = os.Stderr
+
 // List prints session summaries for `mrman review list`.
+//
+// Without --repo it lists the sessions of the checkout it runs in. Run
+// anywhere else (an agent's scratch directory, say) that matched nothing
+// and printed [], hiding a merge request's session and its grant from the
+// agent meant to use them, so it lists every session instead and says so
+// on stderr.
 func List(store *persistence.Store, opts Options, out io.Writer) error {
 	repo := opts.Repo
+	all := opts.All
 	if repo == "" {
 		repo = "."
+		if !all && !persistence.HasOriginRemote(repo) {
+			all = true
+			_, _ = fmt.Fprintln(listNotes, "mrman: not in a checkout with a remote; listing every session (narrow with --repo)")
+		}
 	}
 	var (
 		summaries []persistence.SessionSummary
 		err       error
 	)
-	if opts.All {
+	if all {
 		summaries, err = store.ListAllSessions()
 	} else {
 		summaries, err = store.ListSessions(repo)

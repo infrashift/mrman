@@ -132,7 +132,7 @@ func (d *Driver) CreateReview(ctx context.Context, pr *forge.PullRequestDetails,
 	case forge.SubmitApprove:
 		if _, _, err := d.client.MergeRequestApprovals.ApproveMergeRequest(pid, iid,
 			&gitlab.ApproveMergeRequestOptions{}, gitlab.WithContext(ctx)); err != nil {
-			return partial(len(req.Comments), err)
+			return partial(len(req.Comments), d.wrapApprove(err))
 		}
 	case forge.SubmitRequestChanges:
 		if err := d.requestChanges(ctx, pr); err != nil {
@@ -288,7 +288,7 @@ func (d *Driver) requestChanges(ctx context.Context, pr *forge.PullRequestDetail
 		return d.err(op, forge.ErrorNetwork, 0, "", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		hint := statusHint(resp.StatusCode)
+		hint := d.statusHint(resp.StatusCode)
 		if resp.StatusCode == http.StatusForbidden {
 			hint = hintReviewForbidden
 		}

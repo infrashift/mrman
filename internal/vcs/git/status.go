@@ -98,7 +98,14 @@ func (b *Backend) StageFile(path string) error {
 }
 
 func (b *Backend) readFileContent(path string, status model.FileStatus, refCommit *string) (string, error) {
-	if refCommit != nil {
+	if refCommit != nil && *refCommit == vcs.IndexRef && status != model.StatusDeleted {
+		content, ok := b.readGitObject(":0:" + path)
+		if !ok {
+			return "", &errs.VcsCommand{Detail: "failed to read " + path + " from the index"}
+		}
+		return content, nil
+	}
+	if refCommit != nil && *refCommit != vcs.IndexRef {
 		content, ok := b.readGitObject(*refCommit + ":" + path)
 		if !ok {
 			return "", &errs.VcsCommand{Detail: "failed to read " + path + " at " + *refCommit}

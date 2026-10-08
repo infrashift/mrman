@@ -3,8 +3,8 @@
 // The command tree and flag semantics are ported from tuicr's clap definition
 // (.reference/tuicr/src/cli.rs): the same TUI options are accepted at the root
 // and on the tui/pr subcommands, review subcommands reject TUI options, and
-// hyphen-leading values are tolerated for --revisions and the review-add
-// comment positional.
+// a hyphen-leading --revisions value is tolerated. A review-add comment that
+// starts with "-" goes after the standard "--" terminator (see hyphen.go).
 package cli
 
 // Command identifies which top-level operation was requested.

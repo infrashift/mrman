@@ -5,8 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/infrashift/mrman/internal/app"
 	"github.com/infrashift/mrman/internal/forge"
@@ -44,17 +48,20 @@ func TestLiveAgentSubmit(t *testing.T) {
 		t.Fatalf("fetch pull request: %v", err)
 	}
 
+	// Every check below counts only reviews carrying this run's marker. A
+	// count of all reviews broke whenever another live test (go test ./...
+	// runs packages in parallel) posted to the same merge request meanwhile.
+	marker := fmt.Sprintf("mrman agent-submit interlock test %d", time.Now().UnixNano())
 	session := app.NewPrSession(load.Details)
 	app.RegisterDiffFiles(session, load.Files)
 	session.ReviewComments = append(session.ReviewComments,
-		model.NewComment("Posted by mrman's agent-submit interlock test.",
-			model.CommentTypeFromID("note"), nil))
+		model.NewComment("Posted by "+marker+".", model.CommentTypeFromID("note"), nil))
 	path, err := store.SaveSession(session)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	reviewsBefore := countReviews(t, backend, load.Details)
+	reviewsBefore := countMarked(t, backend, load.Details, marker)
 
 	// --- refused with no grant, and nothing reaches the forge ---
 	var out bytes.Buffer
@@ -67,7 +74,7 @@ func TestLiveAgentSubmit(t *testing.T) {
 	}
 	t.Logf("refused: %s", denied.Message)
 
-	if after := countReviews(t, backend, load.Details); after != reviewsBefore {
+	if after := countMarked(t, backend, load.Details, marker); after != reviewsBefore {
 		t.Fatalf("a refused submit reached the forge: %d reviews before, %d after",
 			reviewsBefore, after)
 	}
@@ -84,7 +91,7 @@ func TestLiveAgentSubmit(t *testing.T) {
 	if !errors.As(err, &denied) || denied.Reason != string(persistence.GrantEventNotAllowed) {
 		t.Fatalf("a comment,draft grant must not permit approve, got %v", err)
 	}
-	if after := countReviews(t, backend, load.Details); after != reviewsBefore {
+	if after := countMarked(t, backend, load.Details, marker); after != reviewsBefore {
 		t.Fatalf("a refused approve reached the forge: %d -> %d", reviewsBefore, after)
 	}
 
@@ -105,28 +112,39 @@ func TestLiveAgentSubmit(t *testing.T) {
 	if !result.Submitted {
 		t.Error("result must report submitted")
 	}
-	if after := countReviews(t, backend, load.Details); after != reviewsBefore+1 {
+	if after := countMarked(t, backend, load.Details, marker); after != reviewsBefore+1 {
 		t.Errorf("the granted submit did not land: %d reviews before, %d after",
 			reviewsBefore, after)
 	}
 }
 
-// countReviews asks the forge how many reviews the pull request has, which
-// is the only assertion that actually proves a refusal refused. A forge
-// without review summaries (GitLab) records a submitted review body as a
-// general MR note instead, which surfaces as a path-less review thread.
-func countReviews(t *testing.T, backend forge.Forge, details *forge.PullRequestDetails) int {
+// countMarked asks the forge how many of the pull request's reviews carry
+// marker, which is the only assertion that actually proves a refusal
+// refused. A review body lands as a review summary on GitHub and Forgejo,
+// and as a general discussion on GitLab and Azure DevOps, which their
+// drivers also return as summaries; inline threads are counted too.
+func countMarked(t *testing.T, backend forge.Forge, details *forge.PullRequestDetails, marker string) int {
 	t.Helper()
-	if !backend.Capabilities().ReviewSummaries {
-		threads, err := backend.ListReviewThreads(context.Background(), details)
-		if err != nil {
-			t.Fatalf("list review threads: %v", err)
+	n := 0
+	threads, err := backend.ListReviewThreads(context.Background(), details)
+	if err != nil {
+		t.Fatalf("list review threads: %v", err)
+	}
+	for _, th := range threads {
+		if th.Path != "" && slices.ContainsFunc(th.Comments, func(c forge.RemoteReviewComment) bool {
+			return strings.Contains(c.Body, marker)
+		}) {
+			n++
 		}
-		return len(threads)
 	}
 	summaries, err := backend.ListReviewSummaries(context.Background(), details)
 	if err != nil {
 		t.Fatalf("list review summaries: %v", err)
 	}
-	return len(summaries)
+	for _, s := range summaries {
+		if strings.Contains(s.Body, marker) {
+			n++
+		}
+	}
+	return n
 }

@@ -275,8 +275,8 @@ func TestFetchContextLines(t *testing.T) {
 
 func TestFetchContextLinesFromRevisions(t *testing.T) {
 	responses := baseResponses("/repo")
-	responses["file show -r abc123 x.txt"] = response{stdout: "l1\nl2\nl3\n"}
-	responses["file show -r @- gone.txt"] = response{stdout: "old1\nold2\n"}
+	responses["file show -r abc123 root-file:\"x.txt\""] = response{stdout: "l1\nl2\nl3\n"}
+	responses["file show -r @- root-file:\"gone.txt\""] = response{stdout: "old1\nold2\n"}
 	b := discover(t, &fakeRunner{responses: responses})
 
 	ref := "abc123"
@@ -312,7 +312,7 @@ func TestFileLineCount(t *testing.T) {
 		t.Fatal(err)
 	}
 	responses := baseResponses(root)
-	responses["file show -r abc123 x.txt"] = response{stdout: "l1\nl2\n"}
+	responses["file show -r abc123 root-file:\"x.txt\""] = response{stdout: "l1\nl2\n"}
 	b := discover(t, &fakeRunner{responses: responses})
 
 	if n, err := b.FileLineCount("hello.txt", model.StatusModified, nil); err != nil || n != 3 {
@@ -576,7 +576,7 @@ func TestHighlightsVueScriptHunkUsingFullFileContext(t *testing.T) {
 	batchTemplate := `"\n` + vcs.BatchBoundary + `\n" ++ path ++ "\n"`
 	responses := baseResponses(root)
 	responses["diff --git"] = response{stdout: vueDiff}
-	responses["file show -r @- -T "+batchTemplate+" App.vue"] = response{
+	responses["file show -r @- -T "+batchTemplate+" root-file:\"App.vue\""] = response{
 		stdout: "\n" + vcs.BatchBoundary + "\nApp.vue\n" + oldVue,
 	}
 	b := discover(t, &fakeRunner{responses: responses})
@@ -619,10 +619,10 @@ func TestCommitRangeDiffHighlightsBothSidesFromRevisions(t *testing.T) {
 	batchTemplate := `"\n` + vcs.BatchBoundary + `\n" ++ path ++ "\n"`
 	responses := baseResponses("/repo")
 	responses["diff --from aaa- --to ccc --git"] = response{stdout: vueDiff}
-	responses["file show -r aaa- -T "+batchTemplate+" App.vue"] = response{
+	responses["file show -r aaa- -T "+batchTemplate+" root-file:\"App.vue\""] = response{
 		stdout: "\n" + vcs.BatchBoundary + "\nApp.vue\n" + oldVue,
 	}
-	responses["file show -r ccc -T "+batchTemplate+" App.vue"] = response{
+	responses["file show -r ccc -T "+batchTemplate+" root-file:\"App.vue\""] = response{
 		stdout: "\n" + vcs.BatchBoundary + "\nApp.vue\n" + newVue,
 	}
 	b := discover(t, &fakeRunner{responses: responses})
@@ -671,6 +671,20 @@ func TestContainerHighlightSkipsWithoutContainerFiles(t *testing.T) {
 	for _, call := range run.calls {
 		if strings.HasPrefix(call, "file show") {
 			t.Fatalf("unexpected batch fetch: %v", run.calls)
+		}
+	}
+}
+
+func TestRootFileQuotesFilesetSyntax(t *testing.T) {
+	cases := map[string]string{
+		"src/main.go":      `root-file:"src/main.go"`,
+		"a (copy).txt":     `root-file:"a (copy).txt"`,
+		`say "hi"|x&y~.md`: `root-file:"say \"hi\"|x&y~.md"`,
+		`back\slash`:       `root-file:"back\\slash"`,
+	}
+	for in, want := range cases {
+		if got := rootFile(in); got != want {
+			t.Errorf("rootFile(%q) = %s, want %s", in, got, want)
 		}
 	}
 }

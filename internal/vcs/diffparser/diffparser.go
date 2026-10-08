@@ -139,6 +139,13 @@ func parseFile(src *lineSource, header string, format Format, h *syntax.Highligh
 		file.IsBinary = true
 		return file, nil
 	}
+	if peekOK && peeked == vcs.TooLargeDiffMarker {
+		if _, _, err := src.advance(); err != nil {
+			return model.DiffFile{}, err
+		}
+		file.IsTooLarge = true
+		return file, nil
+	}
 
 	filePath := ""
 	switch {
@@ -250,27 +257,37 @@ type headerRule struct {
 	done   bool
 }
 
-// headerPath strips the diff prefix ("--- a/", "+++ b/") and, for Hg, the
-// timestamp after the tab. nil for /dev/null.
-func headerPath(line, marker, treePrefix string, format Format) *string {
-	pathStr := strings.TrimPrefix(strings.TrimPrefix(line, marker), treePrefix)
+// headerPath strips the diff prefix ("--- a/", "+++ b/") and anything after
+// a tab: Mercurial's timestamp, or the bare tab git appends to a path that
+// contains a space. A path git C-quoted is unquoted first, since the quotes
+// wrap the a/ prefix too. nil for /dev/null.
+//
+// Cutting at the tab is safe for every format: git always quotes a path that
+// really contains a tab, with the tab escaped.
+func headerPath(line, marker, treePrefix string) *string {
+	pathStr, _, _ := strings.Cut(strings.TrimPrefix(line, marker), "\t")
+	pathStr = strings.TrimPrefix(vcs.UnquoteGitPath(pathStr), treePrefix)
 	if pathStr == "/dev/null" {
 		return nil
-	}
-	if format == Hg {
-		pathStr, _, _ = strings.Cut(pathStr, "\t")
 	}
 	return &pathStr
 }
 
+// metadataPath reads the path from a "rename from"-style line, which git
+// quotes like the ---/+++ pair but without an a/ or b/ prefix.
+func metadataPath(line, prefix string) *string {
+	p := vcs.UnquoteGitPath(strings.TrimPrefix(line, prefix))
+	return &p
+}
+
 var headerRules = []headerRule{
-	{prefix: "---", apply: func(h *fileHeader, line string, f Format) {
-		if p := headerPath(line, "--- ", "a/", f); p != nil {
+	{prefix: "---", apply: func(h *fileHeader, line string, _ Format) {
+		if p := headerPath(line, "--- ", "a/"); p != nil {
 			h.oldPath = p
 		}
 	}},
-	{prefix: "+++", done: true, apply: func(h *fileHeader, line string, f Format) {
-		if p := headerPath(line, "+++ ", "b/", f); p != nil {
+	{prefix: "+++", done: true, apply: func(h *fileHeader, line string, _ Format) {
+		if p := headerPath(line, "+++ ", "b/"); p != nil {
 			h.newPath = p
 		}
 	}},
@@ -278,21 +295,17 @@ var headerRules = []headerRule{
 	{prefix: "deleted file", apply: func(h *fileHeader, _ string, _ Format) { h.status = model.StatusDeleted }},
 	{prefix: "rename from ", apply: func(h *fileHeader, line string, _ Format) {
 		h.status = model.StatusRenamed
-		p := strings.TrimPrefix(line, "rename from ")
-		h.oldPath = &p
+		h.oldPath = metadataPath(line, "rename from ")
 	}},
 	{prefix: "rename to ", apply: func(h *fileHeader, line string, _ Format) {
-		p := strings.TrimPrefix(line, "rename to ")
-		h.newPath = &p
+		h.newPath = metadataPath(line, "rename to ")
 	}},
 	{prefix: "copy from ", apply: func(h *fileHeader, line string, _ Format) {
 		h.status = model.StatusCopied
-		p := strings.TrimPrefix(line, "copy from ")
-		h.oldPath = &p
+		h.oldPath = metadataPath(line, "copy from ")
 	}},
 	{prefix: "copy to ", apply: func(h *fileHeader, line string, _ Format) {
-		p := strings.TrimPrefix(line, "copy to ")
-		h.newPath = &p
+		h.newPath = metadataPath(line, "copy to ")
 	}},
 }
 
@@ -335,7 +348,8 @@ func parseFileHeader(src *lineSource, format Format) (oldPath, newPath *string, 
 		if err != nil {
 			return nil, nil, h.status, err
 		}
-		if !ok || strings.HasPrefix(line, "@@") || strings.HasPrefix(line, "diff ") {
+		if !ok || strings.HasPrefix(line, "@@") || strings.HasPrefix(line, "diff ") ||
+			line == vcs.TooLargeDiffMarker {
 			break
 		}
 		if isBinaryPatchLine(line) {
@@ -403,9 +417,13 @@ func parseHunk(src *lineSource, filePath string, h *syntax.Highlighter) (model.D
 	// A `git format-patch` signature ("-- \n2.43.0"), an mbox's next-message
 	// preamble, a diffstat line, a changelog bullet — all of them start with
 	// "-", "+" or " " and would otherwise be read as diff rows: the "---"
-	// guard below does not catch "-- ", and a leading space is a context
-	// line. That corrupts the hunk's line numbering and, through
+	// guard below (uncounted hunks only) does not catch "-- ", and a leading
+	// space is a context line. That corrupts the hunk's line numbering and, through
 	// ComputeContentHash and HunkReviewKey, the reviewed state keyed off it.
+	//
+	// Within the budget every "+" or "-" row is content, even one that looks
+	// like a file header: deleting a YAML "---" arrives as "----", adding
+	// "++i;" as "+++i;".
 	for !bounds.spent(oldSeen, newSeen) {
 		line, hasLine, err := src.peek()
 		if err != nil {
@@ -429,16 +447,16 @@ func parseHunk(src *lineSource, filePath string, h *syntax.Highlighter) (model.D
 
 		switch {
 		case strings.HasPrefix(line, "+"):
-			if strings.HasPrefix(line, "+++") {
-				continue // skip +++ header lines
+			if !bounds.Counted && strings.HasPrefix(line, "+++") {
+				continue // an unmeasured hunk has no budget to stop at a header
 			}
 			ln := newLineno
 			newLineno++
 			newSeen++
 			origin, content, newLn = model.OriginAddition, line[1:], &ln
 		case strings.HasPrefix(line, "-"):
-			if strings.HasPrefix(line, "---") {
-				continue // skip --- header lines
+			if !bounds.Counted && strings.HasPrefix(line, "---") {
+				continue // an unmeasured hunk has no budget to stop at a header
 			}
 			ln := oldLineno
 			oldLineno++
@@ -638,20 +656,59 @@ func parseU32Or1(s string) (uint32, bool) {
 }
 
 // parseDiffGitHeader parses paths from a "diff --git a/X b/X" header line,
-// returning the paths with their a/ and b/ prefixes stripped. Paths may
-// contain spaces, so the " b/" separator anchors the split.
+// returning the paths with their a/ and b/ prefixes stripped.
 func parseDiffGitHeader(line string) (oldPath, newPath string, ok bool) {
 	rest, found := strings.CutPrefix(line, "diff --git ")
 	if !found {
 		return "", "", false
 	}
-	pos := strings.Index(rest, " b/")
+	oldPart, newPart, ok := splitPathPair(rest, " ", "b/")
+	if !ok {
+		return "", "", false
+	}
+	return strings.TrimPrefix(vcs.UnquoteGitPath(oldPart), "a/"),
+		strings.TrimPrefix(vcs.UnquoteGitPath(newPart), "b/"), true
+}
+
+// splitPathPair splits "<left><sep><right>", either side of which git may
+// have C-quoted on its own (a rename from an ASCII name to a non-ASCII one
+// quotes only the new side). A quoted left side ends at its closing quote,
+// and a quoted right side starts at the last sep followed by a quote. An
+// unquoted path may contain spaces, so an unquoted pair splits at the first
+// sep followed by anchor. The parts keep their quotes.
+func splitPathPair(s, sep, anchor string) (left, right string, ok bool) {
+	if strings.HasPrefix(s, `"`) {
+		end := closingQuote(s)
+		if end < 0 {
+			return "", "", false
+		}
+		right, ok = strings.CutPrefix(s[end+1:], sep)
+		return s[:end+1], right, ok
+	}
+	if strings.HasSuffix(s, `"`) {
+		if pos := strings.LastIndex(s, sep+`"`); pos >= 0 {
+			return s[:pos], s[pos+len(sep):], true
+		}
+	}
+	pos := strings.Index(s, sep+anchor)
 	if pos < 0 {
 		return "", "", false
 	}
-	oldPart := rest[:pos]
-	newPart := rest[pos+1:]
-	return strings.TrimPrefix(oldPart, "a/"), strings.TrimPrefix(newPart, "b/"), true
+	return s[:pos], s[pos+len(sep):], true
+}
+
+// closingQuote returns the index of the quote that closes the C-quoted
+// string s starts with, skipping backslash escapes, or -1.
+func closingQuote(s string) int {
+	for i := 1; i < len(s); i++ {
+		switch s[i] {
+		case '\\':
+			i++
+		case '"':
+			return i
+		}
+	}
+	return -1
 }
 
 // parseBinaryFileLine parses paths from a binary file marker.
@@ -664,16 +721,16 @@ func parseBinaryFileLine(line string) (oldPath, newPath *string, ok bool) {
 		if !found {
 			return nil, nil, false
 		}
-		oldPart, newPart, found := strings.Cut(content, " and ")
+		oldPart, newPart, found := splitPathPair(content, " and ", "")
 		if !found {
 			return nil, nil, false
 		}
 		if oldPart != "/dev/null" {
-			p := strings.TrimPrefix(oldPart, "a/")
+			p := strings.TrimPrefix(vcs.UnquoteGitPath(oldPart), "a/")
 			oldPath = &p
 		}
 		if newPart != "/dev/null" {
-			p := strings.TrimPrefix(newPart, "b/")
+			p := strings.TrimPrefix(vcs.UnquoteGitPath(newPart), "b/")
 			newPath = &p
 		}
 		return oldPath, newPath, true

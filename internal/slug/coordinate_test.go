@@ -140,7 +140,7 @@ func TestParseRepoCoordinateDropsAzureDevOpsGitMarker(t *testing.T) {
 		{"with user info", "https://user@dev.azure.com/org/project/_git/repo", "project", "repo"},
 		{"legacy visualstudio", "https://org.visualstudio.com/project/_git/repo", "project", "repo"},
 		{"legacy default collection", "https://org.visualstudio.com/DefaultCollection/project/_git/repo", "project", "repo"},
-		{"web url", "https://dev.azure.com/org/project/_git/repo/pullrequest/7", "pullrequest", "7"},
+		{"web url names its repository", "https://dev.azure.com/org/project/_git/repo/pullrequest/7", "project", "repo"},
 		{"already marker-free coordinate", "org/project/repo", "project", "repo"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -170,5 +170,31 @@ func TestParseRepoCoordinateADOCheckoutMatchesPRSlug(t *testing.T) {
 	if !fromRemote.Matches(fromCoordinate) {
 		t.Errorf("%+v does not match %+v — --repo <checkout> would find no PR sessions",
 			fromRemote, fromCoordinate)
+	}
+}
+
+// TestParseRepoCoordinateAcceptsPRURLsAndSlugs: the agent skill tells an
+// agent it may pass a PR URL to --repo. The last two path segments used to
+// become owner and repo, so .../pull/1 named repository "1" owned by "pull"
+// and matched nothing.
+func TestParseRepoCoordinateAcceptsPRURLsAndSlugs(t *testing.T) {
+	tests := []struct {
+		input string
+		want  RepoCoordinate
+	}{
+		{"https://github.com/infrashift/scratch/pull/2", coord("infrashift", "scratch")},
+		{"https://github.com/infrashift/scratch/pull/2/files", coord("infrashift", "scratch")},
+		{"https://codeberg.org/ryancraig/scratch/pulls/4", coord("ryancraig", "scratch")},
+		{"https://gitlab.com/infrashift-group/sub/scratch/-/merge_requests/3/diffs", coord("sub", "scratch")},
+		{"https://dev.azure.com/org/project/_git/repo/pullrequest/9", coord("project", "repo")},
+		{"gh:github.com/infrashift/scratch/pr/2", coord("infrashift", "scratch")},
+		{"gl:gitlab.com/group/sub/proj/mr/5", coord("sub", "proj")},
+		{"github.com/pull/pull", coord("pull", "pull")}, // a repo named "pull" is still a repo
+	}
+	for _, tt := range tests {
+		got, err := ParseRepoCoordinate(tt.input)
+		if err != nil || got != tt.want {
+			t.Errorf("ParseRepoCoordinate(%q) = %+v, %v; want %+v", tt.input, got, err, tt.want)
+		}
 	}
 }

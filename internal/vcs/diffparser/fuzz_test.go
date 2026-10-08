@@ -19,6 +19,7 @@ func FuzzParse(f *testing.F) {
 	f.Add("@@ -4294967295,4294967295 +4294967295,4294967295 @@\n+x\n")
 	f.Add("diff --git a/x b/x\n@@ -1 +1 @@\n+\x1b[31mred\x1b[0m\n")
 	f.Add("--- a/x\n+++ b/x\n@@ garbage @@\n\\ No newline at end of file\n")
+	f.Add("diff --git a/y b/y\n--- a/y\n+++ b/y\n@@ -1,2 +1,2 @@\n----\n+++i;\n a\n")
 	f.Fuzz(func(t *testing.T, text string) {
 		for _, format := range []Format{GitStyle, Hg} {
 			files, err := Parse(text, format, nil)

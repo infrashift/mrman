@@ -29,8 +29,8 @@ const (
 	ScopeCommitRange
 	// ScopeStagedUnstagedAndCommits reviews commits plus uncommitted changes.
 	ScopeStagedUnstagedAndCommits
-	// ScopePullRequest reviews a pull request (scope strings are stubs until
-	// PR mode lands).
+	// ScopePullRequest reviews a pull request. Its export carries no scope
+	// line, as tuicr's does not.
 	ScopePullRequest
 	// ScopePatch reviews a standalone patch artifact.
 	ScopePatch
@@ -39,8 +39,8 @@ const (
 )
 
 // ScopeLine returns the "Reviewing ..." header line for the scope, exactly
-// as tuicr's generate_markdown emits it. Working-tree reviews (and the PR
-// stub) have no scope line and return "".
+// as tuicr's generate_markdown emits it. Working-tree and pull-request
+// reviews have no scope line and return "".
 func (k ScopeKind) ScopeLine(commits []string) string {
 	switch k {
 	case ScopeStaged:

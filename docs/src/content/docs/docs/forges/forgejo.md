@@ -5,11 +5,12 @@ sidebar:
   order: 5
 ---
 
-:::caution[Experimental]
-The Forgejo/Gitea driver is implemented and unit-tested, but has not yet been
-exercised against a live instance the way the GitHub one has. Everything on
-this page describes what it does; what it has not had is a real server
-disagreeing with it. See [support levels](../../reference/forge-capabilities/#support-levels).
+:::caution[Experimental for self-hosted instances]
+The driver itself is verified: it passed a live end-to-end run against
+[Codeberg](../codeberg/), which runs Forgejo 16, on 2026-10-08. Self-hosted
+Forgejo and Gitea run many versions, and their APIs differ in detail. No other
+Forgejo version, and no Gitea at all, has been exercised. See [support
+levels](../../reference/forge-capabilities/#support-levels).
 :::
 
 Forgejo and Gitea share an API, so mrman serves both with one driver. Set

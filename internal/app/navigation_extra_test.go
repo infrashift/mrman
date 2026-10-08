@@ -61,6 +61,16 @@ func TestStagedSourceDisablesEofGap(t *testing.T) {
 	}
 }
 
+func TestRefCommitForStagedReadsTheIndex(t *testing.T) {
+	info := &vcs.Info{RootPath: "/tmp", HeadCommit: "abc", Type: vcs.TypeGit}
+	session := model.NewReviewSession(info.RootPath, info.HeadCommit, nil, model.SourceStaged)
+	a := NewApp(&mockVcs{info: info, totalLines: 100}, info, nil, session, DiffSource{Kind: DiffSourceStaged})
+
+	if ref := a.refCommit(); ref == nil || *ref != vcs.IndexRef {
+		t.Errorf("refCommit = %v, want the index", ref)
+	}
+}
+
 func TestRefCommitForCommitRange(t *testing.T) {
 	file := makeFileWithHunks("test.rs", []model.DiffHunk{makeHunk(1, 5)})
 	info := &vcs.Info{RootPath: "/tmp", HeadCommit: "abc", Type: vcs.TypeGit}
@@ -340,7 +350,7 @@ func TestReviewedFileCollapsesInMultiFileView(t *testing.T) {
 	if a.TotalLines() >= before {
 		t.Error("reviewed file should collapse to its header")
 	}
-	assertEq(t, a.TotalLines(), len(a.LineAnnotations), "heights stay in lockstep")
+	assertEq(t, a.renderedHeight(), len(a.LineAnnotations), "heights stay in lockstep")
 	if anyAnnotation(a, func(l *AnnotatedLine) bool {
 		return l.Kind == AnnDiffLine && l.FileIdx == 0
 	}) {
@@ -431,7 +441,7 @@ func TestSyncViewportWidthRebuildsOnChange(t *testing.T) {
 
 	a.SyncViewportWidth(80)
 	assertEq(t, a.DiffState.ViewportWidth, 80, "viewport width set")
-	assertEq(t, a.TotalLines(), len(a.LineAnnotations), "annotations rebuilt")
+	assertEq(t, a.renderedHeight(), len(a.LineAnnotations), "annotations rebuilt")
 	a.SyncViewportWidth(80) // no-op path
 }
 

@@ -182,7 +182,7 @@ func (m *Model) openSelectedPatch() {
 	if m.session != nil {
 		m.shutdown(a)
 	}
-	lifecycle, session := openSession(m.store, fresh)
+	lifecycle, session := openSession(m.store, fresh, files)
 	m.session = lifecycle
 
 	// The backend changes with the target, unlike a Local-tab retarget where

@@ -10,8 +10,10 @@ type Capabilities struct {
 	Approve bool
 	// RequestChanges means the forge supports a changes-requested event.
 	RequestChanges bool
-	// ReviewSummaries means review-level bodies exist distinct from
-	// threads.
+	// ReviewSummaries means the forge has a review object whose body is
+	// distinct from its threads. The app asks every driver for summaries
+	// regardless: a forge without review objects returns its general,
+	// file-less discussions there instead.
 	ReviewSummaries bool
 	// ReviewThreads means the forge exposes discussion threads.
 	ReviewThreads bool
@@ -24,9 +26,9 @@ type Capabilities struct {
 	// MultiLineComments means inline comments can span line ranges;
 	// false triggers the submit.DowngradeMultiline pass.
 	MultiLineComments bool
-	// CommitRangeDiff means the forge serves a server-side range diff;
-	// false means the driver synthesizes one or the app disables the
-	// commit-range selector.
+	// CommitRangeDiff means the forge serves a diff for a commit range.
+	// Without it the commit strip still shows, but narrowing to a range
+	// keeps the whole merge request's diff and says so.
 	CommitRangeDiff bool
 	// ReviewRequestedFilter means listing can filter to review-requested
 	// pull requests.

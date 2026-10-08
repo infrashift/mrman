@@ -11,8 +11,8 @@ has been leaned on.
 
 | Level | Forges | What it means |
 |---|---|---|
-| Supported | GitHub, GitHub Enterprise Server, Azure DevOps, GitLab (self-managed) | Exercised end to end against a live instance, not only against recorded API shapes. GitLab: CE 19.3.2, 2026-09-25; gitlab.com not yet. |
-| **Experimental** | Forgejo & Gitea, Codeberg | Implemented and unit-tested, but not yet exercised against a live instance. |
+| Supported | GitHub, GitHub Enterprise Server, Azure DevOps, GitLab (gitlab.com and self-managed), Codeberg | Exercised end to end against a live instance, not only against recorded API shapes. GitLab: CE 19.3.2 on 2026-09-25, gitlab.com on 2026-10-08. Codeberg: Forgejo 16, 2026-10-08. |
+| **Experimental** | Self-hosted Forgejo & Gitea | The Forgejo driver passed against Codeberg; other Forgejo versions, and Gitea, have not been exercised. |
 
 Experimental does **not** mean unfinished — read the table below for what each
 driver actually does, which in Forgejo's case is most of it. It
@@ -88,12 +88,12 @@ mutation, which requires **GitLab 15.11 or newer**. Older instances should use
 
 ### Review summaries
 
-The forge's own review-level bodies, rendered inline above the threads they
-belong to.
+The forge's own review-level bodies, rendered in the overview above the diff.
 
-GitLab and Azure DevOps have no review object to carry one, so there is nothing
-to display. Your *own* review body still posts — as a general MR note on GitLab,
-and as a context-less thread on Azure DevOps.
+GitLab and Azure DevOps have no review object to carry one. mrman shows their
+general, file-less discussions there instead, so review bodies posted by
+anyone, mrman included, appear in the same place: a general MR note on GitLab,
+a context-less thread on Azure DevOps. They carry no review state.
 
 ### Thread resolution and outdated state
 

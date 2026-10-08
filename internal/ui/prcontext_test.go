@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"errors"
+	"math"
 	"strings"
 	"testing"
 
@@ -88,11 +89,14 @@ func TestExpandingAGapInPrModeFetchesThenExpands(t *testing.T) {
 	before := len(m.App.LineAnnotations)
 	runCmd(t, m, m.expandGapAtCursor())
 
-	if f.countCalls != 1 || f.lineCalls != 1 {
+	// One request for the whole file. Asking for the line count first
+	// downloaded the file twice.
+	if f.countCalls != 0 || f.lineCalls != 1 {
 		t.Fatalf("one round trip expected, got count=%d lines=%d", f.countCalls, f.lineCalls)
 	}
-	if f.lastReq.HeadSHA != "headsha" || f.lastReq.Path != "src/x.go" {
-		t.Errorf("fetch request = %+v", f.lastReq)
+	if f.lastReq.HeadSHA != "headsha" || f.lastReq.Path != "src/x.go" ||
+		f.lastReq.StartLine != 1 || f.lastReq.EndLine != math.MaxUint32 {
+		t.Errorf("fetch request = %+v, want the whole file", f.lastReq)
 	}
 	if len(m.App.LineAnnotations) <= before {
 		t.Error("the expansion must be replayed once the snapshot lands")

@@ -179,6 +179,10 @@ func DefaultSaaSHost(kind forgetypes.Kind) string {
 	return ""
 }
 
+// legacyADOSSHHost is the SSH transport host for {org}.visualstudio.com
+// remotes; the organization is the first path segment after "v3".
+const legacyADOSSHHost = "vs-ssh.visualstudio.com"
+
 // builtinKindForHost claims the well-known SaaS hosts.
 func builtinKindForHost(host string) (forgetypes.Kind, bool) {
 	switch host {
@@ -276,8 +280,18 @@ func repoFromSegments(kind forgetypes.Kind, host string, segments []string) (*fo
 // adoRepoFromSegments interprets Azure DevOps remote path shapes:
 // dev.azure.com/{org}/{project}/_git/{repo}, the v3 SSH form
 // {v3}/{org}/{project}/{repo}, and legacy
-// {org}.visualstudio.com/[DefaultCollection/]{project}/_git/{repo}.
+// {org}.visualstudio.com/[DefaultCollection/]{project}/_git/{repo}, whose
+// SSH form is vs-ssh.visualstudio.com:v3/{org}/{project}/{repo}.
 func adoRepoFromSegments(host string, segments []string) (*forgetypes.Repository, bool) {
+	if host == legacyADOSSHHost {
+		if len(segments) == 4 && segments[0] == "v3" {
+			return &forgetypes.Repository{
+				Kind: forgetypes.KindAzureDevOps, Host: segments[1] + ".visualstudio.com",
+				Owner: segments[1], Project: segments[2], Name: segments[3],
+			}, true
+		}
+		return nil, false
+	}
 	if org, ok := strings.CutSuffix(host, ".visualstudio.com"); ok {
 		if len(segments) > 0 && strings.EqualFold(segments[0], "DefaultCollection") {
 			segments = segments[1:]
@@ -422,8 +436,9 @@ func parseBuiltinTargetURL(u *url.URL, original string) (*Target, bool) {
 	}
 	segments := nonEmptySegments(u.Path)
 
-	// GitHub /pull/N and Forgejo /pulls/N.
-	if len(segments) == 4 && (segments[2] == "pull" || segments[2] == "pulls") {
+	// GitHub /pull/N and Forgejo /pulls/N, possibly copied from a tab.
+	if len(segments) >= 4 && (segments[2] == "pull" || segments[2] == "pulls") &&
+		isPRTabSuffix(segments[4:], prTabsGitHub) {
 		number, ok := parsePRNumber(segments[3])
 		if !ok {
 			return nil, false
@@ -439,9 +454,10 @@ func parseBuiltinTargetURL(u *url.URL, original string) (*Target, bool) {
 		}, true
 	}
 
-	// GitLab /group[/sub...]/repo/-/merge_requests/N.
+	// GitLab /group[/sub...]/repo/-/merge_requests/N, possibly copied from
+	// a tab.
 	for i := 2; i+2 < len(segments); i++ {
-		if segments[i] != "-" || segments[i+1] != "merge_requests" || i+3 != len(segments) {
+		if segments[i] != "-" || segments[i+1] != "merge_requests" || !isPRTabSuffix(segments[i+3:], prTabsGitLab) {
 			continue
 		}
 		number, ok := parsePRNumber(segments[i+2])
@@ -465,6 +481,26 @@ func parseBuiltinTargetURL(u *url.URL, original string) (*Target, bool) {
 		return target, true
 	}
 	return nil, false
+}
+
+// PR page tabs whose URLs extend the PR URL by one segment (and, for a
+// commit in the commits tab, its SHA). Azure DevOps selects tabs with a
+// query parameter, which never reaches the path.
+var (
+	prTabsGitHub = map[string]bool{"files": true, "commits": true, "checks": true, "changes": true}
+	prTabsGitLab = map[string]bool{"diffs": true, "commits": true, "pipelines": true}
+)
+
+// isPRTabSuffix reports whether the segments after a PR number are empty or
+// a known tab, optionally followed by one more segment (a commit SHA).
+func isPRTabSuffix(rest []string, tabs map[string]bool) bool {
+	switch len(rest) {
+	case 0:
+		return true
+	case 1, 2:
+		return tabs[rest[0]]
+	}
+	return false
 }
 
 // parseADOTargetURL recognizes dev.azure.com and visualstudio.com PR URLs.
@@ -537,6 +573,25 @@ func parseCoordinateTarget(s string, checkoutRepo *forgetypes.Repository, cfg co
 			kind := defaultKind(cfg)
 			repo = &forgetypes.Repository{Kind: kind, Host: DefaultSaaSHost(kind), Owner: owner, Name: name}
 		}
+	case len(segments) >= 3 && !looksLikeHost(segments[0], cfg):
+		// group/sub/repo or org/project/repo with no host: the checkout's
+		// forge and host, else the default forge's SaaS host. Only GitLab
+		// (subgroups) and Azure DevOps (org/project/repo) have such paths.
+		kind, host := defaultKind(cfg), DefaultSaaSHost(defaultKind(cfg))
+		if checkoutRepo != nil {
+			kind, host = checkoutRepo.Kind, checkoutRepo.Host
+		}
+		segments[len(segments)-1] = stripGitSuffix(segments[len(segments)-1])
+		switch {
+		case kind == forgetypes.KindGitLab:
+			repo = &forgetypes.Repository{Kind: kind, Host: host,
+				Owner: strings.Join(segments[:len(segments)-1], "/"), Name: segments[len(segments)-1]}
+		case kind == forgetypes.KindAzureDevOps && len(segments) == 3:
+			repo = &forgetypes.Repository{Kind: kind, Host: host,
+				Owner: segments[0], Project: segments[1], Name: segments[2]}
+		default:
+			return nil, false
+		}
 	case len(segments) >= 3:
 		host := strings.ToLower(segments[0])
 		kind, known := ResolveHostKind(host, cfg)
@@ -560,6 +615,25 @@ func parseCoordinateTarget(s string, checkoutRepo *forgetypes.Repository, cfg co
 	}
 
 	return &Target{Repository: repo, Number: number, Original: s}, true
+}
+
+// looksLikeHost reports whether a coordinate's first segment names a host
+// rather than a GitLab group or Azure DevOps organization: it has a dot or
+// a port, is localhost, or is a configured host. So
+// "infrashift-group/sub/repo!5" reads as a group path. A GitLab group whose
+// path contains a dot still reads as a host, and needs the host spelled out
+// ("gitlab.com/my.group/repo!5").
+func looksLikeHost(segment string, cfg config.ForgeConfig) bool {
+	host := strings.ToLower(segment)
+	if strings.ContainsAny(host, ".:") || host == "localhost" {
+		return true
+	}
+	for _, entry := range cfg.Hosts {
+		if strings.EqualFold(entry.Host, host) {
+			return true
+		}
+	}
+	return false
 }
 
 func isAllDigits(s string) bool {

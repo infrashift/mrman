@@ -2,6 +2,7 @@ package ui
 
 import (
 	"errors"
+	"math"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -47,19 +48,12 @@ func (m *Model) fetchPrContext(req app.PrContextRequest) tea.Cmd {
 		Status:     req.Status,
 		Side:       req.Side(),
 	}
+	// One request for the whole file: an open-ended range stops at its last
+	// line. Asking FileLineCount first downloaded the file twice.
+	lineReq.StartLine, lineReq.EndLine = 1, math.MaxUint32
 	ctx := m.inflight.root()
 	return func() tea.Msg {
-		count, err := backend.FileLineCount(ctx, lineReq)
-		if err != nil {
-			return prContextResultMsg{Gen: gen, Key: key, Request: req, Err: err}
-		}
-		if count == 0 {
-			return prContextResultMsg{Gen: gen, Key: key, Request: req}
-		}
-		full := lineReq
-		full.StartLine = 1
-		full.EndLine = uint32(count) //nolint:gosec // G115: line numbers fit uint32
-		lines, err := backend.FetchFileLines(ctx, full)
+		lines, err := backend.FetchFileLines(ctx, lineReq)
 		return prContextResultMsg{Gen: gen, Key: key, Request: req, Lines: lines, Err: err}
 	}
 }
@@ -76,7 +70,7 @@ func (m *Model) handlePrContextResult(msg prContextResultMsg) {
 		return // the PR was reloaded or switched underneath the fetch
 	}
 	if msg.Err != nil {
-		a.FailPrContextSnapshot(msg.Request, msg.Err.Error())
+		a.FailPrContextSnapshot(msg.Request, forge.Describe(msg.Err))
 		return
 	}
 	a.ApplyPrContextSnapshot(msg.Request, msg.Lines)

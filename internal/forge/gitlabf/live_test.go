@@ -349,6 +349,9 @@ func (lv *liveMR) comment(t *testing.T) {
 		if th.Line == nil || *th.Line != c.line || th.Side != c.side {
 			t.Errorf("%s: ListReviewThreads reads it back at %v/%s, want %d/%s", c.kind, th.Line, th.Side, c.line, c.side)
 		}
+		if c.start != nil && (th.StartLine == nil || *th.StartLine != *c.start) {
+			t.Errorf("%s: ListReviewThreads reads the range start back as %v, want %d", c.kind, th.StartLine, *c.start)
+		}
 	}
 }
 
@@ -595,6 +598,29 @@ func (lv *liveMR) approve(t *testing.T) {
 	if state := rs.states[lv.viewer]; state != "APPROVED" {
 		t.Errorf("GitLab reports %s's review state %q after approve, want APPROVED", lv.viewer, state)
 	}
+	// The approval reads back as a review record on the head it approved,
+	// which "commits since your last review" keys on. The record comes from
+	// the approval's system note, which GitLab writes asynchronously (about
+	// 7 s after the approval on gitlab.com), so wait for it.
+	approvedAt := func(r forge.ReviewRecord) bool {
+		return r.Author == lv.viewer && r.CommitOID == lv.load.Details.HeadSHA
+	}
+	var meta *forge.ReviewMetadata
+	for start := time.Now(); ; {
+		meta, err = lv.backend.ReviewMetadata(context.Background(), lv.load.Details)
+		if err != nil {
+			t.Fatalf("ReviewMetadata: %v", err)
+		}
+		if slices.ContainsFunc(meta.Reviews, approvedAt) {
+			t.Logf("the approval's review record appeared after %s", time.Since(start).Round(100*time.Millisecond))
+			break
+		}
+		if time.Since(start) > 45*time.Second {
+			t.Errorf("ReviewMetadata has no record of %s's approval at %s: %+v", lv.viewer, lv.load.Details.HeadSHA, meta.Reviews)
+			break
+		}
+		time.Sleep(time.Second)
+	}
 }
 
 // --- L7: a read_api token is refused with the actionable hint ---
@@ -739,15 +765,25 @@ func (lv *liveMR) reviewState(t *testing.T) reviewSnapshot {
 
 // --- diff pickers ---
 
-// modifiedFile is the first modified file and its first hunk: the fixture's
-// anchor for single-line and range comments.
+// modifiedFile is the first modified file with every anchor kind the test
+// comments on (an addition run of two lines, a deletion and a context line)
+// and its first hunk. A fixture may modify other files too, in any order:
+// gitlab.com lists mrman-e2e/edge/café.md, which has no deletion, before
+// mrman-e2e/cache.go.
 func (lv *liveMR) modifiedFile(t *testing.T) (*model.DiffFile, *model.DiffHunk) {
 	t.Helper()
-	f := lv.fileWithStatus(model.StatusModified)
-	if f == nil || len(f.Hunks) == 0 {
-		t.Fatal("the merge request modifies no text file; the fixture must")
+	for i := range lv.load.Files {
+		f := &lv.load.Files[i]
+		if f.Status != model.StatusModified || f.IsBinary || f.IsTooLarge || len(f.Hunks) == 0 {
+			continue
+		}
+		if _, _, run := additionRun(f); run && firstLine(f, model.OriginDeletion) != nil &&
+			firstLine(f, model.OriginContext) != nil {
+			return f, &f.Hunks[0]
+		}
 	}
-	return f, &f.Hunks[0]
+	t.Fatal("no modified file has an addition run, a deletion and a context line; the fixture must")
+	return nil, nil
 }
 
 func (lv *liveMR) fileWithStatus(status model.FileStatus) *model.DiffFile {

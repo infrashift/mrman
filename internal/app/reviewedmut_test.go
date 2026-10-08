@@ -103,7 +103,7 @@ func TestToggleHunkReviewedFoldsBody(t *testing.T) {
 	}) {
 		t.Fatal("second hunk body must still render")
 	}
-	assertEq(t, a.TotalLines(), len(a.LineAnnotations), "heights stay in lockstep")
+	assertEq(t, a.renderedHeight(), len(a.LineAnnotations), "heights stay in lockstep")
 }
 
 func TestToggleKeepsFileAndHunkReviewedIndependent(t *testing.T) {

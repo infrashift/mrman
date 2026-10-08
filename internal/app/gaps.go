@@ -123,6 +123,18 @@ func (noContextProvider) FileLineCount(_, _ *string, _ model.FileStatus) (uint32
 // CanExpand is false.
 func (noContextProvider) CanExpand() bool { return false }
 
+// GapRemaining is how many lines of a gap are still hidden: its size less
+// the lines already expanded from either end. This, not the gap size, is
+// what an expander can still reveal.
+func (a *App) GapRemaining(gapID GapID) (uint32, bool) {
+	size, ok := a.GapSize(gapID)
+	if !ok {
+		return 0, false
+	}
+	expanded := len(a.ExpandedTop[gapID]) + len(a.ExpandedBottom[gapID])
+	return uint32(satSub(int(size), expanded)), true //nolint:gosec // G115: bounded by size, a uint32
+}
+
 // GapSize is the number of hidden lines in a gap (new-side coordinates).
 func (a *App) GapSize(gapID GapID) (uint32, bool) {
 	if gapID.FileIdx >= len(a.DiffFiles) {
@@ -349,6 +361,12 @@ func (a *App) GetExpandedLine(gapID GapID, idx int) *model.DiffLine {
 // ExpandGap expands a gap in the given direction. If limit is non-nil, up
 // to *limit lines are revealed; nil expands all remaining.
 func (a *App) ExpandGap(gapID GapID, direction ExpandDirection, limit *int) error {
+	if limit != nil && *limit <= 0 {
+		// Nothing to fetch. Left to the arithmetic below, a zero limit
+		// wrapped to 2^32-1 and fetched the whole gap upwards (or one line
+		// downwards).
+		return nil
+	}
 	// Ensure the file line count is cached for EOF gaps.
 	a.ensureFileLineCountCached(gapID.FileIdx)
 
@@ -438,16 +456,19 @@ func (a *App) ExpandGap(gapID GapID, direction ExpandDirection, limit *int) erro
 	return nil
 }
 
-// refCommit is the commit context expansion reads from: the newest commit
-// of a commit-range review, nil (worktree/index) otherwise.
-//
-// M4 hook: once the inline commit selector lands, a narrowed selection
-// resolves to the newest selected commit instead.
+// refCommit is the snapshot context expansion reads the new side from: the
+// newest commit of a commit-range review, the index for a staged-only
+// review, and nil (the working tree) otherwise. Reading the working tree for
+// a staged review showed unstaged edits as context, numbered as if staged.
 func (a *App) refCommit() *string {
-	if a.DiffSource.Kind == DiffSourceCommitRange {
+	switch a.DiffSource.Kind {
+	case DiffSourceCommitRange:
 		if n := len(a.DiffSource.Commits); n > 0 {
 			return &a.DiffSource.Commits[n-1]
 		}
+	case DiffSourceStaged:
+		index := vcs.IndexRef
+		return &index
 	}
 	return nil
 }
@@ -479,7 +500,7 @@ func (a *App) CollapseGap(gapID GapID) {
 func (a *App) ClearExpandedGaps() {
 	a.ExpandedTop = map[GapID][]model.DiffLine{}
 	a.ExpandedBottom = map[GapID][]model.DiffLine{}
-	a.FileLineCountCache = map[int]uint32{}
+	a.FileLineCountCache = nil // refilled on the next rebuild
 }
 
 // eofGapEnabled reports whether end-of-file gap expansion is meaningful for

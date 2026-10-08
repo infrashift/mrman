@@ -2,9 +2,12 @@ package azdof
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/infrashift/mrman/internal/forge"
 	"github.com/infrashift/mrman/internal/model"
@@ -16,7 +19,7 @@ const diffChangesJSON = `{
 	"changeEntries": [
 		{"changeTrackingId": 1, "changeType": "edit", "item": {"path": "/src/main.go"}},
 		{"changeTrackingId": 2, "changeType": "add", "item": {"path": "/added.txt"}},
-		{"changeTrackingId": 3, "changeType": "delete", "item": {"path": "/removed.txt"}},
+		{"changeTrackingId": 3, "changeType": "delete", "originalPath": "/removed.txt", "item": {"path": null}},
 		{"changeTrackingId": 4, "changeType": "rename, edit", "originalPath": "/old/name.txt", "item": {"path": "/new/name.txt"}},
 		{"changeTrackingId": 5, "changeType": "edit", "item": {"path": "/img.bin"}},
 		{"changeTrackingId": 6, "changeType": "edit", "item": {"path": "/dir", "isFolder": true}}
@@ -229,4 +232,53 @@ func TestGetDiffBlobError(t *testing.T) {
 	}))
 	_, err := d.GetDiff(context.Background(), testPR())
 	wantForgeErr(t, err, forge.ErrorNotFound)
+}
+
+// TestGetDiffFetchesFilesConcurrentlyInOrder: blob pairs used to be fetched
+// one file after another. They now overlap, bounded, and the synthesized
+// diff still lists files in the iteration's order.
+func TestGetDiffFetchesFilesConcurrentlyInOrder(t *testing.T) {
+	const n = 12
+	var entries []string
+	for i := range n {
+		entries = append(entries, fmt.Sprintf(`{"changeTrackingId": %d, "changeType": "add", "item": {"path": "/f%02d.txt"}}`, i+1, i))
+	}
+	changes := `{"changeEntries": [` + strings.Join(entries, ",") + `], "nextSkip": 0}`
+	var inFlight, peak atomic.Int32
+	d := newTestDriver(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case changesPath:
+			writeJSON(w, http.StatusOK, changes)
+		case itemsPath:
+			now := inFlight.Add(1)
+			for {
+				if old := peak.Load(); now <= old || peak.CompareAndSwap(old, now) {
+					break
+				}
+			}
+			time.Sleep(20 * time.Millisecond)
+			inFlight.Add(-1)
+			w.Header().Set("Content-Type", "application/octet-stream")
+			_, _ = w.Write([]byte(r.URL.Query().Get("path") + "\n"))
+		case iterationsPath:
+			writeJSON(w, http.StatusOK, iterationsJSON)
+		default:
+			t.Errorf("unexpected call %s %s", r.Method, r.URL)
+		}
+	}))
+	diff, err := d.GetDiff(context.Background(), testPR())
+	if err != nil {
+		t.Fatalf("GetDiff: %v", err)
+	}
+	if p := peak.Load(); p < 2 || p > blobFetchConcurrency {
+		t.Errorf("peak concurrent fetches = %d, want 2..%d", p, blobFetchConcurrency)
+	}
+	last := -1
+	for i := range n {
+		at := strings.Index(diff, fmt.Sprintf("diff --git a/f%02d.txt", i))
+		if at < 0 || at < last {
+			t.Fatalf("file f%02d.txt missing or out of order in:\n%s", i, diff)
+		}
+		last = at
+	}
 }

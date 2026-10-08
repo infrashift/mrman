@@ -3,6 +3,7 @@ package input
 import (
 	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
 // CommandKind enumerates the `:` commands, ported from tuicr's COMMAND_SPECS.
@@ -28,6 +29,7 @@ const (
 	CmdAgentStatus
 	CmdAgentOff
 	CmdSetWrap
+	CmdSetNoWrap
 	CmdToggleWrap
 	CmdToggleVim
 	CmdSetVim
@@ -88,6 +90,7 @@ var commandSpecs = []struct {
 	{"agent", CmdAgentStatus},
 	{"agent off", CmdAgentOff},
 	{"set wrap", CmdSetWrap},
+	{"set nowrap", CmdSetNoWrap},
 	{"set wrap!", CmdToggleWrap}, {"wrap", CmdToggleWrap},
 	{"vim", CmdToggleVim}, {"set vim!", CmdToggleVim},
 	{"set vim", CmdSetVim},
@@ -215,7 +218,8 @@ func longestCommonPrefix(items []string) string {
 	prefix := items[0]
 	for _, item := range items[1:] {
 		for !strings.HasPrefix(item, prefix) {
-			prefix = prefix[:len(prefix)-1]
+			_, size := utf8.DecodeLastRuneInString(prefix)
+			prefix = prefix[:len(prefix)-size]
 			if prefix == "" {
 				return ""
 			}

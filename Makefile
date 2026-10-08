@@ -47,8 +47,11 @@ check-charmkit: ## Vet, lint and test the nested charmkit module
 test-race: ## Run tests with the race detector
 	go test -race ./...
 
+# -coverpkg counts a statement as covered when any package's tests run it:
+# much of app is exercised through ui's tests, which per-package coverage
+# reported as uncovered.
 cover: ## Run tests with coverage profile
-	go test -coverprofile=$(COVER_FILE) -covermode=atomic ./...
+	go test -coverpkg=./internal/...,. -coverprofile=$(COVER_FILE) -covermode=atomic ./...
 	go tool cover -func=$(COVER_FILE) | tail -1
 
 cover-html: cover ## Open HTML coverage report

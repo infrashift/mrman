@@ -481,7 +481,7 @@ func (p *DiffPane) expanderRow(a *app.App, ann *app.AnnotatedLine, ind render.Sp
 	case app.ExpandUp:
 		arrow = "↑"
 	}
-	remaining, _ := a.GapSize(ann.GapID)
+	remaining, _ := a.GapRemaining(ann.GapID)
 	count := min(int(remaining), app.GapExpandBatch)
 	return render.LogicalLine{Kind: render.RowExpander, Spans: []render.Span{
 		ind,

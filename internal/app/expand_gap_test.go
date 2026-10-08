@@ -447,7 +447,7 @@ func TestShouldShowEndOfFileExpander(t *testing.T) {
 	})
 	assertEq(t, hiddenCount, 1, "should show hidden lines count")
 
-	assertEq(t, a.TotalLines(), len(a.LineAnnotations),
+	assertEq(t, a.renderedHeight(), len(a.LineAnnotations),
 		"file render height sum must match annotation count")
 }
 
@@ -525,7 +525,7 @@ func TestTotalLinesMustMatchAnnotationsWithEofGaps(t *testing.T) {
 	}
 	a := buildAppWithFiles(files, 100)
 
-	assertEq(t, a.TotalLines(), len(a.LineAnnotations),
+	assertEq(t, a.renderedHeight(), len(a.LineAnnotations),
 		"TotalLines must equal len(LineAnnotations)")
 }
 
@@ -546,5 +546,42 @@ func TestShouldNotShowEofGapForDeletedFiles(t *testing.T) {
 	})
 	assertEq(t, expanderCount, 0, "deleted files should not have EOF expander")
 
-	assertEq(t, a.TotalLines(), len(a.LineAnnotations), "total lines must match annotations")
+	assertEq(t, a.renderedHeight(), len(a.LineAnnotations), "total lines must match annotations")
+}
+
+// TestGapRemainingCountsWhatIsStillHidden: the expander label promised the
+// whole gap ("expand (20 lines)") after part of it was already shown, and
+// the merged expander could promise 20 lines and reveal 5.
+func TestGapRemainingCountsWhatIsStillHidden(t *testing.T) {
+	file := makeFileWithHunks("test.rs", []model.DiffHunk{makeHunk(1, 5), makeHunk(36, 5)})
+	a := buildAppWithFiles([]model.DiffFile{file}, 100)
+	gapID := GapID{FileIdx: 0, HunkIdx: 1}
+	size, _ := a.GapSize(gapID)
+
+	if err := a.ExpandGap(gapID, ExpandDown, new(20)); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.ExpandGap(gapID, ExpandUp, new(5)); err != nil {
+		t.Fatal(err)
+	}
+	remaining, ok := a.GapRemaining(gapID)
+	if !ok || remaining != size-25 {
+		t.Fatalf("GapRemaining = %d, %v; want %d (size %d less 25 shown)", remaining, ok, size-25, size)
+	}
+}
+
+// TestExpandGapWithAZeroLimitFetchesNothing: a zero limit wrapped around in
+// the unsigned arithmetic and expanded the whole gap upwards.
+func TestExpandGapWithAZeroLimitFetchesNothing(t *testing.T) {
+	file := makeFileWithHunks("test.rs", []model.DiffHunk{makeHunk(1, 5), makeHunk(50, 5)})
+	a := buildAppWithFiles([]model.DiffFile{file}, 100)
+	gapID := GapID{FileIdx: 0, HunkIdx: 1}
+	for _, dir := range []ExpandDirection{ExpandUp, ExpandDown} {
+		if err := a.ExpandGap(gapID, dir, new(0)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if n := len(a.ExpandedTop[gapID]) + len(a.ExpandedBottom[gapID]); n != 0 {
+		t.Fatalf("a zero limit expanded %d lines", n)
+	}
 }

@@ -296,6 +296,10 @@ func (a *App) ApplySubmitSuccess(result *forge.SubmitResult, event forge.SubmitE
 // midway — only the comments the forge names as posted lock, plus the
 // review body, which both drivers post first and fail outright on; the
 // rest stay drafts so a second submit can carry them.
+//
+// The body includes every unplaced comment the resolver moved to the
+// summary, so those lock with it; a resolver item the user omitted was not
+// sent and stays a draft.
 func (a *App) ApplySubmitResult(result *forge.SubmitResult, event forge.SubmitEvent) SubmitOutcome {
 	state := model.LifecycleSubmitted
 	if event == forge.SubmitDraft {
@@ -318,6 +322,9 @@ func (a *App) ApplySubmitResult(result *forge.SubmitResult, event forge.SubmitEv
 	}
 	for _, c := range a.Submit.ReviewComments {
 		sent[c.ID] = true
+	}
+	for _, item := range a.Submit.MovedToSummary() {
+		sent[item.Comment.ID] = true
 	}
 	lock := func(c *model.Comment) {
 		if sent[c.ID] {

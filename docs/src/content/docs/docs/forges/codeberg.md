@@ -5,10 +5,16 @@ sidebar:
   order: 6
 ---
 
-:::caution[Experimental]
-Codeberg is served by the Forgejo driver, which is implemented and unit-tested
-but has not yet been exercised against a live instance the way the GitHub one
-has. See [support levels](../../reference/forge-capabilities/#support-levels).
+:::note[Verified against Codeberg]
+The Forgejo driver was exercised end to end against Codeberg (Forgejo
+16.0.0-dev) on 2026-10-08. The run covered browsing a merge request,
+expanding context, posting inline comments and a review body, a draft
+(pending) review, existing threads and review bodies rendering, and an agent
+submitting through the grant. Every outcome was read back from Codeberg. On
+your own merge request, Forgejo refuses an approval or a request for changes
+("approve your own pull is not allowed"), and mrman shows that refusal;
+voting on someone else's merge request was not exercised. See [support
+levels](../../reference/forge-capabilities/#support-levels).
 :::
 
 [Codeberg](https://codeberg.org) is a public Forgejo instance, and mrman claims
@@ -19,6 +25,11 @@ and go.
 
 Generate a token under *Settings → Applications → Access Tokens* with
 **repository** read and write permission, then:
+
+- add **issue** read for the review-requested filter (`r` in the merge-request
+  list);
+- add **user** read for "commits since your last review", which needs to know
+  who you are. Without it the review still works, only that shortcut is off.
 
 ```sh
 export FORGEJO_TOKEN=...

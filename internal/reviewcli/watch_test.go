@@ -49,6 +49,87 @@ func runWatch(t *testing.T, store *persistence.Store, path string, w WatchOption
 	return events
 }
 
+// liveWatch runs Watch in the background and hands the test each event as
+// the watcher writes it, so a test acts on what the watcher has seen rather
+// than sleeping and hoping it has polled.
+type liveWatch struct {
+	events   chan WatchEvent
+	done     chan struct{}
+	finished chan error
+	seen     []WatchEvent
+}
+
+// eventWriter decodes each Write, which json.Encoder makes once per event.
+type eventWriter struct{ events chan<- WatchEvent }
+
+func (w eventWriter) Write(p []byte) (int, error) {
+	var ev WatchEvent
+	if err := json.Unmarshal(p, &ev); err != nil {
+		return 0, err
+	}
+	w.events <- ev
+	return len(p), nil
+}
+
+func startWatch(t *testing.T, store *persistence.Store, path string) *liveWatch {
+	t.Helper()
+	lw := &liveWatch{
+		events:   make(chan WatchEvent, 64),
+		done:     make(chan struct{}),
+		finished: make(chan error, 1),
+	}
+	w := WatchOptions{Interval: 5 * time.Millisecond, Done: lw.done}
+	go func() { lw.finished <- Watch(store, Options{Session: path}, w, eventWriter{lw.events}) }()
+	t.Cleanup(lw.close)
+	return lw
+}
+
+// await returns the next event of kind want, recording everything before it.
+func (lw *liveWatch) await(t *testing.T, want string) WatchEvent {
+	t.Helper()
+	deadline := time.After(10 * time.Second)
+	for {
+		select {
+		case ev := <-lw.events:
+			lw.seen = append(lw.seen, ev)
+			if ev.Event == want {
+				return ev
+			}
+		case <-deadline:
+			t.Fatalf("no %s event; saw %v", want, eventNames(lw.seen))
+		}
+	}
+}
+
+// finish waits for the watcher to end on its own and returns every event.
+func (lw *liveWatch) finish(t *testing.T) []WatchEvent {
+	t.Helper()
+	select {
+	case err := <-lw.finished:
+		if err != nil {
+			t.Fatalf("watch: %v", err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("the watch did not end")
+	}
+	for {
+		select {
+		case ev := <-lw.events:
+			lw.seen = append(lw.seen, ev)
+		default:
+			return lw.seen
+		}
+	}
+}
+
+func (lw *liveWatch) close() {
+	select {
+	case <-lw.done:
+	default:
+		close(lw.done)
+	}
+}
+
 func TestWatchOpensWithASnapshot(t *testing.T) {
 	store, session, path := watchSession(t)
 	session.ReviewComments = append(session.ReviewComments,
@@ -68,37 +149,24 @@ func TestWatchOpensWithASnapshot(t *testing.T) {
 
 func TestWatchEmitsAddedAndRemoved(t *testing.T) {
 	store, session, path := watchSession(t)
+	lw := startWatch(t, store, path)
+	lw.await(t, WatchSnapshot)
 
-	// Add one comment shortly after the watch starts, then delete it.
 	added := model.NewComment("appears", model.CommentTypeFromID("note"), nil)
-	go func() {
-		time.Sleep(20 * time.Millisecond)
-		session.ReviewComments = append(session.ReviewComments, added)
-		_, _ = store.SaveSession(session)
-		time.Sleep(30 * time.Millisecond)
-		session.ReviewComments = nil
-		_, _ = store.SaveSession(session)
-	}()
+	session.ReviewComments = append(session.ReviewComments, added)
+	if _, err := store.SaveSession(session); err != nil {
+		t.Fatal(err)
+	}
+	if ev := lw.await(t, WatchCommentAdded); ev.Comment == nil || ev.Comment.Content != "appears" {
+		t.Errorf("comment_added = %+v, want the new comment", ev.Comment)
+	}
 
-	events := runWatch(t, store, path, WatchOptions{Timeout: 250 * time.Millisecond})
-	var sawAdd, sawRemove bool
-	for _, ev := range events {
-		switch ev.Event {
-		case WatchCommentAdded:
-			if ev.Comment != nil && ev.Comment.Content == "appears" {
-				sawAdd = true
-			}
-		case WatchCommentRemoved:
-			if ev.ID == added.ID {
-				sawRemove = true
-			}
-		}
+	session.ReviewComments = nil
+	if _, err := store.SaveSession(session); err != nil {
+		t.Fatal(err)
 	}
-	if !sawAdd {
-		t.Errorf("a new comment must produce comment_added, got %+v", eventNames(events))
-	}
-	if !sawRemove {
-		t.Errorf("a deleted comment must produce comment_removed, got %+v", eventNames(events))
+	if ev := lw.await(t, WatchCommentRemoved); ev.ID != added.ID {
+		t.Errorf("comment_removed id = %q, want %q", ev.ID, added.ID)
 	}
 }
 
@@ -115,17 +183,24 @@ func TestWatchDoesNotChurnOnUnchangedComments(t *testing.T) {
 	if _, err := store.SaveSession(session); err != nil {
 		t.Fatal(err)
 	}
+	lw := startWatch(t, store, path)
+	lw.await(t, WatchSnapshot)
 
-	// Touch the file repeatedly without changing its content.
-	go func() {
-		for range 3 {
-			time.Sleep(15 * time.Millisecond)
-			_, _ = store.SaveSession(session)
+	// Rewrite the file without changing it, then add a marker comment: once
+	// the marker's comment_added arrives, the watcher has polled past every
+	// rewrite.
+	for range 3 {
+		if _, err := store.SaveSession(session); err != nil {
+			t.Fatal(err)
 		}
-	}()
-
-	events := runWatch(t, store, path, WatchOptions{Timeout: 120 * time.Millisecond})
-	for _, ev := range events {
+	}
+	session.ReviewComments = append(session.ReviewComments,
+		model.NewComment("marker", model.CommentTypeFromID("note"), nil))
+	if _, err := store.SaveSession(session); err != nil {
+		t.Fatal(err)
+	}
+	lw.await(t, WatchCommentAdded)
+	for _, ev := range lw.seen {
 		if ev.Event == WatchCommentChanged {
 			t.Errorf("an unchanged comment must not emit comment_changed: %+v", ev.Comment)
 		}
@@ -139,14 +214,14 @@ func TestWatchEndsOnSubmit(t *testing.T) {
 	if _, err := store.SaveSession(session); err != nil {
 		t.Fatal(err)
 	}
+	lw := startWatch(t, store, path)
+	lw.await(t, WatchSnapshot)
 
-	go func() {
-		time.Sleep(20 * time.Millisecond)
-		c.LifecycleState = model.LifecycleSubmitted
-		_, _ = store.SaveSession(session)
-	}()
-
-	events := runWatch(t, store, path, WatchOptions{Timeout: 300 * time.Millisecond})
+	c.LifecycleState = model.LifecycleSubmitted
+	if _, err := store.SaveSession(session); err != nil {
+		t.Fatal(err)
+	}
+	events := lw.finish(t)
 	last := events[len(events)-1]
 	if last.Event != WatchSubmitted {
 		t.Fatalf("the stream must end on submitted, got %v", eventNames(events))
@@ -167,13 +242,11 @@ func TestWatchTimesOut(t *testing.T) {
 
 func TestWatchClosesOnCancel(t *testing.T) {
 	store, _, path := watchSession(t)
-	done := make(chan struct{})
-	go func() {
-		time.Sleep(20 * time.Millisecond)
-		close(done)
-	}()
+	lw := startWatch(t, store, path)
+	lw.await(t, WatchSnapshot)
 
-	events := runWatch(t, store, path, WatchOptions{Done: done, Timeout: time.Second})
+	lw.close()
+	events := lw.finish(t)
 	last := events[len(events)-1]
 	if last.Event != WatchClosed || last.Reason != ClosedCanceled {
 		t.Errorf("expected closed/canceled, got %+v", last)
@@ -247,11 +320,13 @@ func TestWatchReportsTUIExitOnlyAsATransition(t *testing.T) {
 	if err := store.MarkSessionActive(session, path); err != nil {
 		t.Fatal(err)
 	}
-	go func() {
-		time.Sleep(30 * time.Millisecond)
-		_ = store.ClearActiveSessionForPid()
-	}()
-	events := runWatch(t, store, path, WatchOptions{Timeout: 2 * time.Second})
+	lw := startWatch(t, store, path)
+	lw.await(t, WatchSnapshot)
+
+	if err := store.ClearActiveSessionForPid(); err != nil {
+		t.Fatal(err)
+	}
+	events := lw.finish(t)
 	last := events[len(events)-1]
 	if last.Event != WatchClosed || last.Reason != ClosedTUIExited {
 		t.Fatalf("watch ended with %+v, want tui_exited", last)

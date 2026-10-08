@@ -1,6 +1,12 @@
 package drivers
 
 import (
+	"context"
+	"encoding/base64"
+	"net/http"
+	"net/http/httptest"
+	"slices"
+	"sync"
 	"testing"
 
 	"github.com/infrashift/mrman/internal/forge"
@@ -39,5 +45,80 @@ func TestEveryForgeKindHasADriver(t *testing.T) {
 		if f.ID() != kind {
 			t.Errorf("%s driver reports kind %s", kind, f.ID())
 		}
+	}
+}
+
+// TestADOOrgURL: a legacy {org}.visualstudio.com host already names the
+// organization, so repeating it in the path made the API read it as a
+// project and fail every call.
+func TestADOOrgURL(t *testing.T) {
+	repo := forgetypes.Repository{Kind: forgetypes.KindAzureDevOps, Owner: "myorg", Project: "p", Name: "r"}
+	cases := []struct {
+		cfg  forge.HostConfig
+		want string
+	}{
+		{forge.HostConfig{Host: "dev.azure.com"}, "https://dev.azure.com/myorg"},
+		{forge.HostConfig{Host: "myorg.visualstudio.com"}, "https://myorg.visualstudio.com"},
+		{forge.HostConfig{Host: "ado.corp.example", APIBase: "https://ado.corp.example/tfs/Coll"},
+			"https://ado.corp.example/tfs/Coll"},
+	}
+	for _, tc := range cases {
+		if got := adoOrgURL(tc.cfg, repo); got != tc.want {
+			t.Errorf("adoOrgURL(%s) = %q, want %q", tc.cfg.Host, got, tc.want)
+		}
+	}
+}
+
+// TestEveryDriverSendsItsToken: a driver built through the registry must
+// put the host's token on its requests, in its forge's own scheme. Nothing
+// else checked the wiring between HostConfig.Token and the SDK clients.
+func TestEveryDriverSendsItsToken(t *testing.T) {
+	const token = "s3cr3t-token"
+	basic := "Basic " + base64.StdEncoding.EncodeToString([]byte(":"+token))
+	for kind, want := range map[forgetypes.Kind][]string{
+		forgetypes.KindGitHub:      {"Bearer " + token},
+		forgetypes.KindGitLab:      {token}, // PRIVATE-TOKEN header
+		forgetypes.KindAzureDevOps: {basic},
+		forgetypes.KindForgejo:     {"token " + token},
+	} {
+		t.Run(string(kind), func(t *testing.T) {
+			var mu sync.Mutex
+			var seen []string
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				mu.Lock()
+				seen = append(seen, r.Header.Get("Authorization"), r.Header.Get("PRIVATE-TOKEN"))
+				mu.Unlock()
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusNotFound)
+				_, _ = w.Write([]byte(`{"message":"not found"}`))
+			}))
+			t.Cleanup(srv.Close)
+
+			d, _ := forge.DriverFor(kind)
+			hc := forge.HostConfig{Host: "forge.test", Kind: kind, Token: token, APIBase: srv.URL}
+			repo := forgetypes.Repository{Kind: kind, Host: "forge.test", Owner: "org", Project: "proj", Name: "repo"}
+			var f forge.Forge
+			var err error
+			if d.NewForRepo != nil {
+				f, err = d.NewForRepo(hc, repo)
+			} else {
+				f, err = d.New(hc)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, _ = f.GetPullRequest(context.Background(), forge.Target{Repository: &repo, Number: 1})
+
+			mu.Lock()
+			defer mu.Unlock()
+			if len(seen) == 0 {
+				t.Fatal("the driver made no request")
+			}
+			for _, w := range want {
+				if !slices.Contains(seen, w) {
+					t.Errorf("no request carried %q; saw headers %q", w, seen)
+				}
+			}
+		})
 	}
 }

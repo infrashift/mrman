@@ -4,6 +4,8 @@
 package drivers
 
 import (
+	"strings"
+
 	"context"
 	"net/http"
 
@@ -78,12 +80,8 @@ func init() {
 			if err != nil {
 				return nil, err
 			}
-			orgURL := cfg.APIBase
-			if orgURL == "" {
-				orgURL = "https://" + cfg.Host + "/" + repo.Owner
-			}
 			return azdof.New(azdof.Options{
-				OrgURL:     orgURL,
+				OrgURL:     adoOrgURL(cfg, repo),
 				Project:    repo.Project,
 				Repo:       repo.Name,
 				HTTPClient: client,
@@ -111,4 +109,18 @@ func init() {
 			})
 		},
 	})
+}
+
+// adoOrgURL is the organization URL an Azure DevOps client binds to:
+// api_base when configured, https://{org}.visualstudio.com for a legacy
+// host (the organization is the subdomain, so the path must not repeat it),
+// and https://{host}/{org} otherwise.
+func adoOrgURL(cfg forge.HostConfig, repo forgetypes.Repository) string {
+	if cfg.APIBase != "" {
+		return cfg.APIBase
+	}
+	if strings.HasSuffix(strings.ToLower(cfg.Host), ".visualstudio.com") {
+		return "https://" + cfg.Host
+	}
+	return "https://" + cfg.Host + "/" + repo.Owner
 }

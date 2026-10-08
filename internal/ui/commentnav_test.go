@@ -140,3 +140,29 @@ func TestCommentPeekOverlayRendersContextAndComment(t *testing.T) {
 		t.Error("peeking must not unmark the file as reviewed")
 	}
 }
+
+// TestCommentPeekOnAShortTerminalDoesNotPanic: the peek panel is at least
+// three rows (two borders and a line) however little room there is, and on
+// a terminal of six rows or fewer that overran the diff pane and panicked
+// on a negative slice index.
+func TestCommentPeekOnAShortTerminalDoesNotPanic(t *testing.T) {
+	_, m := testLifecycle(t)
+	moveToDiffLine(t, m)
+	pressRune(m, 'c')
+	for _, r := range "short" {
+		pressRune(m, r)
+	}
+	press(m, "", tea.KeyEnter, 0)
+	pressRune(m, 'r') // fold the file: the peek is for comments it hides
+	m.App.FocusPanel(app.PanelComments)
+	m.App.CommentNav.Cursor = 0
+	m.App.CommentNavSelect()
+	if m.App.CommentPeek == nil {
+		t.Fatal("setup: the peek panel did not open")
+	}
+	for h := 1; h <= 8; h++ {
+		m.width, m.height = 100, h
+		m.syncViewport()
+		_ = viewString(m) // must not panic
+	}
+}

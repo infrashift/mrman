@@ -246,16 +246,22 @@ You selected the `0/N` cover letter on its own. It is a row in the commit strip
 like any other, but it holds the series' prose rather than a change. Read it
 there, or select it together with a patch that does carry a diff.
 
-## `go install` fails, or `GOWORK=off go build` fails
+## `go install` fails
 
-Expected until the first release. mrman keeps three reusable layers in a nested
-`charmkit` module; `go.work` is committed so every clone builds, but `go install`
-ignores workspaces and `go.mod` cannot require a `charmkit` version that has
-never been tagged.
+While the repository is private, the Go module proxy and checksum database
+cannot see it. Tell Go to fetch it directly, and make sure git can
+authenticate to GitHub:
 
-Build from a checkout (`make build` or `make install`) in the meantime. After the
-first release this must pass — it is treated as a release blocker, not a
-local-setup problem. See [Contributing](../contributing/).
+```sh
+gh auth setup-git
+GOPRIVATE=github.com/infrashift go install github.com/infrashift/mrman@latest
+```
+
+A `410 Gone` or `verifying module: ... not found` error means `GOPRIVATE` is
+not set; `could not read Username for 'https://github.com'` means git has no
+credentials. `GOWORK=off go build ./...` in a checkout needs the same
+setting. It resolves the tagged `charmkit` module, and CI checks it on every
+change. See [Contributing](../contributing/).
 
 ## Something else
 

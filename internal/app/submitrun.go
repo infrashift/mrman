@@ -60,20 +60,14 @@ func SubmitRequest(a *App, body string) forge.CreateReviewRequest {
 	}
 }
 
-// SubmitReview posts the prepared review and applies the outcome to the
-// session, locking every comment that was sent.
+// SubmitReviewOutcome posts the prepared review, applies the result to the
+// session (locking what the forge accepted), and reports the outcome, so a
+// headless caller can tell a partial post from a complete one.
 //
-// This is the synchronous whole-operation form, for callers with no event
-// loop. The TUI does not use it: it needs the call to happen inside a
-// tea.Cmd so the interface stays responsive, and it needs the staleness
-// guard that only makes sense when the user can navigate mid-flight.
-func SubmitReview(a *App, templatePath string) (*forge.SubmitResult, []string, error) {
-	result, _, warnings, err := SubmitReviewOutcome(a, templatePath)
-	return result, warnings, err
-}
-
-// SubmitReviewOutcome is SubmitReview plus the outcome of applying the
-// result, so a headless caller can tell a partial post from a complete one.
+// This is the synchronous form, for callers with no event loop. The TUI
+// does not use it: it runs the call inside a tea.Cmd so the interface stays
+// responsive, behind a staleness guard that only matters when the user can
+// navigate mid-flight.
 func SubmitReviewOutcome(a *App, templatePath string) (*forge.SubmitResult, SubmitOutcome, []string, error) {
 	body, warnings, err := BuildReviewBody(a, templatePath)
 	if err != nil {

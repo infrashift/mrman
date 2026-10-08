@@ -108,7 +108,7 @@ func TestMigrateStampsVersionAndIsIdempotent(t *testing.T) {
 	if err := store.maybeMigrate(); err != nil {
 		t.Fatal(err)
 	}
-	manifest := loadManifestOrDefault(store.ReviewsDir)
+	manifest := mustLoadManifest(t, store)
 	if manifest.Version != ManifestVersion {
 		t.Fatalf("manifest version = %q, want %q", manifest.Version, ManifestVersion)
 	}
@@ -142,7 +142,7 @@ func TestMigrateRewritesManifestPaths(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	manifest := loadManifestOrDefault(store.ReviewsDir)
+	manifest := mustLoadManifest(t, store)
 	if manifest.Len() != 1 {
 		t.Fatalf("manifest entries = %d, want 1", manifest.Len())
 	}
@@ -183,7 +183,7 @@ func TestMigrateHandlesMultipleSessions(t *testing.T) {
 			t.Errorf("file %s was not renamed", entry.Name())
 		}
 	}
-	if got := loadManifestOrDefault(store.ReviewsDir).Len(); got != 3 {
+	if got := mustLoadManifest(t, store).Len(); got != 3 {
 		t.Errorf("manifest entries = %d, want 3", got)
 	}
 }
@@ -201,7 +201,7 @@ func TestMigrateSkipsUnreadableFiles(t *testing.T) {
 	if !fileExists(t, junk) {
 		t.Error("an unreadable file should be left alone, not deleted")
 	}
-	if got := loadManifestOrDefault(store.ReviewsDir).Len(); got != 1 {
+	if got := mustLoadManifest(t, store).Len(); got != 1 {
 		t.Errorf("manifest entries = %d, want 1 (the readable session)", got)
 	}
 }
@@ -213,7 +213,7 @@ func TestFreshStoreNeedsNoMigration(t *testing.T) {
 	path := mustSave(t, store,
 		makeLocalSession(t, makeRepo(t), "abc1234", new("main"), model.SourceWorkingTree, nil))
 
-	manifest := loadManifestOrDefault(store.ReviewsDir)
+	manifest := mustLoadManifest(t, store)
 	if manifest.Version != ManifestVersion {
 		t.Errorf("a fresh store should write the current version, got %q", manifest.Version)
 	}

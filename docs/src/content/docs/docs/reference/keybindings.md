@@ -123,7 +123,8 @@ existing comments; mrman says so rather than silently doing nothing.
 | `]` / `[` | Extend the selection by a whole hunk |
 | `c` / `Enter` | Comment on the range |
 | `y` | Copy the selection |
-| `Esc` / `v` / `V` / `q` | Cancel |
+| `Esc` / `v` / `V` | Cancel |
+| `q` | Quit mrman, as in normal mode (tuicr parity) |
 
 `]` grows the selection to the end of the hunk you are in, then to the end of
 each hunk after it; `[` does the same backwards. They stop on real diff lines
@@ -138,9 +139,9 @@ comment to. Neither takes a count prefix — nothing in visual mode does.
 | `Shift-Enter`, `Alt-Enter`, `Ctrl-j`, `Ctrl-k` | Newline |
 | `Tab` / `Shift-Tab` | Cycle the comment type |
 | `Esc` | Cancel |
-| `Ctrl-a` / `Ctrl-e`, `Home` / `End` | Line start / end |
-| `Alt-b` / `Alt-f`, `Alt-←` / `Alt-→` | Word left / right |
-| `Ctrl-w`, `Alt-Backspace` | Delete the previous word |
+| `Ctrl-a` / `Ctrl-e`, `Home` / `End`, `Cmd-←` / `Cmd-→` | Line start / end |
+| `Alt-b` / `Alt-f`, `Alt-←` / `Alt-→`, `Ctrl-←` / `Ctrl-→` | Word left / right |
+| `Ctrl-w`, `Alt-Backspace`, `Cmd-Backspace` | Delete the previous word |
 | `Ctrl-u` | Clear the line |
 
 The several newline aliases exist because terminals disagree: `Shift-Enter`
@@ -188,6 +189,41 @@ listed, with the reason — a patch you expected to see and cannot open is worth
 knowing about. It starts in the review's own directory, which for a patch
 review is where the artifact lives, so its siblings are already there.
 
+## Submitting
+
+`:submit` walks through up to three screens. Each comes up only when there is
+something to decide.
+
+**Picker** (bare `:submit`): choose the event.
+
+| Key | Action |
+|---|---|
+| `j` / `k`, `↓` / `↑` | Move |
+| `Enter` | Submit with the highlighted event |
+| `Esc` | Cancel |
+| `q` | Quit mrman (tuicr parity) |
+
+**Resolver** (when some comments cannot be placed inline, their line no
+longer being in the diff): decide each one's fate.
+
+| Key | Action |
+|---|---|
+| `j` / `k`, `↓` / `↑` | Move |
+| `Space` / `Enter` | Toggle between *move to the review body* and *omit* |
+| `s` | Continue to the confirmation |
+| `Esc` | Cancel |
+
+An omitted comment is not posted and stays a local draft; a moved one is
+posted in the review body and locked with it.
+
+**Confirm**: last look before anything is sent.
+
+| Key | Action |
+|---|---|
+| `y` / `Enter` | Submit |
+| `n` / `Esc` | Cancel |
+| `r` | Reload the merge request, offered when its head moved since you opened it |
+
 ## Mouse
 
 On by default; set `mouse = false` to leave the terminal's own selection
@@ -226,7 +262,8 @@ session.
 | `:clear` | Clear comments and reviewed marks |
 | `:clearc` | Clear comments only |
 | `:diff` | Toggle unified / side-by-side |
-| `:wrap` `:set wrap` `:set wrap!` | Line wrap |
+| `:wrap` `:set wrap!` | Toggle line wrap |
+| `:set wrap` `:set nowrap` | Line wrap on / off |
 | `:mouse` `:set mouse` `:set nomouse` `:set mouse!` | Mouse tracking; off hands the terminal back its own selection |
 | `:focus` `:f` | Toggle single-file view |
 | `:stage` | Stage the reviewed files — unstaged git reviews only |

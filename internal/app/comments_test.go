@@ -250,7 +250,7 @@ func TestSaveLineCommentInsertsThroughSharedPrimitive(t *testing.T) {
 	if !anyAnnotation(a, func(ann *AnnotatedLine) bool { return ann.Kind == AnnLineComment }) {
 		t.Fatal("annotations must include the new comment")
 	}
-	assertEq(t, a.TotalLines(), len(a.LineAnnotations), "heights stay in lockstep")
+	assertEq(t, a.renderedHeight(), len(a.LineAnnotations), "heights stay in lockstep")
 }
 
 func TestSaveReviewAndFileComments(t *testing.T) {
@@ -272,7 +272,7 @@ func TestSaveReviewAndFileComments(t *testing.T) {
 	}
 	assertEq(t, a.Message.Content, "File comment added", "file message")
 	assertEq(t, len(a.Session.File("test.rs").FileComments), 1, "file comment stored")
-	assertEq(t, a.TotalLines(), len(a.LineAnnotations), "heights stay in lockstep")
+	assertEq(t, a.renderedHeight(), len(a.LineAnnotations), "heights stay in lockstep")
 }
 
 func TestSaveRangeCommentFromVisual(t *testing.T) {
@@ -452,7 +452,7 @@ func TestDeleteCommentAtCursorRemovesEachScope(t *testing.T) {
 	if a.Session.HasComments() {
 		t.Fatal("all comments deleted")
 	}
-	assertEq(t, a.TotalLines(), len(a.LineAnnotations), "heights stay in lockstep")
+	assertEq(t, a.renderedHeight(), len(a.LineAnnotations), "heights stay in lockstep")
 }
 
 func TestClearCommentsReportsCounts(t *testing.T) {
@@ -885,5 +885,23 @@ func TestShowsAuthorWithoutConfiguredUsername(t *testing.T) {
 	a := &App{}
 	if !a.ShowsAuthor(model.DefaultAuthor) {
 		t.Error("with no username configured the default author is badged")
+	}
+}
+
+// TestCommentNavigatorCacheFollowsRebuilds: the navigator is cached per
+// annotation rebuild, so a new comment must appear once the stream is
+// rebuilt, and the cached list must equal a fresh walk.
+func TestCommentNavigatorCacheFollowsRebuilds(t *testing.T) {
+	file := makeFileWithHunks("test.rs", []model.DiffHunk{makeHunk(1, 5)})
+	a := buildAppWithFiles([]model.DiffFile{file}, 20)
+	if n := len(a.BuildCommentNavigatorItems()); n != 0 {
+		t.Fatalf("items = %d, want 0", n)
+	}
+	side := model.LineSideNew
+	a.Session.File("test.rs").AddLineComment(2, model.NewComment("x", model.CommentTypeFromID("note"), &side))
+	a.RebuildAnnotations()
+	cached := a.BuildCommentNavigatorItems()
+	if len(cached) != 1 || len(a.buildCommentNavigatorItems()) != 1 {
+		t.Fatalf("after a rebuild: cached %d items, fresh walk %d; want 1", len(cached), len(a.buildCommentNavigatorItems()))
 	}
 }

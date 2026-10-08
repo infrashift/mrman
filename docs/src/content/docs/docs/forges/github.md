@@ -122,6 +122,21 @@ On a multi-commit merge request, mrman marks the commits your last review
 already covered and preselects what landed since — so re-reviewing after a
 force-push or a follow-up commit starts on the new work.
 
+Long discussions are read in full, past GitHub's 100-comments-per-page
+limit.
+
+### Large merge requests
+
+GitHub refuses the diff of a merge request with more than 300 files. mrman
+then builds it from the merge request's file list instead, which reaches
+3,000 files. A file GitHub sends without a patch shows as *(binary file)* when
+it has no changed lines and *(file too large to display)* otherwise.
+Verified on a 310-file merge request.
+
+A renamed or transferred repository still opens from its old name: mrman
+follows GitHub's redirect as long as it stays on `api.github.com`, and never
+carries your token to another host.
+
 ## Going deeper
 
 [Testing Against a Real Forge](../../contributing/live-testing/) walks through

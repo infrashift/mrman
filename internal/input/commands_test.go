@@ -10,7 +10,7 @@ func TestParseCommandAliases(t *testing.T) {
 		"clip": CmdExport, "export": CmdExport,
 		"clear": CmdClear, "clearc": CmdClearCommentsOnly,
 		"help": CmdHelp, "h": CmdHelp, "version": CmdVersion,
-		"set wrap": CmdSetWrap, "set wrap!": CmdToggleWrap, "wrap": CmdToggleWrap,
+		"set wrap": CmdSetWrap, "set nowrap": CmdSetNoWrap, "set wrap!": CmdToggleWrap, "wrap": CmdToggleWrap,
 		"vim": CmdToggleVim, "set vim!": CmdToggleVim, "set vim": CmdSetVim,
 		"novim": CmdSetNoVim, "set novim": CmdSetNoVim,
 		"set commits": CmdSetCommitsVisible, "set nocommits": CmdSetCommitsHidden,
@@ -119,5 +119,14 @@ func TestCommandNamesStable(t *testing.T) {
 	names := CommandNames()
 	if len(names) == 0 || names[0] != "q" {
 		t.Fatalf("names[0] = %v", names[:3])
+	}
+}
+
+// TestLongestCommonPrefixKeepsWholeCharacters: completion candidates that
+// share a lead byte but differ in a multibyte character ("é" and "è" both
+// start 0xC3) used to complete to half a character.
+func TestLongestCommonPrefixKeepsWholeCharacters(t *testing.T) {
+	if got := longestCommonPrefix([]string{"café", "cafè"}); got != "caf" {
+		t.Errorf("longestCommonPrefix = %q, want %q", got, "caf")
 	}
 }

@@ -68,7 +68,7 @@ func TestAdoptCarriesReviewForwardOntoNewHead(t *testing.T) {
 	if fileExists(t, oldPath) {
 		t.Error("the previous HEAD's session file must be removed, not left as a duplicate")
 	}
-	manifest := loadManifestOrDefault(store.ReviewsDir)
+	manifest := mustLoadManifest(t, store)
 	if _, still := manifest.Entries[adopted.FromSlug]; still {
 		t.Errorf("the previous slug %q must be gone from the manifest", adopted.FromSlug)
 	}
@@ -333,7 +333,7 @@ func TestRemoveManifestEntryKeepsSiblings(t *testing.T) {
 	mustSave(t, store,
 		commentedLocalSession(t, theirs, "abc1234", new("main"), model.SourceWorkingTree))
 
-	manifest := loadManifestOrDefault(store.ReviewsDir)
+	manifest := mustLoadManifest(t, store)
 	var slugStr string
 	for s, bucket := range manifest.Entries {
 		if len(bucket) == 2 {
@@ -350,7 +350,7 @@ func TestRemoveManifestEntryKeepsSiblings(t *testing.T) {
 	if err := store.removeManifestEntry(slugStr, rel); err != nil {
 		t.Fatal(err)
 	}
-	if got := len(loadManifestOrDefault(store.ReviewsDir).Entries[slugStr]); got != 1 {
+	if got := len(mustLoadManifest(t, store).Entries[slugStr]); got != 1 {
 		t.Errorf("bucket size = %d, want 1 — the sibling checkout must survive", got)
 	}
 }

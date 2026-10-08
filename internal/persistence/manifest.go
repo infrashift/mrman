@@ -251,14 +251,49 @@ func LoadManifest(reviewsDir string) (*Manifest, error) {
 	return &m, nil
 }
 
-// loadManifestOrDefault loads the manifest, treating any failure as an empty
-// manifest (mirroring tuicr's pervasive unwrap_or_default).
-func loadManifestOrDefault(reviewsDir string) *Manifest {
-	m, err := LoadManifest(reviewsDir)
+// loadManifest reads the manifest for a caller that will not write it back.
+// The manifest is an index derived from the session files, so a corrupt one
+// is rebuilt from them in memory; any other failure to read it is returned,
+// not mistaken for an empty store.
+func (s *Store) loadManifest() (*Manifest, error) {
+	m, _, err := s.readManifest()
+	return m, err
+}
+
+// loadManifestForWrite is loadManifest for a caller that holds the store lock
+// and will save the manifest next. A corrupt file is first moved aside to
+// index.json.corrupt-<timestamp>, so that save does not destroy the only copy
+// of whatever went wrong.
+func (s *Store) loadManifestForWrite() (*Manifest, error) {
+	m, corrupt, err := s.readManifest()
 	if err != nil {
-		return NewManifest()
+		return nil, err
 	}
-	return m
+	if corrupt {
+		index := filepath.Join(s.ReviewsDir, ManifestFilename)
+		backup := index + ".corrupt-" + nowFn().UTC().Format("20060102T150405Z")
+		if err := os.Rename(index, backup); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return nil, err
+		}
+	}
+	return m, nil
+}
+
+// readManifest loads the manifest, rebuilding it from the session files when
+// the file does not parse. corrupt reports that the rebuild happened.
+func (s *Store) readManifest() (m *Manifest, corrupt bool, err error) {
+	m, err = LoadManifest(s.ReviewsDir)
+	if _, isCorrupt := errors.AsType[*errs.CorruptedSession](err); !isCorrupt {
+		if err != nil {
+			return nil, false, fmt.Errorf("reading %s: %w", ManifestFilename, err)
+		}
+		return m, false, nil
+	}
+	rebuilt, err := RebuildFromFiles(s.ReviewsDir, s.extractManifestEntry)
+	if err != nil {
+		return nil, true, err
+	}
+	return rebuilt, true, nil
 }
 
 // SaveManifest writes the manifest atomically: content goes to a sibling

@@ -706,11 +706,17 @@ func (a *App) reviewCommentsRenderHeight() int {
 	for _, comment := range a.Session.ReviewComments {
 		height += CommentDisplayLines(comment, a.DiffState.ViewportWidth)
 	}
+	return height + a.reviewInputBoxRows()
+}
+
+// reviewInputBoxRows is the height of the inline input box shown while
+// composing a new review-level comment: header, one content line, footer.
+// It is drawn over the overview without an annotation of its own.
+func (a *App) reviewInputBoxRows() int {
 	if a.InputMode == input.ModeComment && a.CommentIsReviewLevel && a.EditingCommentID == nil {
-		// The inline input box: header + one content line + footer.
-		height += 3
+		return 3
 	}
-	return height
+	return 0
 }
 
 // fileRenderHeight is the multi-file rendered height of one file: header
@@ -829,9 +835,19 @@ func (a *App) updateCurrentFileFromCursor() {
 	}
 }
 
-// TotalLines is the total rendered line count, kept in lockstep with
-// len(LineAnnotations).
+// TotalLines is the total rendered line count: the annotation stream, which
+// has one entry per rendered line and is rebuilt whenever anything that
+// changes a height does (comments, folds, expansion, the viewport width),
+// plus the review-level input box while one is open. Walking every file's
+// height instead cost a quarter of each idle frame on a large diff.
 func (a *App) TotalLines() int {
+	return len(a.LineAnnotations) + a.reviewInputBoxRows()
+}
+
+// renderedHeight computes the rendered line count from the review state
+// itself, independently of the annotation stream. Tests hold the two in
+// lockstep (tuicr's core invariant); production reads TotalLines.
+func (a *App) renderedHeight() int {
 	total := a.reviewCommentsRenderHeight()
 	for i := range a.DiffFiles {
 		total += a.effectiveFileHeight(i, &a.DiffFiles[i])

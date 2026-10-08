@@ -232,6 +232,12 @@ type App struct {
 	FileLineCountCache map[int]uint32
 	// LineAnnotations describes what each rendered line represents.
 	LineAnnotations []AnnotatedLine
+	// annotationGen counts RebuildAnnotations calls; values derived from the
+	// annotation stream are cached against it.
+	annotationGen uint64
+	// navItems caches BuildCommentNavigatorItems for navItemsGen.
+	navItems    []CommentNavigatorItem
+	navItemsGen uint64
 
 	// PendingCount accumulates digits for {N}G jump-to-line.
 	PendingCount *int

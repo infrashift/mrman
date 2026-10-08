@@ -83,6 +83,7 @@ func helpContent(leader rune) []string {
 		"  :clear :clearc         clear comments (and reviewed marks)",
 		"  :diff                  unified / side-by-side",
 		"  :wrap :set wrap!       toggle line wrap",
+		"  :set wrap :set nowrap  line wrap on / off",
 		"  :mouse :set mouse!     toggle mouse tracking",
 		"  :focus :f              toggle single-file view",
 		"  :stage                 stage reviewed files (git)",

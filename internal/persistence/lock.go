@@ -1,19 +1,23 @@
 package persistence
 
 import (
-	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
-	"strconv"
-	"strings"
 	"time"
 )
 
-// lockFilename is the advisory lock file guarding mutations of the reviews
+// lockFilename is the file whose kernel lock guards mutations of the reviews
 // directory (session writes, manifest updates, active-session bookkeeping).
-const lockFilename = ".mrman.lock"
+//
+// The file is permanent; holding the lock means holding an exclusive flock
+// (LockFileEx on Windows) on it. The kernel drops the lock when its holder
+// exits, however it exits, so there is no stale lock to detect or reap.
+// Older releases used a pid file named .mrman.lock created with O_EXCL and
+// deleted on release; reaping a stale one let two writers each delete the
+// other's lock and proceed together. The new name keeps an older binary
+// from mistaking this permanent file for one of its own stale locks.
+const lockFilename = ".mrman.flock"
 
 // Lock tuning knobs. Vars rather than consts so tests can shrink the
 // timeouts; production code never mutates them.
@@ -22,12 +26,6 @@ var (
 	lockTimeout = 10 * time.Second
 	// lockRetryInterval is the pause between acquisition attempts.
 	lockRetryInterval = 25 * time.Millisecond
-	// lockUnparseableStaleAfter is when a lock whose owner pid cannot be
-	// parsed is considered abandoned.
-	lockUnparseableStaleAfter = 60 * time.Second
-	// lockReuseGuardAfter is when even a lock with a live owner pid is
-	// considered abandoned — the pid may have been recycled.
-	lockReuseGuardAfter = 12 * time.Hour
 )
 
 // processAlive reports whether pid refers to a running process. It is a var
@@ -46,85 +44,43 @@ func (s *Store) withLock(fn func() error) error {
 	return fn()
 }
 
-// acquireLock creates the lock file with O_CREATE|O_EXCL, retrying every
-// lockRetryInterval up to lockTimeout and clearing stale locks along the way.
-// The lock body records "<pid> <RFC3339 timestamp>".
+// acquireLock takes the exclusive kernel lock on the lock file, retrying
+// every lockRetryInterval up to lockTimeout. Each acquisition opens the file
+// afresh, so two acquisitions in one process exclude each other as well.
+//
+// The body records "<pid> <RFC3339 timestamp>" of the current holder, for a
+// person wondering what a timed-out writer was waiting on; the lock itself
+// never reads it.
 func (s *Store) acquireLock() (release func(), err error) {
 	if err := os.MkdirAll(s.ReviewsDir, dirMode); err != nil {
 		return nil, err
 	}
 	path := filepath.Join(s.ReviewsDir, lockFilename)
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, fileMode)
+	if err != nil {
+		return nil, err
+	}
 	started := nowFn()
 	for {
-		f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, fileMode)
-		if err == nil {
-			_, _ = fmt.Fprintf(f, "%d %s\n", os.Getpid(), nowFn().Format(time.RFC3339))
-			_ = f.Sync()
+		locked, err := tryLockFile(f)
+		if err != nil {
 			_ = f.Close()
-			return func() { _ = os.Remove(path) }, nil
+			return nil, fmt.Errorf("locking review storage %s: %w", path, err)
 		}
-		if !errors.Is(err, fs.ErrExist) {
-			return nil, err
-		}
-		removed, rerr := removeStaleLock(path)
-		if rerr != nil {
-			return nil, rerr
-		}
-		if removed {
-			continue
+		if locked {
+			break
 		}
 		if nowFn().Sub(started) >= lockTimeout {
+			_ = f.Close()
 			return nil, fmt.Errorf("timed out waiting for review storage lock %s", path)
 		}
 		time.Sleep(lockRetryInterval)
 	}
-}
-
-// removeStaleLock deletes the lock file when its owner is provably gone: the
-// recorded pid is not alive, the lock is older than the pid-reuse guard, or
-// (when no pid can be parsed) the file is older than the unparseable-lock
-// grace period. It reports whether a stale lock was removed.
-func removeStaleLock(path string) (bool, error) {
-	info, err := os.Stat(path)
-	if errors.Is(err, fs.ErrNotExist) {
-		return false, nil
+	if err := f.Truncate(0); err == nil {
+		_, _ = fmt.Fprintf(f, "%d %s\n", os.Getpid(), nowFn().Format(time.RFC3339))
 	}
-	if err != nil {
-		return false, err
-	}
-	lockAge := nowFn().Sub(info.ModTime())
-
-	var stale bool
-	if pid, ok := readLockOwnerPid(path); ok {
-		stale = !processAlive(pid) || lockAge >= lockReuseGuardAfter
-	} else {
-		stale = lockAge >= lockUnparseableStaleAfter
-	}
-	if !stale {
-		return false, nil
-	}
-	if err := os.Remove(path); err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return false, nil
-		}
-		return false, err
-	}
-	return true, nil
-}
-
-// readLockOwnerPid parses the pid from the lock body's first token.
-func readLockOwnerPid(path string) (int, bool) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return 0, false
-	}
-	fields := strings.Fields(string(data))
-	if len(fields) == 0 {
-		return 0, false
-	}
-	pid, err := strconv.Atoi(fields[0])
-	if err != nil {
-		return 0, false
-	}
-	return pid, true
+	return func() {
+		_ = unlockFile(f)
+		_ = f.Close()
+	}, nil
 }

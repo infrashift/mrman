@@ -12,6 +12,7 @@ import (
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/git"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/webapi"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/infrashift/mrman/internal/diffgen"
 	"github.com/infrashift/mrman/internal/errs"
@@ -92,9 +93,14 @@ func (d *Driver) GetPullRequest(ctx context.Context, target forge.Target) (*forg
 		MergedAt:           mergedAt(pr),
 	}
 
-	payload, err := d.iterationPayload(ctx, op, project, repoName, prID)
+	payload, mergeBase, err := d.iterationPayload(ctx, op, project, repoName, prID)
 	if err != nil {
 		return nil, err
+	}
+	if mergeBase != "" {
+		// lastMergeTargetCommit is the target branch's tip: diffing against
+		// it would show the target's own later changes, reversed.
+		details.BaseSHA = mergeBase
 	}
 	if payload.IterationID > 0 {
 		raw, err := json.Marshal(payload)
@@ -107,31 +113,36 @@ func (d *Driver) GetPullRequest(ctx context.Context, target forge.Target) (*forg
 }
 
 // iterationPayload fetches the latest iteration id and its per-path change
-// tracking ids. A PR without iterations yields the zero payload so callers
+// tracking ids, plus that iteration's merge base (its commonRefCommit, ""
+// when absent). A PR without iterations yields the zero payload so callers
 // degrade gracefully instead of failing the whole fetch.
-func (d *Driver) iterationPayload(ctx context.Context, op, project, repoName string, prID int) (forgePayload, error) {
+func (d *Driver) iterationPayload(ctx context.Context, op, project, repoName string, prID int) (forgePayload, string, error) {
 	iterations, err := d.gitClient.GetPullRequestIterations(ctx, git.GetPullRequestIterationsArgs{
 		RepositoryId:  &repoName,
 		Project:       &project,
 		PullRequestId: &prID,
 	})
 	if err != nil {
-		return forgePayload{}, d.wrap(op, err)
+		return forgePayload{}, "", d.wrap(op, err)
 	}
-	latest := 0
+	latest, mergeBase := 0, ""
 	if iterations != nil {
 		for _, it := range *iterations {
 			if it.Id != nil && *it.Id > latest {
 				latest = *it.Id
+				mergeBase = ""
+				if it.CommonRefCommit != nil {
+					mergeBase = deref(it.CommonRefCommit.CommitId)
+				}
 			}
 		}
 	}
 	if latest == 0 {
-		return forgePayload{}, nil
+		return forgePayload{}, "", nil
 	}
 	changes, err := d.iterationChanges(ctx, op, project, repoName, prID, latest)
 	if err != nil {
-		return forgePayload{}, err
+		return forgePayload{}, "", err
 	}
 	tracking := make(map[string]int, len(changes))
 	for _, change := range changes {
@@ -139,7 +150,7 @@ func (d *Driver) iterationPayload(ctx context.Context, op, project, repoName str
 			tracking[change.path] = change.changeTrackingID
 		}
 	}
-	return forgePayload{IterationID: latest, ChangeTracking: tracking}, nil
+	return forgePayload{IterationID: latest, ChangeTracking: tracking}, mergeBase, nil
 }
 
 // iterationChange is the digested form of one iteration change entry.
@@ -212,7 +223,20 @@ func digestChange(change *git.GitPullRequestChange) iterationChange {
 			out.isFolder = true
 		}
 	}
+
+	// A deleted file has no current-side item: Azure DevOps sends a null
+	// item path and names the file in originalPath (seen live). Without
+	// this every deleted file was skipped and vanished from the review.
+	if out.path == "" && isDeleteChange(out.changeType) {
+		out.path = out.originalPath
+	}
 	return out
+}
+
+// isDeleteChange reports whether an ADO change type deletes the file
+// ("delete", possibly combined), as opposed to "undelete".
+func isDeleteChange(kind string) bool {
+	return strings.Contains(kind, "delete") && !strings.Contains(kind, "undelete")
 }
 
 // GetDiff synthesizes the PR's cumulative unified diff: Azure DevOps has no
@@ -230,7 +254,7 @@ func (d *Driver) GetDiff(ctx context.Context, pr *forge.PullRequestDetails) (str
 
 	iterationID := decodePayload(pr).IterationID
 	if iterationID == 0 {
-		payload, err := d.iterationPayload(ctx, op, project, repoName, prID)
+		payload, _, err := d.iterationPayload(ctx, op, project, repoName, prID)
 		if err != nil {
 			return "", err
 		}
@@ -245,19 +269,30 @@ func (d *Driver) GetDiff(ctx context.Context, pr *forge.PullRequestDetails) (str
 		return "", err
 	}
 
-	var sb strings.Builder
-	for _, change := range changes {
+	// Each file costs up to two blob requests. Run a bounded number of
+	// files at once: serially, a 500-file PR made about 1000 round trips
+	// one after another before the diff could render.
+	diffs := make([]string, len(changes))
+	group, groupCtx := errgroup.WithContext(ctx)
+	group.SetLimit(blobFetchConcurrency)
+	for i, change := range changes {
 		if change.isFolder || change.path == "" {
 			continue
 		}
-		fileDiff, err := d.synthesizeFileDiff(ctx, op, project, repoName, pr, change)
-		if err != nil {
-			return "", err
-		}
-		sb.WriteString(fileDiff)
+		group.Go(func() error {
+			fileDiff, err := d.synthesizeFileDiff(groupCtx, op, project, repoName, pr, change)
+			diffs[i] = fileDiff
+			return err
+		})
 	}
-	return sb.String(), nil
+	if err := group.Wait(); err != nil {
+		return "", err
+	}
+	return strings.Join(diffs, ""), nil
 }
+
+// blobFetchConcurrency bounds the files GetDiff fetches at once.
+const blobFetchConcurrency = 8
 
 // synthesizeFileDiff fetches the blob pair for one change entry and renders
 // its unified diff.
@@ -269,7 +304,7 @@ func (d *Driver) synthesizeFileDiff(ctx context.Context, op, project, repoName s
 	}
 	kind := change.changeType
 	isAdd := strings.Contains(kind, "add")
-	isDelete := strings.Contains(kind, "delete") && !strings.Contains(kind, "undelete")
+	isDelete := isDeleteChange(kind)
 
 	oldContent, newContent := "", ""
 	if isAdd {
@@ -282,7 +317,8 @@ func (d *Driver) synthesizeFileDiff(ctx context.Context, op, project, repoName s
 		oldContent = content
 	}
 	if isDelete {
-		// Deletes report the removed item's path on the current side.
+		// A delete's path is the removed file's (digestChange fills it
+		// from originalPath); it has no current side.
 		oldPath = newPath
 		newPath = ""
 	} else {

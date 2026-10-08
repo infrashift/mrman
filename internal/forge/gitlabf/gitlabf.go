@@ -93,6 +93,7 @@ func New(opts Options) (*Driver, error) {
 	client, err := gitlab.NewClient(opts.Token,
 		gitlab.WithBaseURL(apiBase),
 		gitlab.WithHTTPClient(httpClient),
+		gitlab.WithCustomRetry(checkRetry),
 	)
 	if err != nil {
 		return nil, forge.NewError(forgetypes.KindGitLab, "new", host,

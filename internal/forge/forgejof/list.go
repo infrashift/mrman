@@ -118,12 +118,37 @@ type searchIssue struct {
 	} `json:"repository"`
 }
 
+// maxFilteredPages bounds how many search pages one listing call reads while
+// the client-side repository filter keeps emptying them.
+const maxFilteredPages = 10
+
 // listReviewRequested lists open PRs whose review was requested from the
 // viewer via GET /repos/issues/search with review_requested=true — the SDK
 // exposes no such filter, so this is a raw call against the same API base
 // with the same token header. The endpoint filters by owner but not by
 // repository, so rows from sibling repositories are dropped client-side.
+//
+// Because that filter runs after the server paged, a page can come back
+// with nothing for this repository while later pages still hold matches.
+// Such pages are skipped, up to maxFilteredPages, so the caller never sees
+// an empty page that claims there is more.
 func (d *Driver) listReviewRequested(ctx context.Context, q forge.ListQuery, page, size int) (*forge.PullRequestPage, error) {
+	for range maxFilteredPages {
+		result, next, err := d.searchReviewRequested(ctx, q, page, size)
+		if err != nil {
+			return nil, err
+		}
+		if len(result.Items) > 0 || next == 0 {
+			return result, nil
+		}
+		page = next
+	}
+	return &forge.PullRequestPage{NextPageToken: strconv.Itoa(page)}, nil
+}
+
+// searchReviewRequested fetches one page of the issues search and keeps the
+// rows for q's repository. next is the following page number, 0 at the end.
+func (d *Driver) searchReviewRequested(ctx context.Context, q forge.ListQuery, page, size int) (*forge.PullRequestPage, int, error) {
 	const op = "list_pull_requests"
 	query := url.Values{}
 	query.Set("type", "pulls")
@@ -135,7 +160,7 @@ func (d *Driver) listReviewRequested(ctx context.Context, q forge.ListQuery, pag
 	endpoint := d.base + "/api/v1/repos/issues/search?" + query.Encode()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
-		return nil, d.err(op, forge.ErrorValidation, 0, "", err)
+		return nil, 0, d.err(op, forge.ErrorValidation, 0, "", err)
 	}
 	req.Header.Set("Accept", "application/json")
 	if d.token != "" {
@@ -147,27 +172,29 @@ func (d *Driver) listReviewRequested(ctx context.Context, q forge.ListQuery, pag
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, d.err(op, forge.Classify(err), 0, "", err)
+		return nil, 0, d.err(op, forge.Classify(err), 0, "", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, d.err(op, forge.Classify(err), 0, "", err)
+		return nil, 0, d.err(op, forge.Classify(err), 0, "", err)
 	}
 	if resp.StatusCode >= 400 {
-		return nil, d.err(op, forge.FromHTTPStatus(resp.StatusCode), resp.StatusCode,
+		return nil, 0, d.err(op, forge.FromHTTPStatus(resp.StatusCode), resp.StatusCode,
 			statusHint(resp.StatusCode),
 			fmt.Errorf("issues search failed: %s", strings.TrimSpace(string(body))))
 	}
 	var rows []searchIssue
 	if err := json.Unmarshal(body, &rows); err != nil {
-		return nil, d.err(op, forge.ErrorValidation, 0, "",
+		return nil, 0, d.err(op, forge.ErrorValidation, 0, "",
 			fmt.Errorf("decode issues search response: %w", err))
 	}
 	fullName := q.Repository.Owner + "/" + q.Repository.Name
 	items := make([]forge.PullRequestSummary, 0, len(rows))
 	for _, row := range rows {
-		if row.Repository != nil && row.Repository.FullName != fullName {
+		// Forgejo owner and repository names are case-insensitive, and the
+		// remote's casing need not match the server's.
+		if row.Repository != nil && !strings.EqualFold(row.Repository.FullName, fullName) {
 			continue
 		}
 		item := forge.PullRequestSummary{
@@ -184,11 +211,12 @@ func (d *Driver) listReviewRequested(ctx context.Context, q forge.ListQuery, pag
 		}
 		items = append(items, item)
 	}
-	next := ""
-	if n := nextPageFromLink(resp.Header.Get("Link")); n != 0 {
-		next = strconv.Itoa(n)
+	next := nextPageFromLink(resp.Header.Get("Link"))
+	token := ""
+	if next != 0 {
+		token = strconv.Itoa(next)
 	}
-	return &forge.PullRequestPage{Items: items, NextPageToken: next}, nil
+	return &forge.PullRequestPage{Items: items, NextPageToken: token}, next, nil
 }
 
 // nextPageFromLink extracts the rel="next" page number from a Link header,

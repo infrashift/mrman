@@ -27,9 +27,11 @@ var urlishPattern = regexp.MustCompile(`^https?://\S+$`)
 
 var validForgeKinds = map[string]struct{}{
 	"github": {}, "gitlab": {}, "azuredevops": {}, "forgejo": {},
+	"azure_devops": {}, "ado": {}, "gitea": {}, // documented aliases
 }
 
-const forgeKindMessage = `must be "github", "gitlab", "azuredevops", or "forgejo"`
+const forgeKindMessage = `must be "github", "gitlab", "azuredevops", or "forgejo"` +
+	` (aliases: "azure_devops", "ado", "gitea")`
 
 // keyMessages maps config key paths to human-readable constraint messages
 // used when CUE validation rejects the key.

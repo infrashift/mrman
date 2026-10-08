@@ -113,7 +113,11 @@ func TestRemoteSummaryRendersWithStateBadge(t *testing.T) {
 	}
 }
 
-func TestReviewSummariesSkippedWithoutTheCapability(t *testing.T) {
+// TestGeneralDiscussionsLoadWithoutTheCapability: GitLab and Azure DevOps
+// have no review object, so ReviewSummaries is false, but their drivers
+// return general discussions (review bodies included) as summaries. Asking
+// only forges with the capability hid those discussions completely.
+func TestGeneralDiscussionsLoadWithoutTheCapability(t *testing.T) {
 	f := &remoteForge{
 		uiFakeForge: &uiFakeForge{},
 		hasSummary:  false,
@@ -124,8 +128,8 @@ func TestReviewSummariesSkippedWithoutTheCapability(t *testing.T) {
 	}
 	m := remotePrModel(t, f)
 
-	if len(m.App.Pr.Summaries) != 0 {
-		t.Error("a forge without ReviewSummaries must not be asked for them")
+	if len(m.App.Pr.Summaries) != 1 {
+		t.Error("general discussions must load on a forge without review objects")
 	}
 	if len(m.App.Pr.Threads) != 1 {
 		t.Error("inline threads must still load on a forge without summaries")

@@ -66,7 +66,7 @@ func (m *Model) handlePrListResult(msg prListResultMsg) {
 		p.Repository = &repo
 	}
 	if msg.Err != nil {
-		a.SetPrTabError(msg.Gen, msg.Err.Error())
+		a.SetPrTabError(msg.Gen, forge.Describe(msg.Err))
 		return
 	}
 	a.ApplyPrTabPage(msg.Gen, msg.Page, msg.Append)
@@ -117,7 +117,7 @@ func (m *Model) handlePrOpenResult(msg prOpenResultMsg) tea.Cmd {
 	}
 	a.Pr.Opening = false
 	if msg.Err != nil {
-		a.SetError("Open failed: " + msg.Err.Error())
+		a.SetError("Open failed: " + forge.Describe(msg.Err))
 		return nil
 	}
 
@@ -127,7 +127,7 @@ func (m *Model) handlePrOpenResult(msg prOpenResultMsg) tea.Cmd {
 	if m.session != nil {
 		m.shutdown(a)
 	}
-	lifecycle, session := openPrSession(m.store, fresh, m.grantedEvents)
+	lifecycle, session := openPrSession(m.store, fresh, msg.Load.Files, m.grantedEvents)
 	m.session = lifecycle
 	a.ApplyPullRequest(msg.Load, session)
 	a.InputMode = input.ModeNormal

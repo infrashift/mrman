@@ -106,7 +106,7 @@ func TestClassify(t *testing.T) {
 		want ErrorKind
 	}{
 		{"context canceled", context.Canceled, ErrorCanceled},
-		{"deadline exceeded", context.DeadlineExceeded, ErrorCanceled},
+		{"deadline exceeded is a timeout, reported", context.DeadlineExceeded, ErrorNetwork},
 		{"wrapped canceled", fmt.Errorf("op: %w", context.Canceled), ErrorCanceled},
 		{"unsupported sentinel", errs.ErrUnsupported, ErrorUnsupported},
 		{"net error", &net.DNSError{Err: "no such host"}, ErrorNetwork},
@@ -130,5 +130,32 @@ func TestWrapErrorPassesThroughExistingForgeError(t *testing.T) {
 	plain := WrapError(forgetypes.KindGitHub, "op", "github.com", context.Canceled)
 	if plain.Kind != ErrorCanceled || plain.Op != "op" || plain.ForgeID != forgetypes.KindGitHub {
 		t.Fatalf("wrapped = %+v", plain)
+	}
+}
+
+// TestDescribeLeadsWithTheHint: the status bar is one line, and a forge
+// error's SDK message (the request URL, the response body) came before its
+// hint, so the hint was cut off. Seen live on gitlab.com: a refused
+// approval showed "... merge_requests/1/approve: 401 {message: 40" and
+// never the explanation.
+func TestDescribeLeadsWithTheHint(t *testing.T) {
+	raw := errors.New("POST https://gitlab.com/api/v4/projects/x%2Fy/merge_requests/1/approve: 401 {message: 401 Unauthorized}")
+	err := NewError(forgetypes.KindGitLab, "create_review", "gitlab.com", ErrorForbidden, raw).
+		WithHint("GitLab refused the approval.")
+	err.Status = 401
+	got := Describe(err)
+	want := "gitlab: create_review: permission denied (HTTP 401) on gitlab.com — GitLab refused the approval."
+	if got != want {
+		t.Errorf("Describe = %q, want %q", got, want)
+	}
+	if !strings.Contains(err.Error(), "approve: 401") {
+		t.Error("Error() must keep the full detail")
+	}
+	plain := NewError(forgetypes.KindGitLab, "get_diff", "gitlab.com", ErrorServer, raw)
+	if Describe(plain) != plain.Error() {
+		t.Error("an error without a hint keeps its full text")
+	}
+	if Describe(errors.New("x")) != "x" {
+		t.Error("a non-forge error reads as itself")
 	}
 }

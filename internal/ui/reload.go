@@ -118,7 +118,7 @@ func (m *Model) handlePrReloadResult(msg prReloadResultMsg) tea.Cmd {
 	}
 	a.Pr.Reloading = false
 	if msg.Err != nil {
-		a.FailPrReload(msg.Err.Error())
+		a.FailPrReload(forge.Describe(msg.Err))
 		return nil
 	}
 
@@ -127,7 +127,7 @@ func (m *Model) handlePrReloadResult(msg prReloadResultMsg) tea.Cmd {
 		if m.session != nil {
 			m.shutdown(a)
 		}
-		lifecycle, session := openPrSession(m.store, fresh, m.grantedEvents)
+		lifecycle, session := openPrSession(m.store, fresh, msg.Load.Files, m.grantedEvents)
 		m.session = lifecycle
 		a.ApplyPullRequest(msg.Load, session)
 		a.SetMessage("Merge request advanced to " + shortSHA(msg.Load.Details.HeadSHA) +

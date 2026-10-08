@@ -27,6 +27,12 @@ go install github.com/infrashift/mrman@latest
 make install
 ```
 
+While the repository is private, `go install` needs to be told to fetch it
+directly and with your credentials:
+`GOPRIVATE=github.com/infrashift go install github.com/infrashift/mrman@latest`,
+with git able to authenticate to GitHub (for example `gh auth setup-git`).
+mrman has no release tag yet, so `@latest` is the newest commit on `main`.
+
 Requires `git` on PATH (and `jj` for Jujutsu repos). Best experienced in a
 terminal with full kitty-keyboard support such as **Ghostty**.
 
@@ -182,9 +188,12 @@ api_base = "https://ghe.mycorp.com/api/v3"
 token = "$GHE_TOKEN"
 ```
 
-Auth resolution per host: environment (`GITHUB_TOKEN`, `GITLAB_TOKEN`,
-`AZURE_DEVOPS_EXT_PAT`, `FORGEJO_TOKEN`/`CODEBERG_TOKEN` — SaaS hosts only)
-→ config `token` → `token_cmd` → `gh auth token` (GitHub). Custom CAs via
+Auth resolution per host: environment (`GITHUB_TOKEN`/`GH_TOKEN` for
+github.com, `GITLAB_TOKEN` for gitlab.com, `AZURE_DEVOPS_EXT_PAT` for
+dev.azure.com and `*.visualstudio.com`, `FORGEJO_TOKEN`/`CODEBERG_TOKEN` for
+codeberg.org, `GH_ENTERPRISE_TOKEN` for GitHub Enterprise hosts listed in
+`[[forge.hosts]]`) → config `token` → `token_cmd` → `gh auth token` (GitHub).
+Credentials only ever go to SaaS hosts and hosts you list. Custom CAs via
 `ca_file` per host.
 
 ### Themes
@@ -198,9 +207,10 @@ XML).
 
 ### Templates
 
-The exported notes markdown and the review body posted with `:submit` are
-rendered through Go `text/template`s with embedded defaults. Override them
-via `[templates]`; parse errors fall back to the defaults with a warning.
+The exported notes markdown, the review body posted with `:submit`, and the
+`:patch` reply are rendered through Go `text/template`s with embedded
+defaults. Override them via `[templates]` (`notes`, `review_body`,
+`patch_reply`); parse errors fall back to the defaults with a warning.
 
 ## Development
 
@@ -214,17 +224,26 @@ make docs-dev   # the documentation site at localhost:4321/mrman/
 The codebase mirrors tuicr's layout under `internal/`; tuicr's own test
 suite is ported throughout as the behavioral parity spec.
 
-Three opt-in tests exercise a real forge instead of fakes; they skip unless
-their environment variables are set, so `make check` is unaffected. See
-[Testing Against a Real Forge](https://infrashift.github.io/mrman/docs/contributing/live-testing/)
-for setting up a scratch pull request to point them at.
+Opt-in live tests exercise a real forge instead of fakes; they skip unless
+`MRMAN_LIVE_PR` is set, so `make check` is unaffected. `MRMAN_LIVE_PR` takes
+any target `mrman pr` does, on any forge, and each test skips the forges it
+does not cover. `scripts/live-fixture.sh URL up` builds a scratch merge
+request to point them at on GitHub, GitLab, Azure DevOps or Codeberg. See
+[Testing Against a Real Forge](https://infrashift.github.io/mrman/docs/contributing/live-testing/).
 
 ```sh
-MRMAN_LIVE_PR=owner/repo#1 go test ./internal/forge/githubf/ -run Live -v   # every driver method
-MRMAN_LIVE_PR=owner/repo#1 go test ./internal/ui/ -run LivePullRequestReview -v  # the whole stack
+MRMAN_LIVE_PR=owner/repo#1 go test -count=1 -run Live ./...        # reads only
 MRMAN_LIVE_PR=owner/repo#1 MRMAN_LIVE_SUBMIT=1 \
-    go test ./internal/ui/ -run LivePullRequestSubmit -v                    # posts a real review
+    go test -count=1 -run Live ./...                               # also posts reviews
 ```
+
+| Test | Forge | Covers |
+|---|---|---|
+| `TestLivePullRequest` | GitHub | every driver method |
+| `TestLivePullRequestReview` | any | the whole stack through the renderer |
+| `TestLivePullRequestSubmit` | any | a real review posted from the TUI (`MRMAN_LIVE_SUBMIT`) |
+| `TestLiveAgentSubmit` | any | the agent-submit interlock, refused and granted (`MRMAN_LIVE_SUBMIT`) |
+| `TestLiveGitLabReview` | GitLab | comment, draft, request changes, moved head, approve; `MRMAN_LIVE_READONLY_TOKEN` adds a read-only-token step |
 
 ### charmkit
 
@@ -233,10 +252,9 @@ Three layers that other Bubble Tea projects can reuse live in the nested
 and count resolution (`keychord`), and a terminal-cell text layer with
 horizontal scrolling and wrap-safe background overlays (`cellrender`). It is
 a separate module so consumers do not inherit mrman's dependency tree.
-`go.work` is committed, so every clone builds. Until the first release tags
-`charmkit/vX.Y.Z` and pins it in `go.mod`, `go install
-github.com/infrashift/mrman@latest` will not resolve — build from a checkout
-in the meantime. See the note at the bottom of the `Makefile`.
+`go.work` is committed, so every clone builds against the local charmkit;
+`go.mod` requires the tagged `charmkit/v0.1.0`, so `go install` and
+`GOWORK=off go build ./...` resolve it as a module (CI checks the latter).
 
 ### Deliberate differences from tuicr
 

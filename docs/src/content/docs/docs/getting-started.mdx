@@ -35,16 +35,17 @@ import { Steps, Aside, Tabs, TabItem } from '@astrojs/starlight/components';
 	</TabItem>
 </Tabs>
 
-<Aside type="caution" title="go install does not resolve yet">
-mrman keeps three reusable Bubble Tea layers in a nested module,
-[`charmkit`](https://github.com/infrashift/mrman/tree/main/charmkit), so that
-consumers of those layers do not inherit mrman's dependency tree. `go.work` is
-committed, so **every clone builds** — but `go install
-github.com/infrashift/mrman@latest` cannot work until `charmkit/vX.Y.Z` is
-tagged and pinned in `go.mod`, because `go install` ignores workspaces.
+<Aside type="caution" title="The repository is private for now">
+`git clone` and `go install` both need your GitHub credentials, and Go must
+fetch the module directly rather than through the public proxy:
 
-Build from a checkout until the first release. This is tracked as a release
-blocker, not a local-setup problem.
+```sh
+gh auth setup-git    # or any git credential helper for github.com
+GOPRIVATE=github.com/infrashift go install github.com/infrashift/mrman@latest
+```
+
+mrman has no release tag yet, so `@latest` installs the newest commit on
+`main`.
 </Aside>
 
 ## Your first review

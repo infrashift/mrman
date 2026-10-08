@@ -146,3 +146,28 @@ func TestAddUnknownSessionErrors(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 }
+
+// TestListOutsideACheckoutListsEverySession: an agent runs `mrman review
+// list` from its own scratch directory and must find the merge request's
+// session and grant. Matching that directory against session repositories
+// found nothing and printed [].
+func TestListOutsideACheckoutListsEverySession(t *testing.T) {
+	store, _, _ := newTestStore(t)
+	t.Chdir(t.TempDir()) // not a checkout
+	var notes bytes.Buffer
+	previous := listNotes
+	listNotes = &notes
+	t.Cleanup(func() { listNotes = previous })
+
+	var buf bytes.Buffer
+	if err := List(store, Options{}, &buf); err != nil {
+		t.Fatal(err)
+	}
+	var rows []SessionSummaryOutput
+	if err := json.Unmarshal(buf.Bytes(), &rows); err != nil || len(rows) != 1 {
+		t.Fatalf("rows = %+v, err %v; want the one session", rows, err)
+	}
+	if !strings.Contains(notes.String(), "listing every session") {
+		t.Errorf("stderr note = %q, want it to say the listing widened", notes.String())
+	}
+}
