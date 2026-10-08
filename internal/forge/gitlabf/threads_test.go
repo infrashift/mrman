@@ -211,7 +211,9 @@ func TestReviewMetadataStampsEachReviewWithItsVersion(t *testing.T) {
 		{"id": 3, "system": true, "body": "added 1 commit",
 		 "author": {"username": "bob"}, "created_at": "2026-06-03T08:59:00Z"},
 		{"id": 4, "system": false, "body": "before any version",
-		 "author": {"username": "eve"}, "created_at": "2026-06-01T00:00:00Z"}
+		 "author": {"username": "eve"}, "created_at": "2026-06-01T00:00:00Z"},
+		{"id": 5, "system": true, "body": "requested changes",
+		 "author": {"username": "rex"}, "created_at": "2026-06-03T11:00:00Z"}
 	]`)
 	d := newTestDriver(t, mux)
 
@@ -229,8 +231,8 @@ func TestReviewMetadataStampsEachReviewWithItsVersion(t *testing.T) {
 			t.Errorf("%s: no SubmittedAt", r.Author)
 		}
 	}
-	want := map[string]string{"ronen": "bbb222", "alice": "ccc333"}
-	if len(got) != len(want) || got["ronen"] != want["ronen"] || got["alice"] != want["alice"] {
+	want := map[string]string{"ronen": "bbb222", "alice": "ccc333", "rex": "ccc333"}
+	if len(got) != len(want) || got["ronen"] != want["ronen"] || got["alice"] != want["alice"] || got["rex"] != want["rex"] {
 		t.Errorf("reviews = %v, want %v (system events and unplaceable notes dropped)", got, want)
 	}
 }
