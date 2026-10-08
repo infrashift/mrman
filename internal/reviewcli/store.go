@@ -1,6 +1,8 @@
 // Package reviewcli implements the non-interactive `mrman review` commands:
-// JSON session listings, comment additions, and comment dumps. This is the
-// documented integration surface for agents collaborating on a review.
+// JSON session listings, comment additions, comment dumps, and the watch
+// stream of changes. This is the documented integration surface for agents
+// collaborating on a review; submitting lives in agentsubmit, behind its
+// grant.
 package reviewcli
 
 import (

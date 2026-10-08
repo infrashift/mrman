@@ -172,9 +172,9 @@ func announceLocalStart(a *app.App, warnings []string, lifecycle *sessionLifecyc
 	}
 }
 
-// Run opens the read-only TUI for the given CLI options (M3 scope: working
-// tree and commit ranges; target selector, sessions-on-disk wiring and PR
-// mode land in later milestones).
+// Run opens the TUI on a local review: the working tree, a commit range,
+// files, a patch, or two paths, or the target selector when no target was
+// given. Merge requests open through RunPr.
 func Run(opts cli.TuiOptions) error {
 	cwd, err := os.Getwd()
 	if err != nil {
