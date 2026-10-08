@@ -503,3 +503,22 @@ func TestResolveHostConfigWarnsAndWithholdsTokenForUntrustedHost(t *testing.T) {
 		t.Fatalf("token = %q warning = %q after listing the host", hc.Token, hc.Warning)
 	}
 }
+
+// TestKindFromConfigNameAliases pins the names config accepts to the drivers
+// they select.
+func TestKindFromConfigNameAliases(t *testing.T) {
+	cases := map[string]forgetypes.Kind{
+		"github": forgetypes.KindGitHub, "gitlab": forgetypes.KindGitLab,
+		"azuredevops": forgetypes.KindAzureDevOps, "azure_devops": forgetypes.KindAzureDevOps,
+		"ado": forgetypes.KindAzureDevOps, "forgejo": forgetypes.KindForgejo,
+		"gitea": forgetypes.KindForgejo, " GitLab ": forgetypes.KindGitLab,
+	}
+	for name, want := range cases {
+		if got, ok := kindFromConfigName(name); !ok || got != want {
+			t.Errorf("kindFromConfigName(%q) = %v, %v; want %v", name, got, ok, want)
+		}
+	}
+	if _, ok := kindFromConfigName("bitbucket"); ok {
+		t.Error("an unknown forge name must not resolve")
+	}
+}
