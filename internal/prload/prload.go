@@ -39,11 +39,18 @@ func Fetch(
 	if err != nil {
 		return app.PullRequestLoad{}, err
 	}
+	// The commit list does not depend on the diff, so fetch it alongside
+	// rather than after. It is best-effort: a PR still opens without it.
+	commitsDone := make(chan []forge.Commit, 1)
+	go func() {
+		commits, _ := backend.ListCommits(ctx, details)
+		commitsDone <- commits
+	}()
 	patch, err := backend.GetDiff(ctx, details)
+	commits := <-commitsDone
 	if err != nil {
 		return app.PullRequestLoad{}, err
 	}
-	commits, _ := backend.ListCommits(ctx, details)
 
 	files, err := diffparser.Parse(patch, diffparser.GitStyle, highlighter)
 	if err != nil {
