@@ -104,7 +104,9 @@ func TestCreateReviewCommentSequence(t *testing.T) {
 			},
 		},
 	}
-	result, err := d.CreateReview(context.Background(), testPR(), req)
+	pr := testPR()
+	pr.ForgePayload = []byte(`{"iteration_id":2,"change_tracking":{"/src/main.go":7,"/renamed.go":9}}`)
+	result, err := d.CreateReview(context.Background(), pr, req)
 	if err != nil {
 		t.Fatalf("CreateReview: %v", err)
 	}
@@ -171,18 +173,21 @@ func TestCreateReviewCommentSequence(t *testing.T) {
 		t.Errorf("range thread = %v, want %v", h.threads[2].body, want)
 	}
 
-	// Golden 4: old-side comments anchor left positions at the base-side
-	// path of a rename.
+	// Golden 4: an old-side comment on a renamed file anchors left
+	// positions under the file's current path, which is the form Azure
+	// DevOps stores and the key its change-tracking ids are filed under.
+	// The base-side path found no tracking id (verified live, PR 2).
 	want = mustJSON(t, `{
 		"status": "active",
 		"comments": [{"parentCommentId": 0, "content": "old side", "commentType": "text"}],
 		"threadContext": {
-			"filePath": "/old/path.go",
+			"filePath": "/renamed.go",
 			"leftFileStart": {"line": 2, "offset": 1},
 			"leftFileEnd": {"line": 2, "offset": 1}
 		},
 		"pullRequestThreadContext": {
-			"iterationContext": {"firstComparingIteration": 1, "secondComparingIteration": 2}
+			"iterationContext": {"firstComparingIteration": 1, "secondComparingIteration": 2},
+			"changeTrackingId": 9
 		}
 	}`)
 	if !reflect.DeepEqual(h.threads[3].body, want) {
