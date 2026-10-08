@@ -35,15 +35,7 @@ import { Steps, Aside, Tabs, TabItem } from '@astrojs/starlight/components';
 	</TabItem>
 </Tabs>
 
-<Aside type="caution" title="The repository is private for now">
-`git clone` and `go install` both need your GitHub credentials, and Go must
-fetch the module directly rather than through the public proxy:
-
-```sh
-gh auth setup-git    # or any git credential helper for github.com
-GOPRIVATE=github.com/infrashift go install github.com/infrashift/mrman@latest
-```
-
+<Aside type="note" title="No release yet">
 mrman has no release tag yet, so `@latest` installs the newest commit on
 `main`.
 </Aside>

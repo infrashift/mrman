@@ -27,11 +27,8 @@ go install github.com/infrashift/mrman@latest
 make install
 ```
 
-While the repository is private, `go install` needs to be told to fetch it
-directly and with your credentials:
-`GOPRIVATE=github.com/infrashift go install github.com/infrashift/mrman@latest`,
-with git able to authenticate to GitHub (for example `gh auth setup-git`).
-mrman has no release tag yet, so `@latest` is the newest commit on `main`.
+mrman has no release tag yet, so `@latest` installs the newest commit on
+`main`.
 
 Requires `git` on PATH (and `jj` for Jujutsu repos). Best experienced in a
 terminal with full kitty-keyboard support such as **Ghostty**.

@@ -248,20 +248,12 @@ there, or select it together with a patch that does carry a diff.
 
 ## `go install` fails
 
-While the repository is private, the Go module proxy and checksum database
-cannot see it. Tell Go to fetch it directly, and make sure git can
-authenticate to GitHub:
-
-```sh
-gh auth setup-git
-GOPRIVATE=github.com/infrashift go install github.com/infrashift/mrman@latest
-```
-
-A `410 Gone` or `verifying module: ... not found` error means `GOPRIVATE` is
-not set; `could not read Username for 'https://github.com'` means git has no
-credentials. `GOWORK=off go build ./...` in a checkout needs the same
-setting. It resolves the tagged `charmkit` module, and CI checks it on every
-change. See [Contributing](../contributing/).
+`go install github.com/infrashift/mrman@latest` needs Go 1.26.8 or newer
+(the `go 1.26.8` line in `go.mod` makes an older Go fetch it automatically when `GOTOOLCHAIN`
+allows). It resolves the tagged `charmkit` module like any other dependency,
+and CI checks that shape (`GOWORK=off go build ./...`) on every change. If it
+still fails, building from a checkout (`make install`) narrows it down. See
+[Contributing](../contributing/).
 
 ## Something else
 
