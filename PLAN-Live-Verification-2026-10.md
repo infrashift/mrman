@@ -16,7 +16,7 @@ Fixtures come from `scripts/live-fixture.sh URL up` and are torn down with
 | Forge | Repository | Fixture | Credentials |
 |---|---|---|---|
 | GitHub | github.com/infrashift/scratch | #2 (fixture, 11 files), #3 (310 files) | `gh auth token` |
-| gitlab.com | gitlab.com/infrashift-group/scratch | pending | `GITLAB_TOKEN` |
+| gitlab.com | gitlab.com/infrashift-group/scratch | !1 (fixture) | `GITLAB_TOKEN` (classic, `api`) |
 | Azure DevOps | dev.azure.com/ryanscraig/scratch | PR 2 (fixture), PR 3 (repository `scratch space`) | `AZURE_DEVOPS_EXT_PAT` |
 | Codeberg (Forgejo 16.0.0-dev) | codeberg.org/ryancraig/scratch | #1 (fixture) | `CODEBERG_TOKEN` (no `read:user`) |
 
@@ -39,6 +39,13 @@ Fixtures come from `scripts/live-fixture.sh URL up` and are torn down with
 | votes | Azure DevOps approve and request changes | ADO PR 2 | n/a | **Pass.** `:submit approve` gives vote 10; `:submit request-changes` gives -10; reset to 0 afterwards. |
 | 1.1 | Header-lookalike rows | Codeberg #1 | **Reproduced.** `counter.c` has no `++i;` row. | **Pass.** |
 | Forgejo | Live end-to-end on Codeberg | Codeberg #1 | n/a | **Pass.** All generic live tests pass. threads=9 summaries=3 render; a draft review lands as `PENDING`. Own-PR approve and request-changes are refused with Forgejo's 422 ("approve/reject your own pull is not allowed"), shown verbatim, and the comment stays local. Without `read:user`, metadata degrades silently (no "commits since your last review"). |
+| GitLab | `TestLiveGitLabReview` on gitlab.com | gitlab.com !1 | n/a | **Pass, L1–L6.** L7 was skipped (no read-only token). Two test fixes first: L2 now picks its anchor file by shape (gitlab.com lists `café.md` first), and L6 waits for the approval's system note, which gitlab.com writes asynchronously (about 7 s late). GitLab reported the pushed head after 1.5 s. |
+| new | GitLab "requested changes" not counted as review activity | gitlab.com !1 | n/a | Fixed: the "requested changes" system note now counts toward the review records, as an approval does. |
+| 1.1 | Header-lookalike rows | gitlab.com !1 | **Reproduced.** `counter.c` has no `++i;` row. | **Pass.** |
+| 2.6 | Files over GitLab's diff limits shown as unchanged | gitlab.com !1 | **Reproduced.** A 1.9 MB `big.txt` arrives with `too_large: true`, an empty diff, and no hunks; it was not marked. | **Pass.** `IsTooLarge`. |
+| 2.8 | Refused approval reported as an auth failure | gitlab.com !1 | **Confirmed.** A repeat approve gets 401 from gitlab.com. | **Pass.** The TUI says "permission denied (HTTP 401) … GitLab refused the approval: you may already have approved …". |
+| new | Forge error hints cut off in the status bar | gitlab.com !1 | **Reproduced.** The status line ended in "...approve: 401 {message: 40", with no hint. | **Pass.** `forge.Describe` leads with the hint. |
+| 2.10 | GitLab general notes | gitlab.com !1 | (the shared ADO/GitLab fix) | **Pass.** summaries=2 render. |
 | live | `TestLiveAgentSubmit` fails when run alongside the other live tests | GitHub #2 | **Reproduced.** In `go test ./...` the UI package's live submit posted between its counts. | **Pass.** It counts only reviews carrying its own marker. All GitHub live tests pass in one parallel run. |
 
 ## Runs
@@ -87,9 +94,26 @@ Experimental (no other version exercised).
 - **Left in place:** GitHub #1 and Azure DevOps PR 1, which predate this run.
   The cross-hunk probe review on GitHub #1 (5458358994) remains.
 
+gitlab.com, complete integration build:
+
+```console
+$ MRMAN_LIVE_PR=https://gitlab.com/infrashift-group/scratch/-/merge_requests/1 MRMAN_LIVE_SUBMIT=1 \
+    go test -count=1 -run TestLiveGitLabReview -v ./internal/forge/gitlabf/
+--- PASS: TestLiveGitLabReview (25.02s)   L1-L6 pass, L7 skipped
+$ MRMAN_LIVE_PR=https://gitlab.com/infrashift-group/scratch/-/merge_requests/1 MRMAN_LIVE_SUBMIT=1 \
+    go test -count=1 -run 'Live(PullRequestReview|PullRequestSubmit|AgentSubmit)' ./internal/ui/ ./internal/agentsubmit/
+ok   github.com/infrashift/mrman/internal/ui            13.304s
+ok   github.com/infrashift/mrman/internal/agentsubmit    5.195s
+```
+
+The first `GITLAB_TOKEN` was a fine-grained token without `Project: Read` and
+`User: Read`. GitLab answered 403 `insufficient_granular_scope`, and the
+GitLab page now documents that. gitlab.com is marked Supported.
+
+**gitlab.com teardown:** !1 closed, its approval cleared, and the `mrman-e2e-*`
+branches deleted.
+
 ## Still to run
 
-- **gitlab.com:** blocked on the token. The supplied `GITLAB_TOKEN` is a
-  fine-grained token without `Project: Read` or `User: Read`, so the API
-  answers 403 `insufficient_granular_scope`. Use a classic token with the
-  `api` scope.
+Nothing. A self-managed GitLab behind TLS with `ca_file` remains unexercised,
+as before.
