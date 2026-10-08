@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # live-fixture.sh — build (and tear down) the merge request mrman's live tests
-# review, on GitHub, GitLab (gitlab.com or self-managed) or Azure DevOps.
+# review, on GitHub, GitLab (gitlab.com or self-managed), Azure DevOps or
+# Forgejo (Codeberg).
 #
 # The fixture is built with git in a throwaway clone, so it is the same on
 # every forge and never touches your own checkout or the default branch. A
@@ -28,12 +29,14 @@
 #   https://github.com/OWNER/REPO
 #   https://gitlab.com/GROUP[/SUB]/REPO           (or a self-managed host)
 #   https://dev.azure.com/ORG/PROJECT/_git/REPO
+#   https://codeberg.org/OWNER/REPO               (Forgejo; FORGE=forgejo for other hosts)
 #
 # Credentials come from the environment and are passed to git through a
 # credential helper, never on a command line:
 #   GitHub        gh auth (gh must be logged in)
 #   GitLab        GITLAB_TOKEN   (api scope)
 #   Azure DevOps  AZURE_DEVOPS_EXT_PAT   (Code: Read & Write)
+#   Forgejo       FORGEJO_TOKEN or CODEBERG_TOKEN   (repository and issue: read & write)
 #
 # Commits say [skip ci], so a pipeline that runs on every push builds nothing.
 set -euo pipefail
@@ -43,17 +46,19 @@ TITLE_PREFIX="mrman live fixture"
 
 die() { echo "live-fixture: $*" >&2; exit 1; }
 
-usage() { sed -n '2,38p' "$0" >&2; exit 2; }
+usage() { sed -n '2,41p' "$0" >&2; exit 2; }
 
 [[ $# -eq 2 && $2 =~ ^(up|down)$ ]] || usage
 URL="${1%/}"
 URL="${URL%.git}"
 ACTION=$2
 
-case "$URL" in
-https://github.com/*) FORGE=github ;;
-https://dev.azure.com/*/_git/*) FORGE=ado ;;
-https://*) FORGE=gitlab ;;
+case "${FORGE:-}:$URL" in
+:https://github.com/*) FORGE=github ;;
+:https://dev.azure.com/*/_git/*) FORGE=ado ;;
+:https://codeberg.org/*) FORGE=forgejo ;;
+forgejo:https://*) ;;
+:https://*) FORGE=gitlab ;;
 *) die "unrecognised URL $URL" ;;
 esac
 
@@ -71,6 +76,7 @@ api() {
 	case "$FORGE" in
 	gitlab) header="PRIVATE-TOKEN: $GITLAB_TOKEN" ;;
 	ado) header="Authorization: Basic $(printf ':%s' "$AZURE_DEVOPS_EXT_PAT" | base64 -w0)" ;;
+	forgejo) header="Authorization: token $FJ_TOKEN" ;;
 	*) die "api is not used for $FORGE" ;;
 	esac
 	out="$(mktemp)"
@@ -108,6 +114,15 @@ ado)
 	REPO="${rest#*/_git/}"
 	ADO_API="https://dev.azure.com/$ORG/$(quote "$PROJECT")/_apis/git/repositories/$(quote "$REPO")"
 	;;
+forgejo)
+	FJ_TOKEN="${FORGEJO_TOKEN:-${CODEBERG_TOKEN:-}}"
+	export FJ_TOKEN
+	[[ -n $FJ_TOKEN ]] || die "set FORGEJO_TOKEN or CODEBERG_TOKEN"
+	HOST="${URL#https://}"
+	HOST="${HOST%%/*}"
+	REPO_SLUG="${URL#https://"$HOST"/}"
+	FJ_API="https://$HOST/api/v1/repos/$REPO_SLUG"
+	;;
 esac
 
 # Git credentials, read from the environment by a helper at run time: the
@@ -118,6 +133,7 @@ case "$FORGE" in
 github) GIT_CRED=(-c credential.helper= -c 'credential.helper=!gh auth git-credential') ;;
 gitlab) GIT_CRED=(-c credential.helper= -c 'credential.helper=!f() { echo username=oauth2; echo "password=$GITLAB_TOKEN"; }; f') ;;
 ado) GIT_CRED=(-c credential.helper= -c 'credential.helper=!f() { echo username=pat; echo "password=$AZURE_DEVOPS_EXT_PAT"; }; f') ;;
+forgejo) GIT_CRED=(-c credential.helper= -c 'credential.helper=!f() { echo username=token; echo "password=$FJ_TOKEN"; }; f') ;;
 esac
 
 WORK=""
@@ -257,6 +273,12 @@ print(json.dumps({"sourceRefName": "refs/heads/"+sys.argv[1], "targetRefName": "
                   "title": sys.argv[3], "description": sys.argv[4]}))' "$head" "$BASE" "$title" "$body")" | json 'd["pullRequestId"]')"
 		echo "$URL/pullrequest/$id"
 		;;
+	forgejo)
+		api POST "$FJ_API/pulls" "$(python3 -c '
+import json,sys
+print(json.dumps({"head": sys.argv[1], "base": sys.argv[2], "title": sys.argv[3], "body": sys.argv[4]}))' \
+			"$head" "$BASE" "$title" "$body")" | json 'd["html_url"]'
+		;;
 	esac
 }
 
@@ -311,6 +333,13 @@ cmd_down() {
 			json '" ".join(str(p["pullRequestId"]) for p in d["value"] if p["title"].startswith("'"$TITLE_PREFIX"'"))'); do
 			api PATCH "$ADO_API/pullrequests/$id?api-version=7.1" '{"status":"abandoned"}' >/dev/null
 			echo "abandoned !$id" >&2
+		done
+		;;
+	forgejo)
+		for n in $(api GET "$FJ_API/pulls?state=open&limit=50" |
+			json '" ".join(str(p["number"]) for p in d if p["title"].startswith("'"$TITLE_PREFIX"'"))'); do
+			api PATCH "$FJ_API/pulls/$n" '{"state":"closed"}' >/dev/null
+			echo "closed #$n" >&2
 		done
 		;;
 	esac
