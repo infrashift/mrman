@@ -123,6 +123,18 @@ func (noContextProvider) FileLineCount(_, _ *string, _ model.FileStatus) (uint32
 // CanExpand is false.
 func (noContextProvider) CanExpand() bool { return false }
 
+// GapRemaining is how many lines of a gap are still hidden: its size less
+// the lines already expanded from either end. This, not the gap size, is
+// what an expander can still reveal.
+func (a *App) GapRemaining(gapID GapID) (uint32, bool) {
+	size, ok := a.GapSize(gapID)
+	if !ok {
+		return 0, false
+	}
+	expanded := len(a.ExpandedTop[gapID]) + len(a.ExpandedBottom[gapID])
+	return uint32(satSub(int(size), expanded)), true //nolint:gosec // G115: bounded by size, a uint32
+}
+
 // GapSize is the number of hidden lines in a gap (new-side coordinates).
 func (a *App) GapSize(gapID GapID) (uint32, bool) {
 	if gapID.FileIdx >= len(a.DiffFiles) {
@@ -349,6 +361,12 @@ func (a *App) GetExpandedLine(gapID GapID, idx int) *model.DiffLine {
 // ExpandGap expands a gap in the given direction. If limit is non-nil, up
 // to *limit lines are revealed; nil expands all remaining.
 func (a *App) ExpandGap(gapID GapID, direction ExpandDirection, limit *int) error {
+	if limit != nil && *limit <= 0 {
+		// Nothing to fetch. Left to the arithmetic below, a zero limit
+		// wrapped to 2^32-1 and fetched the whole gap upwards (or one line
+		// downwards).
+		return nil
+	}
 	// Ensure the file line count is cached for EOF gaps.
 	a.ensureFileLineCountCached(gapID.FileIdx)
 
