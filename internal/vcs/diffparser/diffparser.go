@@ -403,9 +403,13 @@ func parseHunk(src *lineSource, filePath string, h *syntax.Highlighter) (model.D
 	// A `git format-patch` signature ("-- \n2.43.0"), an mbox's next-message
 	// preamble, a diffstat line, a changelog bullet — all of them start with
 	// "-", "+" or " " and would otherwise be read as diff rows: the "---"
-	// guard below does not catch "-- ", and a leading space is a context
-	// line. That corrupts the hunk's line numbering and, through
+	// guard below (uncounted hunks only) does not catch "-- ", and a leading
+	// space is a context line. That corrupts the hunk's line numbering and, through
 	// ComputeContentHash and HunkReviewKey, the reviewed state keyed off it.
+	//
+	// Within the budget every "+" or "-" row is content, even one that looks
+	// like a file header: deleting a YAML "---" arrives as "----", adding
+	// "++i;" as "+++i;".
 	for !bounds.spent(oldSeen, newSeen) {
 		line, hasLine, err := src.peek()
 		if err != nil {
@@ -429,16 +433,16 @@ func parseHunk(src *lineSource, filePath string, h *syntax.Highlighter) (model.D
 
 		switch {
 		case strings.HasPrefix(line, "+"):
-			if strings.HasPrefix(line, "+++") {
-				continue // skip +++ header lines
+			if !bounds.Counted && strings.HasPrefix(line, "+++") {
+				continue // an unmeasured hunk has no budget to stop at a header
 			}
 			ln := newLineno
 			newLineno++
 			newSeen++
 			origin, content, newLn = model.OriginAddition, line[1:], &ln
 		case strings.HasPrefix(line, "-"):
-			if strings.HasPrefix(line, "---") {
-				continue // skip --- header lines
+			if !bounds.Counted && strings.HasPrefix(line, "---") {
+				continue // an unmeasured hunk has no budget to stop at a header
 			}
 			ln := oldLineno
 			oldLineno++
