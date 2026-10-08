@@ -179,6 +179,10 @@ func DefaultSaaSHost(kind forgetypes.Kind) string {
 	return ""
 }
 
+// legacyADOSSHHost is the SSH transport host for {org}.visualstudio.com
+// remotes; the organization is the first path segment after "v3".
+const legacyADOSSHHost = "vs-ssh.visualstudio.com"
+
 // builtinKindForHost claims the well-known SaaS hosts.
 func builtinKindForHost(host string) (forgetypes.Kind, bool) {
 	switch host {
@@ -276,8 +280,18 @@ func repoFromSegments(kind forgetypes.Kind, host string, segments []string) (*fo
 // adoRepoFromSegments interprets Azure DevOps remote path shapes:
 // dev.azure.com/{org}/{project}/_git/{repo}, the v3 SSH form
 // {v3}/{org}/{project}/{repo}, and legacy
-// {org}.visualstudio.com/[DefaultCollection/]{project}/_git/{repo}.
+// {org}.visualstudio.com/[DefaultCollection/]{project}/_git/{repo}, whose
+// SSH form is vs-ssh.visualstudio.com:v3/{org}/{project}/{repo}.
 func adoRepoFromSegments(host string, segments []string) (*forgetypes.Repository, bool) {
+	if host == legacyADOSSHHost {
+		if len(segments) == 4 && segments[0] == "v3" {
+			return &forgetypes.Repository{
+				Kind: forgetypes.KindAzureDevOps, Host: segments[1] + ".visualstudio.com",
+				Owner: segments[1], Project: segments[2], Name: segments[3],
+			}, true
+		}
+		return nil, false
+	}
 	if org, ok := strings.CutSuffix(host, ".visualstudio.com"); ok {
 		if len(segments) > 0 && strings.EqualFold(segments[0], "DefaultCollection") {
 			segments = segments[1:]

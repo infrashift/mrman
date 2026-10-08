@@ -159,6 +159,10 @@ func envToken(host string, kind forgetypes.Kind) string {
 	case "codeberg.org":
 		return firstEnv("FORGEJO_TOKEN", "CODEBERG_TOKEN")
 	}
+	if strings.HasSuffix(strings.ToLower(host), ".visualstudio.com") {
+		// Legacy Azure DevOps Services URLs: the same SaaS, the same PAT.
+		return firstEnv("AZURE_DEVOPS_EXT_PAT")
+	}
 	if kind == forgetypes.KindGitHub {
 		return firstEnv("GH_ENTERPRISE_TOKEN")
 	}

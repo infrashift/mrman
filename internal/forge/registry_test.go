@@ -108,6 +108,14 @@ func TestResolveRepositoryTable(t *testing.T) {
 			adoRepo("myorg.visualstudio.com", "myorg", "project", "repo")},
 		{"ado legacy without collection", []string{"https://myorg.visualstudio.com/project/_git/repo"},
 			adoRepo("myorg.visualstudio.com", "myorg", "project", "repo")},
+		{"ado legacy ssh", []string{"git@vs-ssh.visualstudio.com:v3/myorg/project/repo"},
+			adoRepo("myorg.visualstudio.com", "myorg", "project", "repo")},
+		// Clone URLs percent-encode spaces; the coordinates must not, or the
+		// SDK encodes them a second time.
+		{"ado https with spaces", []string{"https://org@dev.azure.com/org/My%20Project/_git/My%20Repo"},
+			adoRepo("dev.azure.com", "org", "My Project", "My Repo")},
+		{"ado ssh with spaces", []string{"git@ssh.dev.azure.com:v3/org/My%20Project/My%20Repo"},
+			adoRepo("dev.azure.com", "org", "My Project", "My Repo")},
 		{"unknown host defaults to github", []string{"https://git.example.com/owner/repo.git"},
 			repo(forgetypes.KindGitHub, "git.example.com", "owner", "repo")},
 		{"first parseable remote wins", []string{"not a url", "https://github.com/o/r.git"},

@@ -80,6 +80,8 @@ func TestTokenEnvConventionsForSaaSHosts(t *testing.T) {
 			map[string]string{"GITLAB_TOKEN": "g"}, "g"},
 		{"dev.azure.com AZURE_DEVOPS_EXT_PAT", "dev.azure.com", forgetypes.KindAzureDevOps,
 			map[string]string{"AZURE_DEVOPS_EXT_PAT": "p"}, "p"},
+		{"legacy visualstudio.com AZURE_DEVOPS_EXT_PAT", "myorg.visualstudio.com", forgetypes.KindAzureDevOps,
+			map[string]string{"AZURE_DEVOPS_EXT_PAT": "p"}, "p"},
 		{"codeberg.org FORGEJO_TOKEN", "codeberg.org", forgetypes.KindForgejo,
 			map[string]string{"FORGEJO_TOKEN": "f", "CODEBERG_TOKEN": "c"}, "f"},
 		{"codeberg.org CODEBERG_TOKEN fallback", "codeberg.org", forgetypes.KindForgejo,
