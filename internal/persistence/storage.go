@@ -662,6 +662,13 @@ var originRemoteURL = func(dir string) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
+// HasOriginRemote reports whether dir is a checkout with an origin remote,
+// the only kind of directory whose sessions a coordinate can find.
+func HasOriginRemote(dir string) bool {
+	url, err := originRemoteURL(dir)
+	return err == nil && url != ""
+}
+
 // repoSelector is how ListSessions interprets its argument: an optional
 // canonical checkout path (directory selectors) plus an optional owner/repo
 // coordinate. Local sessions match by canonical path when one is known,

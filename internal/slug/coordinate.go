@@ -59,6 +59,7 @@ func ParseRepoCoordinate(input string) (RepoCoordinate, error) {
 			segments = append(segments, seg)
 		}
 	}
+	segments = trimPRSuffix(segments)
 	if len(segments) == 0 {
 		return RepoCoordinate{}, fmt.Errorf("%w: %s", ErrInvalidRepoCoordinate, input)
 	}
@@ -71,6 +72,43 @@ func ParseRepoCoordinate(input string) (RepoCoordinate, error) {
 		owner = segments[len(segments)-2]
 	}
 	return RepoCoordinate{Owner: owner, Repo: repo}, nil
+}
+
+// trimPRSuffix cuts a pull request's part off a path, so a PR's web URL or
+// session slug names its repository: .../pull/N and .../pulls/N (GitHub,
+// Forgejo), .../-/merge_requests/N (GitLab), .../pullrequest/N (Azure
+// DevOps, after "_git" is dropped) and .../pr/N (mrman's own PR slugs),
+// with any tab segments after them.
+func trimPRSuffix(segments []string) []string {
+	for i := 1; i+1 < len(segments); i++ {
+		switch {
+		case segments[i] == "-" && segments[i+1] == "merge_requests":
+			return segments[:i]
+		case isPRMarker(segments[i]) && isDigits(segments[i+1]):
+			return segments[:i]
+		}
+	}
+	return segments
+}
+
+func isPRMarker(s string) bool {
+	switch s {
+	case "pull", "pulls", "pullrequest", "pr":
+		return true
+	}
+	return false
+}
+
+func isDigits(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // stripForgePrefix removes a leading "forge:" or known forge slug prefix
