@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/infrashift/mrman/internal/model"
@@ -152,5 +153,59 @@ func TestBackendUnquotesUnusualPaths(t *testing.T) {
 		if err != nil || len(lines) != 1 || lines[0].Content != "one" {
 			t.Errorf("context for %q = %+v, err %v", name, lines, err)
 		}
+	}
+}
+
+// TestIndexRefReadsTheStagedVersion: in a staged-only review the new side of
+// the diff is the index. With further unstaged edits in the file, the
+// working tree is the wrong snapshot to read context from.
+func TestIndexRefReadsTheStagedVersion(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not installed")
+	}
+	dir := t.TempDir()
+	git := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", args...)
+		cmd.Dir = dir
+		cmd.Env = append(os.Environ(),
+			"GIT_AUTHOR_NAME=test", "GIT_AUTHOR_EMAIL=t@t",
+			"GIT_COMMITTER_NAME=test", "GIT_COMMITTER_EMAIL=t@t")
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	git("init", "-q", "-b", "main")
+	writeFile(t, dir, "f.txt", "one\ntwo\nthree\n")
+	writeFile(t, dir, "gone.txt", "kept\n")
+	git("add", ".")
+	git("commit", "-q", "-m", "first")
+	writeFile(t, dir, "f.txt", "one\nTWO\nthree\n")
+	git("add", "f.txt")
+	git("rm", "-q", "gone.txt")
+	writeFile(t, dir, "f.txt", "unstaged\none\nTWO\nthree\n")
+
+	backend, err := Discover(dir, vcs.WhitespaceNormal, vcs.SystemRunner{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	index := vcs.IndexRef
+	lines, err := backend.FetchContextLines("f.txt", model.StatusModified, &index, 1, 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, l := range lines {
+		got = append(got, l.Content)
+	}
+	if strings.Join(got, ",") != "one,TWO,three" {
+		t.Errorf("index context = %v, want the staged lines", got)
+	}
+	if n, err := backend.FileLineCount("f.txt", model.StatusModified, &index); err != nil || n != 3 {
+		t.Errorf("index line count = %d, %v; want 3", n, err)
+	}
+	// A file deleted in the index has only its old side, read from HEAD.
+	if n, err := backend.FileLineCount("gone.txt", model.StatusDeleted, &index); err != nil || n != 1 {
+		t.Errorf("staged-deleted line count = %d, %v; want 1", n, err)
 	}
 }

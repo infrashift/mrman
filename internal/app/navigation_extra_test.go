@@ -61,6 +61,16 @@ func TestStagedSourceDisablesEofGap(t *testing.T) {
 	}
 }
 
+func TestRefCommitForStagedReadsTheIndex(t *testing.T) {
+	info := &vcs.Info{RootPath: "/tmp", HeadCommit: "abc", Type: vcs.TypeGit}
+	session := model.NewReviewSession(info.RootPath, info.HeadCommit, nil, model.SourceStaged)
+	a := NewApp(&mockVcs{info: info, totalLines: 100}, info, nil, session, DiffSource{Kind: DiffSourceStaged})
+
+	if ref := a.refCommit(); ref == nil || *ref != vcs.IndexRef {
+		t.Errorf("refCommit = %v, want the index", ref)
+	}
+}
+
 func TestRefCommitForCommitRange(t *testing.T) {
 	file := makeFileWithHunks("test.rs", []model.DiffHunk{makeHunk(1, 5)})
 	info := &vcs.Info{RootPath: "/tmp", HeadCommit: "abc", Type: vcs.TypeGit}

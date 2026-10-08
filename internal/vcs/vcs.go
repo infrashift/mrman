@@ -99,6 +99,8 @@ type Backend interface {
 	ChangeStatus() (ChangeStatus, error)
 	ListChangedPaths(kind ChangeKind) ([]string, error)
 
+	// FetchContextLines and FileLineCount read the new side of the diff:
+	// refCommit when set (IndexRef for the index), else the working tree.
 	FetchContextLines(path string, status model.FileStatus, refCommit *string, start, end uint32) ([]model.DiffLine, error)
 	FileLineCount(path string, status model.FileStatus, refCommit *string) (uint32, error)
 
@@ -166,3 +168,8 @@ func (UnsupportedBase) WorkingTreeWithCommitsDiff([]string, *syntax.Highlighter)
 func (UnsupportedBase) StageFile(string) error {
 	return errs.Unsupportedf("staging")
 }
+
+// IndexRef is the refCommit that reads the staged (index) version of a
+// file: the new side of a staged-only review. Only git has an index, and
+// only git offers a staged diff source.
+const IndexRef = ":0"

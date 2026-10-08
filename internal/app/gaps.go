@@ -438,16 +438,19 @@ func (a *App) ExpandGap(gapID GapID, direction ExpandDirection, limit *int) erro
 	return nil
 }
 
-// refCommit is the commit context expansion reads from: the newest commit
-// of a commit-range review, nil (worktree/index) otherwise.
-//
-// M4 hook: once the inline commit selector lands, a narrowed selection
-// resolves to the newest selected commit instead.
+// refCommit is the snapshot context expansion reads the new side from: the
+// newest commit of a commit-range review, the index for a staged-only
+// review, and nil (the working tree) otherwise. Reading the working tree for
+// a staged review showed unstaged edits as context, numbered as if staged.
 func (a *App) refCommit() *string {
-	if a.DiffSource.Kind == DiffSourceCommitRange {
+	switch a.DiffSource.Kind {
+	case DiffSourceCommitRange:
 		if n := len(a.DiffSource.Commits); n > 0 {
 			return &a.DiffSource.Commits[n-1]
 		}
+	case DiffSourceStaged:
+		index := vcs.IndexRef
+		return &index
 	}
 	return nil
 }
