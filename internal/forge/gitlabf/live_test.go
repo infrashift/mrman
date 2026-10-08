@@ -753,15 +753,25 @@ func (lv *liveMR) reviewState(t *testing.T) reviewSnapshot {
 
 // --- diff pickers ---
 
-// modifiedFile is the first modified file and its first hunk: the fixture's
-// anchor for single-line and range comments.
+// modifiedFile is the first modified file with every anchor kind the test
+// comments on (an addition run of two lines, a deletion and a context line)
+// and its first hunk. A fixture may modify other files too, in any order:
+// gitlab.com lists mrman-e2e/edge/café.md, which has no deletion, before
+// mrman-e2e/cache.go.
 func (lv *liveMR) modifiedFile(t *testing.T) (*model.DiffFile, *model.DiffHunk) {
 	t.Helper()
-	f := lv.fileWithStatus(model.StatusModified)
-	if f == nil || len(f.Hunks) == 0 {
-		t.Fatal("the merge request modifies no text file; the fixture must")
+	for i := range lv.load.Files {
+		f := &lv.load.Files[i]
+		if f.Status != model.StatusModified || f.IsBinary || f.IsTooLarge || len(f.Hunks) == 0 {
+			continue
+		}
+		if _, _, run := additionRun(f); run && firstLine(f, model.OriginDeletion) != nil &&
+			firstLine(f, model.OriginContext) != nil {
+			return f, &f.Hunks[0]
+		}
 	}
-	return f, &f.Hunks[0]
+	t.Fatal("no modified file has an addition run, a deletion and a context line; the fixture must")
+	return nil, nil
 }
 
 func (lv *liveMR) fileWithStatus(status model.FileStatus) *model.DiffFile {
