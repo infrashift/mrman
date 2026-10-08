@@ -9,8 +9,10 @@ by guesses about one.
 go get github.com/infrashift/mrman/charmkit
 ```
 
-Only `go-runewidth` comes with them. Nothing here imports Bubble Tea or
-lipgloss, so they compose with whatever you already use.
+`keychord` and `cellrender` depend on nothing but `go-runewidth`, so they
+compose with whatever you already use. `vimtext` takes Bubble Tea v2's
+`tea.Key`, the key event a Charm application already has, so it imports
+`charm.land/bubbletea/v2`. Nothing here imports lipgloss.
 
 ## `vimtext` — modal text editing
 
@@ -26,12 +28,18 @@ speaks vim:
   match what a typist expects rather than one character at a time
 
 ```go
-ed := vimtext.New("hello world", 0)
+ed := vimtext.New("hello world", 0) // starts in Insert mode
 ed.TabWidth = 4
-ed.HandleKey(vimtext.Key{Rune: 'd'})
-ed.HandleKey(vimtext.Key{Rune: 'w'})
+ed.EnterNormal()
+ed.HandleKey(tea.Key{Code: 'd', Text: "d"})
+ed.HandleKey(tea.Key{Code: 'w', Text: "w"})
 fmt.Println(ed.Text()) // "world"
 ```
+
+`HandleKey` reports whether it consumed the key; the ones it hands back
+(Enter or Esc in Normal mode with nothing pending, `:`, Tab, Ctrl-S,
+Alt-modified keys) are yours to bind. This example runs as `Example` in
+`vimtext/example_test.go`.
 
 It owns the buffer and the editing model, not the rendering: you draw
 `Text()` and place your cursor at `Cursor()`, styled however you like.

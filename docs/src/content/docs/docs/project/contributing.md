@@ -117,9 +117,11 @@ Three layers other Bubble Tea projects can reuse live in the nested
 It is a separate module so consumers do not inherit mrman's dependency tree.
 `go.work` is committed, so **every clone and every `make` target builds**.
 
-What does *not* build is mrman with the workspace disabled — `GOWORK=off go build
-./...`, and therefore `go install github.com/infrashift/mrman@vX.Y.Z` — because
-`go.mod` cannot require a `charmkit` version that has never been tagged.
+With the workspace disabled — `GOWORK=off go build ./...`, which is what
+`go install github.com/infrashift/mrman@vX.Y.Z` does — mrman resolves charmkit
+as the module version `go.mod` requires (`charmkit/v0.1.0` today). CI's
+`release-shape` job checks that on every change. A charmkit change that mrman
+needs therefore ships as a new charmkit tag first.
 
 ### Releasing
 
@@ -131,8 +133,8 @@ go mod edit -require=github.com/infrashift/mrman/charmkit@vX.Y.Z
 git commit go.mod && git tag vX.Y.Z && git push --tags
 ```
 
-After that first release, `GOWORK=off go build ./...` should pass. Treat a failure
-there as a release blocker, not a local-setup problem.
+`GOWORK=off go build ./...` must keep passing. Treat a failure there as a
+release blocker, not a local-setup problem.
 
 ## Testing against a real forge
 

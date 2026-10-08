@@ -70,8 +70,13 @@ See "Submitting" below.
 
    `--repo` is a selector, not just a path: a checkout also surfaces the PR
    sessions belonging to that checkout's `origin`, and a forge coordinate
-   (`owner/repo`, `host/owner/repo`, or a PR URL) matches by coordinate. Use
-   `--all` when you do not know the repository.
+   (`owner/repo`, `host/owner/repo`, a PR URL, or a PR slug) matches by
+   coordinate. Use `--all` when you do not know the repository.
+
+   Without `--repo`, `review list` lists the checkout you run it in. Run
+   from anywhere else, a scratch directory say, it lists every session and
+   notes that on stderr, so a merge request's session is never hidden from
+   you.
 
    Each row carries `slug`, `kind` (`local` or `pr`), `path`, `updated_at`,
    `comment_count`, `reviewed_count`, `file_count`, `anchor`, `active` and
@@ -81,7 +86,11 @@ See "Submitting" below.
    - Exactly one relevant row with `"active": true` — attach to it.
    - Several active, or none obviously right — ask which slug.
    - The user gave a slug or a JSON path — use it directly.
-   - PR slugs (`gh:owner/repo/pr/N`) are self-contained and need no `--repo`.
+   - PR slugs are self-contained and need no `--repo`. They carry the
+     host: `gh:github.com/owner/repo/pr/N`,
+     `gl:gitlab.com/group/sub/project/pr/N`,
+     `ado:dev.azure.com/org/project/repo/pr/N`,
+     `fj:codeberg.org/owner/repo/pr/N`.
    - No active session — start or wait for one, below.
 
 The CLI does not need tmux or zellij. Do not demand a multiplexer merely to
@@ -216,7 +225,8 @@ review open and disappears when they close it. `mrman pr 1 --json --auto` is
 refused, and `--auto` without a terminal is refused, precisely so that a
 command *you* run cannot create one.
 
-Check before attempting: `review list` reports `granted_events` per session.
+Check before attempting: `review list` reports `granted_events` per session
+(add `--repo <owner/repo>` or `--all` if you are not in the checkout).
 
 ```bash
 mrman review submit --session <slug> --event comment --username "Claude"

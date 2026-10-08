@@ -19,7 +19,7 @@ review_body = "~/.config/mrman/templates/review_body.md.tmpl"
 patch_reply = "~/.config/mrman/templates/patch_reply.txt.tmpl"
 ```
 
-Both are Go [`text/template`](https://pkg.go.dev/text/template). A template that
+All three are Go [`text/template`](https://pkg.go.dev/text/template). A template that
 fails to parse **falls back to its default with a warning** rather than losing
 your review — an export is not the place to discover a syntax error.
 

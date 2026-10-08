@@ -43,7 +43,7 @@ export default defineConfig({
 						{ label: 'How MR Review Works', slug: 'docs/guides/merge-requests' },
 						{ label: 'GitHub', slug: 'docs/forges/github' },
 						{ label: 'GitHub Enterprise Server', slug: 'docs/forges/github-enterprise' },
-						{ label: 'GitLab', slug: 'docs/forges/gitlab', badge: { text: 'Experimental', variant: 'caution' } },
+						{ label: 'GitLab', slug: 'docs/forges/gitlab' },
 						{ label: 'Azure DevOps', slug: 'docs/forges/azure-devops' },
 						{ label: 'Forgejo & Gitea', slug: 'docs/forges/forgejo', badge: { text: 'Experimental', variant: 'caution' } },
 						{ label: 'Codeberg', slug: 'docs/forges/codeberg', badge: { text: 'Experimental', variant: 'caution' } },

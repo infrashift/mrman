@@ -1,11 +1,12 @@
 # PLAN: verify the GitLab driver against a live GitLab
 
-The GitLab driver (`internal/forge/gitlabf/`) is documented as **Experimental**:
-"implemented and unit-tested, but has not yet been exercised against a live
-instance" (`docs/src/content/docs/docs/forges/gitlab.md:8-13`). This plan
-exercises its read, comment, draft, **request changes** (reject) and **approve**
-paths end to end against a real self-hosted GitLab. Only after that passes are
-the docs promoted.
+**Done (2026-09-25).** This plan took the GitLab driver
+(`internal/forge/gitlabf/`) from Experimental to Supported for self-managed
+GitLab. It exercised the read, comment, draft, **request changes** (reject) and
+**approve** paths end to end against a real self-hosted GitLab, and promoted
+the docs once that passed. gitlab.com is covered by the October 2026 run in
+`PLAN-Live-Verification-2026-10.md`, which also closed finding 3 (ranges now
+read back) and finding 7 (`review list` outside a checkout).
 
 The first target is **GitLab CE 19.3.2** on the infrashift `gcloud-dc` lab. It is
 served over plain http, with the API on the Traefik `forge-api` door and no auth

@@ -181,7 +181,8 @@ patch_reply = "~/.config/mrman/templates/patch_reply.txt.tmpl"
 ```
 
 `notes` renders `y` / `:clip` output; `review_body` renders the body posted
-with `:submit`. Both are Go `text/template` with embedded defaults, and a
+with `:submit`; `patch_reply` renders the `:patch` mail reply. All three are
+Go `text/template` with embedded defaults, and a
 template that fails to parse falls back to its default with a warning rather
 than losing your review.
 

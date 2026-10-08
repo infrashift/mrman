@@ -52,9 +52,10 @@ mrman rejects these rather than picking a winner:
   can never issue a grant
 
 Two flags are accepted more widely than they act: `--json` does something only
-under `mrman pr` (elsewhere it is ignored), and `--auto` records a grant only
-for a merge request — on a local review there is nothing an agent could submit,
-so it is inert. `mrman tui pr <target>` and `mrman tui mr <target>` are
+under `mrman pr` (on a local review it is ignored), and `--auto` records a grant
+only for a merge request — on a local review there is nothing an agent could
+submit, so it is inert. Under `mrman review` both are refused, like every TUI
+flag. `mrman tui pr <target>` and `mrman tui mr <target>` are
 accepted as spellings of `mrman pr`.
 
 Passing any TUI flag to `mrman review` is also a hard error:
@@ -90,12 +91,31 @@ request" is the right word on GitLab.
 | Bare number | `125` (needs a checkout mrman can resolve) |
 | Coordinate | `owner/repo#125`, `owner/repo!125` |
 | Host-qualified | `github.com/owner/repo#125` |
-| GitLab subgroups | `gitlab.com/group/sub/project!42` |
+| GitLab subgroups | `gitlab.com/group/sub/project!42`, or `group/sub/project!42` from a GitLab checkout or with `[forge] default = "gitlab"` |
 | Azure DevOps | `dev.azure.com/org/project/repo#7`, or `project/repo#7` in an ADO checkout |
-| URL | Any supported forge's merge-request web URL — `/pull/N`, `/pulls/N`, `/-/merge_requests/N` or `/pullrequest/N` |
+| URL | Any supported forge's merge-request web URL — `/pull/N`, `/pulls/N`, `/-/merge_requests/N` or `/pullrequest/N`, including one copied from a tab (`/pull/N/files`, `/-/merge_requests/N/diffs`) |
+
+A coordinate's first segment is read as a host only when it looks like one
+(it contains a dot or a port, is `localhost`, or is listed in
+`[[forge.hosts]]`). A GitLab group whose name contains a dot therefore needs
+its host spelled out.
 
 See [How MR Review Works](../../guides/merge-requests/#target-syntax) for the
 resolution rules.
+
+### `--json`
+
+Opens the merge request without a terminal, saves its session, prints it and
+exits. It is how an agent learns a review's slug.
+
+```json
+{"slug":"gh:github.com/owner/repo/pr/7","kind":"pr","path":"/home/me/.local/share/mrman/reviews/sessions/...json",
+ "repo":"owner/repo","number":7,"title":"...","head_sha":"...","base_sha":"...",
+ "file_count":11,"read_only":false,"granted_events":[]}
+```
+
+`granted_events` is always empty: a command an agent can run cannot
+authorize anything. `read_only` is true for a closed or merged merge request.
 
 ## `mrman diff <old> <new>`
 
@@ -128,15 +148,21 @@ to that checkout's `origin`) or a forge coordinate.
 ### `review list`
 
 ```sh
-mrman review list --repo .
+mrman review list                       # this checkout's sessions
 mrman review list --repo owner/repo
+mrman review list --repo https://github.com/owner/repo/pull/7
 mrman review list --all
 ```
 
 | Flag | Meaning |
 |---|---|
-| `--repo <selector>` | Checkout path or forge coordinate |
+| `--repo <selector>` | Checkout path, forge coordinate (`owner/repo`, `host/owner/repo`), PR URL, or PR slug |
 | `--all` | Every session, ignoring `--repo` |
+
+Without `--repo`, the selector is the current directory. Outside a checkout
+with an `origin` remote that would match nothing, so `review list` then lists
+every session and notes it on stderr. A coordinate matches sessions on any
+host; owners and repository names compare case-insensitively.
 
 Each row carries `slug`, `kind` (`local` or `pr`), `path`, `updated_at`,
 `comment_count`, `reviewed_count`, `file_count`, `anchor`, `active` and
@@ -263,7 +289,7 @@ exactly those.
 | Code | Meaning |
 |---|---|
 | `0` | Done |
-| `1` | A runtime failure, an interlock refusal, or a partial `review submit` — details on stderr, or as JSON on stdout for the `review` commands |
+| `1` | A runtime failure (`error: ...` on stderr), or from `review submit` an interlock refusal or a partial submit, both reported as JSON on stdout |
 | `2` | The command line did not parse |
 
 ## Environment
@@ -273,7 +299,7 @@ exactly those.
 | `GITHUB_TOKEN`, `GH_TOKEN` | `github.com` |
 | `GH_ENTERPRISE_TOKEN` | Other GitHub hosts |
 | `GITLAB_TOKEN` | `gitlab.com` |
-| `AZURE_DEVOPS_EXT_PAT` | `dev.azure.com` |
+| `AZURE_DEVOPS_EXT_PAT` | `dev.azure.com`, `*.visualstudio.com` |
 | `FORGEJO_TOKEN`, `CODEBERG_TOKEN` | `codeberg.org` |
 | `EDITOR` | `:edit` |
 | `TMUX`, `SSH_TTY`, `ZELLIJ` | Clipboard: any of these selects OSC 52 (via `tmux load-buffer` under tmux) |
@@ -308,7 +334,8 @@ Not part of the CLI, but useful to know they exist:
 
 | Variable | Effect |
 |---|---|
-| `MRMAN_LIVE_PR=owner/repo#N` | Enables the opt-in tests against a real merge request |
+| `MRMAN_LIVE_PR=<target>` | Enables the opt-in tests against a real merge request; any target `mrman pr` takes |
 | `MRMAN_LIVE_SUBMIT=1` | Additionally allows the tests that post a real review |
+| `MRMAN_LIVE_READONLY_TOKEN` | A `read_api` token for the GitLab test's read-only step |
 
 See [Testing Against a Real Forge](../../contributing/live-testing/).

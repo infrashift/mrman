@@ -22,7 +22,8 @@ export AZURE_DEVOPS_EXT_PAT=...
 
 The variable name matches the Azure CLI's `az devops` extension, so if you
 already have it set for `az`, mrman picks it up. It is read for
-`dev.azure.com` only, so it never leaks to an on-premise collection.
+`dev.azure.com` and legacy `*.visualstudio.com` hosts only, so it never leaks
+to an on-premise collection.
 
 **Scope: Code (Read & Write).** Read alone is enough to browse and review;
 write is needed to post comments or cast a vote. Create one under *User
@@ -50,7 +51,7 @@ ca_file = "/etc/ssl/corp-root.pem"
 ```
 
 `forge = "azuredevops"` is the canonical name; `azure_devops` and `ado` are
-accepted too.
+accepted too, for `forge` here and for `[forge] default`.
 
 ## Open a merge request
 
@@ -74,7 +75,22 @@ mrman pr https://org.visualstudio.com/DefaultCollection/project/_git/repo/pullre
 
 SSH remotes in the `v3` form (`git@ssh.dev.azure.com:v3/org/project/repo`) are
 recognized, and `ssh.dev.azure.com` is mapped back to `dev.azure.com` for API
-calls — the transport hostname is right for git and wrong for the API.
+calls — the transport hostname is right for git and wrong for the API. The
+legacy `git@vs-ssh.visualstudio.com:v3/org/project/repo` form maps to
+`org.visualstudio.com` the same way.
+
+Projects and repositories whose names contain spaces work: clone URLs encode
+a space as `%20`, and mrman decodes it before calling the API.
+
+## How the diff is built
+
+Azure DevOps serves no text diff, so mrman builds one. The merge request's
+latest iteration lists the changed files; mrman fetches each file at the
+**merge base** and at the head, eight files at a time, and diffs them
+itself. The merge base is the iteration's common commit, which is what Azure
+DevOps' own Files tab compares against. Diffing against the target branch's
+tip instead would show every change made on the target since you branched,
+reversed.
 
 ## What works, and what Azure DevOps cannot do
 
