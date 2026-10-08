@@ -120,25 +120,22 @@ func TestLiveAgentSubmit(t *testing.T) {
 
 // countMarked asks the forge how many of the pull request's reviews carry
 // marker, which is the only assertion that actually proves a refusal
-// refused. A forge without review summaries (GitLab) records a submitted
-// review body as a general MR note instead, which surfaces as a path-less
-// review thread.
+// refused. A review body lands as a review summary on GitHub and Forgejo,
+// and as a general discussion on GitLab and Azure DevOps, which their
+// drivers also return as summaries; inline threads are counted too.
 func countMarked(t *testing.T, backend forge.Forge, details *forge.PullRequestDetails, marker string) int {
 	t.Helper()
 	n := 0
-	if !backend.Capabilities().ReviewSummaries {
-		threads, err := backend.ListReviewThreads(context.Background(), details)
-		if err != nil {
-			t.Fatalf("list review threads: %v", err)
+	threads, err := backend.ListReviewThreads(context.Background(), details)
+	if err != nil {
+		t.Fatalf("list review threads: %v", err)
+	}
+	for _, th := range threads {
+		if th.Path != "" && slices.ContainsFunc(th.Comments, func(c forge.RemoteReviewComment) bool {
+			return strings.Contains(c.Body, marker)
+		}) {
+			n++
 		}
-		for _, th := range threads {
-			if slices.ContainsFunc(th.Comments, func(c forge.RemoteReviewComment) bool {
-				return strings.Contains(c.Body, marker)
-			}) {
-				n++
-			}
-		}
-		return n
 	}
 	summaries, err := backend.ListReviewSummaries(context.Background(), details)
 	if err != nil {
