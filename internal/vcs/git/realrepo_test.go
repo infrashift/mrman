@@ -95,3 +95,62 @@ func TestBackendAgainstRealRepository(t *testing.T) {
 		t.Fatalf("staged = %d files err=%v", len(staged), err)
 	}
 }
+
+// TestBackendUnquotesUnusualPaths runs real git over files whose names git
+// quotes or decorates in its diff headers, under a config that would also
+// colour the output. Each file must come back under its real name, and its
+// context lines must be readable through that name.
+func TestBackendUnquotesUnusualPaths(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not installed")
+	}
+	dir := t.TempDir()
+	git := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", args...)
+		cmd.Dir = dir
+		cmd.Env = append(os.Environ(),
+			"GIT_AUTHOR_NAME=test", "GIT_AUTHOR_EMAIL=t@t",
+			"GIT_COMMITTER_NAME=test", "GIT_COMMITTER_EMAIL=t@t")
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	names := []string{"café.go", "sp ace.txt", `quo"te.txt`}
+	git("init", "-q", "-b", "main")
+	git("config", "color.ui", "always")
+	for _, name := range names {
+		writeFile(t, dir, name, "one\ntwo\n")
+	}
+	git("add", ".")
+	git("commit", "-q", "-m", "first")
+	for _, name := range names {
+		writeFile(t, dir, name, "one\nthree\n")
+	}
+
+	backend, err := Discover(dir, vcs.WhitespaceNormal, vcs.SystemRunner{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	files, err := backend.WorkingTreeDiff(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]bool{}
+	for _, f := range files {
+		got[f.DisplayPath()] = true
+		if len(f.Hunks) != 1 {
+			t.Errorf("%q: %d hunks, want 1 (colour codes in the output?)", f.DisplayPath(), len(f.Hunks))
+		}
+	}
+	for _, name := range names {
+		if !got[name] {
+			t.Errorf("missing %q; parsed paths: %v", name, got)
+			continue
+		}
+		lines, err := backend.FetchContextLines(name, model.StatusModified, nil, 1, 1)
+		if err != nil || len(lines) != 1 || lines[0].Content != "one" {
+			t.Errorf("context for %q = %+v, err %v", name, lines, err)
+		}
+	}
+}

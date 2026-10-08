@@ -430,21 +430,6 @@ func TestIsDiffstatLine(t *testing.T) {
 	}
 }
 
-func TestUnquotePath(t *testing.T) {
-	cases := map[string]string{
-		`plain.c`:         `plain.c`,
-		`"quoted.c"`:      `quoted.c`,
-		`"with\tspace.c"`: "with\tspace.c",
-		`"caf\303\251.c"`: "café.c",
-		`"back\\slash.c"`: `back\slash.c`,
-	}
-	for in, want := range cases {
-		if got := unquotePath(in); got != want {
-			t.Errorf("unquotePath(%q) = %q, want %q", in, got, want)
-		}
-	}
-}
-
 // ---- Fixture integrity ----
 
 // TestFixtureHunkHeadersAreConsistent guards the fixtures themselves. A

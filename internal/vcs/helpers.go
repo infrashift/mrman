@@ -110,3 +110,43 @@ func ContainerFilePaths(files []model.DiffFile, side model.LineSide, needsFullFi
 	}
 	return paths
 }
+
+// UnquoteGitPath undoes git's C-style quoting of a path with unusual bytes.
+// Git quotes a path in diff headers whenever it holds a control character, a
+// double quote or a backslash, and, with core.quotePath on (the default), any
+// non-ASCII byte. An unquoted path is returned unchanged.
+func UnquoteGitPath(path string) string {
+	if len(path) < 2 || path[0] != '"' || path[len(path)-1] != '"' {
+		return path
+	}
+	inner := path[1 : len(path)-1]
+	var b strings.Builder
+	for i := 0; i < len(inner); i++ {
+		if inner[i] != '\\' || i+1 >= len(inner) {
+			b.WriteByte(inner[i])
+			continue
+		}
+		i++
+		switch c := inner[i]; c {
+		case 'n':
+			b.WriteByte('\n')
+		case 't':
+			b.WriteByte('\t')
+		case 'r':
+			b.WriteByte('\r')
+		case '\\', '"':
+			b.WriteByte(c)
+		default:
+			// Octal escape, the form git uses for non-ASCII bytes.
+			if i+2 < len(inner) && isOctal(c) && isOctal(inner[i+1]) && isOctal(inner[i+2]) {
+				b.WriteByte((c-'0')<<6 | (inner[i+1]-'0')<<3 | (inner[i+2] - '0'))
+				i += 2
+				continue
+			}
+			b.WriteByte(c)
+		}
+	}
+	return b.String()
+}
+
+func isOctal(c byte) bool { return c >= '0' && c <= '7' }

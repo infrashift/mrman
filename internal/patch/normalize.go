@@ -2,6 +2,8 @@ package patch
 
 import (
 	"strings"
+
+	"github.com/infrashift/mrman/internal/vcs"
 )
 
 // DefaultStripLevel is how many leading path components to drop, matching
@@ -235,7 +237,7 @@ func gitHeaderPaths(line string) (oldPath, newPath string, ok bool) {
 	if !found {
 		return "", "", false
 	}
-	return unquotePath(strings.TrimPrefix(strings.TrimSpace(a), "a/")), unquotePath(b), true
+	return vcs.UnquoteGitPath(strings.TrimPrefix(strings.TrimSpace(a), "a/")), vcs.UnquoteGitPath(b), true
 }
 
 // hunkLines returns everything from a file's first hunk header onward,
@@ -257,7 +259,7 @@ func hunkLines(body []string) []string {
 // Mercurial, so it is handled here for everyone.
 func stripPath(raw string, stripLevel int) string {
 	path, _, _ := strings.Cut(strings.TrimSpace(raw), "\t")
-	path = unquotePath(path)
+	path = vcs.UnquoteGitPath(path)
 	if path == devNull {
 		return devNull
 	}
@@ -273,41 +275,3 @@ func stripPath(raw string, stripLevel int) string {
 	}
 	return path
 }
-
-// unquotePath undoes git's C-style quoting of paths with unusual bytes,
-// which git applies whenever core.quotePath is on (the default).
-func unquotePath(path string) string {
-	if len(path) < 2 || path[0] != '"' || path[len(path)-1] != '"' {
-		return path
-	}
-	inner := path[1 : len(path)-1]
-	var b strings.Builder
-	for i := 0; i < len(inner); i++ {
-		if inner[i] != '\\' || i+1 >= len(inner) {
-			b.WriteByte(inner[i])
-			continue
-		}
-		i++
-		switch c := inner[i]; c {
-		case 'n':
-			b.WriteByte('\n')
-		case 't':
-			b.WriteByte('\t')
-		case 'r':
-			b.WriteByte('\r')
-		case '\\', '"':
-			b.WriteByte(c)
-		default:
-			// Octal escape, the form git uses for non-ASCII bytes.
-			if i+2 < len(inner) && isOctal(c) && isOctal(inner[i+1]) && isOctal(inner[i+2]) {
-				b.WriteByte((c-'0')<<6 | (inner[i+1]-'0')<<3 | (inner[i+2] - '0'))
-				i += 2
-				continue
-			}
-			b.WriteByte(c)
-		}
-	}
-	return b.String()
-}
-
-func isOctal(c byte) bool { return c >= '0' && c <= '7' }

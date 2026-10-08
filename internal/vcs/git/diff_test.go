@@ -46,7 +46,7 @@ func TestWorkingTreeDiffWithUntracked(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, root, "new.txt", "hello\n")
 	backend, _ := newTestBackend(t, root, map[string]response{
-		"git diff --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --binary HEAD --": {stdout: modifiedDiff},
+		"git diff --no-color --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --binary HEAD --": {stdout: modifiedDiff},
 		"git sparse-checkout list":                    {err: exitError(1)},
 		"git ls-files --others --exclude-standard -z": {stdout: "new.txt\x00"},
 	})
@@ -98,7 +98,7 @@ func TestWorkingTreeDiffWithUntracked(t *testing.T) {
 
 func TestWorkingTreeDiffNoChanges(t *testing.T) {
 	backend, _ := newTestBackend(t, t.TempDir(), map[string]response{
-		"git diff --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --binary HEAD --": {},
+		"git diff --no-color --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --binary HEAD --": {},
 		"git sparse-checkout list":                    {err: exitError(1)},
 		"git ls-files --others --exclude-standard -z": {},
 	})
@@ -112,7 +112,7 @@ func TestWorkingTreeDiffNoChanges(t *testing.T) {
 
 func TestWorkingTreeDiffIgnoresAllWhitespaceWhenConfigured(t *testing.T) {
 	backend, runner := newTestBackend(t, t.TempDir(), map[string]response{
-		"git diff --ignore-all-space --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --binary HEAD --": {},
+		"git diff --ignore-all-space --no-color --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --binary HEAD --": {},
 		"git sparse-checkout list":                    {err: exitError(1)},
 		"git ls-files --others --exclude-standard -z": {},
 	})
@@ -123,14 +123,14 @@ func TestWorkingTreeDiffIgnoresAllWhitespaceWhenConfigured(t *testing.T) {
 	if !errors.Is(err, errs.ErrNoChanges) {
 		t.Fatalf("err = %v, want ErrNoChanges", err)
 	}
-	if !runner.called("git diff --ignore-all-space --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --binary HEAD --") {
+	if !runner.called("git diff --ignore-all-space --no-color --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --binary HEAD --") {
 		t.Error("--ignore-all-space flag missing from diff invocation")
 	}
 }
 
 func TestWorkingTreeDiffCommandFailure(t *testing.T) {
 	backend, _ := newTestBackend(t, t.TempDir(), map[string]response{
-		"git diff --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --binary HEAD --": {
+		"git diff --no-color --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --binary HEAD --": {
 			stderr: "fatal: bad revision 'HEAD'", err: exitError(128)},
 	})
 
@@ -148,7 +148,7 @@ func TestWorkingTreeDiffCommandFailure(t *testing.T) {
 func TestStagedDiff(t *testing.T) {
 	backend, _ := newTestBackend(t, t.TempDir(), map[string]response{
 		"git rev-parse --verify HEAD": {stdout: "abc\n"},
-		"git diff --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --binary --cached --": {stdout: addedDiff},
+		"git diff --no-color --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --binary --cached --": {stdout: addedDiff},
 	})
 
 	files, err := backend.StagedDiff(testHighlighter())
@@ -170,7 +170,7 @@ func TestStagedDiff(t *testing.T) {
 func TestStagedDiffUnbornHead(t *testing.T) {
 	backend, _ := newTestBackend(t, t.TempDir(), map[string]response{
 		"git rev-parse --verify HEAD": {stderr: "fatal: needed a single revision", err: exitError(128)},
-		"git diff --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --binary --cached --": {stdout: addedDiff},
+		"git diff --no-color --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --binary --cached --": {stdout: addedDiff},
 	})
 
 	files, err := backend.StagedDiff(testHighlighter())
@@ -184,7 +184,7 @@ func TestStagedDiffUnbornHead(t *testing.T) {
 
 func TestUnstagedDiff(t *testing.T) {
 	backend, runner := newTestBackend(t, t.TempDir(), map[string]response{
-		"git diff --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --binary --": {stdout: modifiedDiff},
+		"git diff --no-color --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --binary --": {stdout: modifiedDiff},
 		"git sparse-checkout list":                    {err: exitError(1)},
 		"git ls-files --others --exclude-standard -z": {},
 	})
@@ -197,7 +197,7 @@ func TestUnstagedDiff(t *testing.T) {
 	if len(files) != 1 || files[0].DisplayPath() != "file.txt" {
 		t.Fatalf("files = %+v", files)
 	}
-	if !runner.called("git diff --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --binary --") {
+	if !runner.called("git diff --no-color --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --binary --") {
 		t.Error("unstaged diff argv not invoked")
 	}
 }
@@ -273,7 +273,7 @@ func TestBuildUntrackedDiffFileTabifiesAndStripsCarriageReturns(t *testing.T) {
 func TestCommitRangeDiffCommitList(t *testing.T) {
 	backend, runner := newTestBackend(t, t.TempDir(), map[string]response{
 		"git rev-parse c1^": {stdout: "c0\n"},
-		"git diff --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --binary c0 c2 --": {stdout: modifiedDiff},
+		"git diff --no-color --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --binary c0 c2 --": {stdout: modifiedDiff},
 	})
 
 	files, err := backend.CommitRangeDiff(vcs.ResolvedRevisionRange{
@@ -286,7 +286,7 @@ func TestCommitRangeDiffCommitList(t *testing.T) {
 	if len(files) != 1 {
 		t.Fatalf("got %d files", len(files))
 	}
-	if !runner.called("git diff --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --binary c0 c2 --") {
+	if !runner.called("git diff --no-color --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --binary c0 c2 --") {
 		t.Error("commit list diff argv not invoked")
 	}
 }
@@ -294,7 +294,7 @@ func TestCommitRangeDiffCommitList(t *testing.T) {
 func TestCommitRangeDiffCommitListRootCommit(t *testing.T) {
 	backend, runner := newTestBackend(t, t.TempDir(), map[string]response{
 		"git rev-parse c1^": {stderr: "fatal: bad revision", err: exitError(128)},
-		"git diff --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --binary " + emptyTreeOID + " c1 --": {stdout: modifiedDiff},
+		"git diff --no-color --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --binary " + emptyTreeOID + " c1 --": {stdout: modifiedDiff},
 	})
 
 	_, err := backend.CommitRangeDiff(vcs.ResolvedRevisionRange{
@@ -304,7 +304,7 @@ func TestCommitRangeDiffCommitListRootCommit(t *testing.T) {
 		t.Fatalf("CommitRangeDiff failed: %v", err)
 	}
 
-	if !runner.called("git diff --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --binary " + emptyTreeOID + " c1 --") {
+	if !runner.called("git diff --no-color --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --binary " + emptyTreeOID + " c1 --") {
 		t.Error("empty-tree base argv not invoked")
 	}
 }
@@ -312,7 +312,7 @@ func TestCommitRangeDiffCommitListRootCommit(t *testing.T) {
 func TestCommitRangeDiffExplicit(t *testing.T) {
 	base := "b1"
 	backend, runner := newTestBackend(t, t.TempDir(), map[string]response{
-		"git diff --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --binary b1 h1 --": {stdout: modifiedDiff},
+		"git diff --no-color --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --binary b1 h1 --": {stdout: modifiedDiff},
 	})
 
 	_, err := backend.CommitRangeDiff(vcs.ResolvedRevisionRange{
@@ -323,14 +323,14 @@ func TestCommitRangeDiffExplicit(t *testing.T) {
 		t.Fatalf("CommitRangeDiff failed: %v", err)
 	}
 
-	if !runner.called("git diff --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --binary b1 h1 --") {
+	if !runner.called("git diff --no-color --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --binary b1 h1 --") {
 		t.Error("explicit base..head argv not invoked")
 	}
 }
 
 func TestCommitRangeDiffExplicitNilBaseUsesEmptyTree(t *testing.T) {
 	backend, runner := newTestBackend(t, t.TempDir(), map[string]response{
-		"git diff --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --binary " + emptyTreeOID + " h1 --": {stdout: modifiedDiff},
+		"git diff --no-color --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --binary " + emptyTreeOID + " h1 --": {stdout: modifiedDiff},
 	})
 
 	_, err := backend.CommitRangeDiff(vcs.ResolvedRevisionRange{
@@ -341,7 +341,7 @@ func TestCommitRangeDiffExplicitNilBaseUsesEmptyTree(t *testing.T) {
 		t.Fatalf("CommitRangeDiff failed: %v", err)
 	}
 
-	if !runner.called("git diff --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --binary " + emptyTreeOID + " h1 --") {
+	if !runner.called("git diff --no-color --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --binary " + emptyTreeOID + " h1 --") {
 		t.Error("empty-tree explicit base argv not invoked")
 	}
 }
@@ -359,7 +359,7 @@ func TestCommitRangeDiffEmptyCommitList(t *testing.T) {
 func TestWorkingTreeWithCommitsDiff(t *testing.T) {
 	backend, runner := newTestBackend(t, t.TempDir(), map[string]response{
 		"git rev-parse c5^": {stdout: "c4\n"},
-		"git diff --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --binary c4 --": {stdout: modifiedDiff},
+		"git diff --no-color --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --binary c4 --": {stdout: modifiedDiff},
 		"git sparse-checkout list":                    {err: exitError(1)},
 		"git ls-files --others --exclude-standard -z": {},
 	})
@@ -372,7 +372,7 @@ func TestWorkingTreeWithCommitsDiff(t *testing.T) {
 	if len(files) != 1 {
 		t.Fatalf("got %d files", len(files))
 	}
-	if !runner.called("git diff --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --binary c4 --") {
+	if !runner.called("git diff --no-color --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --binary c4 --") {
 		t.Error("working-tree-with-commits argv not invoked")
 	}
 }
@@ -422,7 +422,7 @@ func TestContainerGrammarFullFileHighlight(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, root, "page.php", "<?php\necho 'new';\n")
 	backend, runner := newTestBackend(t, root, map[string]response{
-		"git diff --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --binary HEAD --": {stdout: phpDiff},
+		"git diff --no-color --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --binary HEAD --": {stdout: phpDiff},
 		"git sparse-checkout list":                    {err: exitError(1)},
 		"git ls-files --others --exclude-standard -z": {},
 		"git show HEAD:page.php":                      {stdout: "<?php\necho 'old';\n"},

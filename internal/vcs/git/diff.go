@@ -152,9 +152,10 @@ func (b *Backend) cliDiff(args []string, includeUntracked bool, oldSource, newSo
 // user's Git config can change this: diff.mnemonicPrefix emits mnemonic
 // prefixes (i/, w/, c/, o/) and diff.noprefix drops prefixes entirely. The
 // diff parser only strips "a/" and "b/", so these flags override the config
-// to keep output parseable.
+// to keep output parseable. --no-color likewise overrides color.ui=always,
+// which would otherwise wrap every line in escape sequences.
 func (b *Backend) withDiffFlags(args []string) []string {
-	flags := []string{"--src-prefix=a/", "--dst-prefix=b/"}
+	flags := []string{"--no-color", "--src-prefix=a/", "--dst-prefix=b/"}
 	if b.whitespace == vcs.WhitespaceIgnoreAll {
 		flags = append([]string{"--ignore-all-space"}, flags...)
 	}
