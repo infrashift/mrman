@@ -3,6 +3,8 @@ package gitlabf
 import (
 	"context"
 	"strconv"
+	"strings"
+	"time"
 
 	gitlab "gitlab.com/gitlab-org/api/client-go"
 
@@ -163,49 +165,118 @@ func (d *Driver) ListReviewSummaries(_ context.Context, _ *forge.PullRequestDeta
 }
 
 // ReviewMetadata reports the viewer login plus one review record per
-// approver. tuicr's full composite (approvals cross-referenced with MR
-// version timestamps plus every discussion note) is deliberately
-// simplified: the SDK's approval state carries no approval timestamps, so
-// each approval is anchored to the latest MR version's head commit — the
-// approximation GitLab itself uses when approvals reset on push. Sub-call
-// failures degrade to partial metadata rather than failing the review
-// (tuicr parity).
+// approval and per comment, each stamped with the head commit of the MR
+// version that was current when it was made. That is what "commits since
+// your last review" needs: an approval given before later pushes must not
+// count as having reviewed them, and GitLab does not reset approvals on
+// push unless a project setting says so.
+//
+// The approvals API carries no timestamps, so approvals are read from the
+// "approved this merge request" system notes instead. Sub-call failures
+// degrade to partial metadata rather than failing the review (tuicr
+// parity); a record that cannot be placed on a version is left out, since
+// a wrong commit would preselect the wrong commits.
 func (d *Driver) ReviewMetadata(ctx context.Context, pr *forge.PullRequestDetails) (*forge.ReviewMetadata, error) {
 	const op = "review_metadata"
 	metadata := &forge.ReviewMetadata{}
 	if viewer, err := d.currentUsername(ctx, op); err == nil {
 		metadata.ViewerLogin = viewer
 	}
-	latestHead := d.latestVersionHead(ctx, pr)
-	approvals, _, err := d.client.MergeRequestApprovals.GetConfiguration(
-		projectID(pr.Repository), int64(pr.Number), gitlab.WithContext(ctx)) //nolint:gosec // G115: pull request numbers are small forge-assigned integers
-	if err != nil || approvals == nil {
-		return metadata, nil //nolint:nilerr // approvals are optional metadata; the threads still render
+	versions := d.diffVersions(ctx, pr)
+	if len(versions) == 0 {
+		return metadata, nil
 	}
-	for _, approver := range approvals.ApprovedBy {
-		if approver == nil || approver.User == nil {
+	notes, err := d.mergeRequestNotes(ctx, pr)
+	if err != nil {
+		return metadata, nil //nolint:nilerr // review records are optional metadata; the threads still render
+	}
+	for _, note := range notes {
+		if note == nil || note.CreatedAt == nil || !isReviewNote(note) {
+			continue
+		}
+		head := headAt(versions, *note.CreatedAt)
+		if head == "" {
 			continue
 		}
 		metadata.Reviews = append(metadata.Reviews, forge.ReviewRecord{
-			Author:    approver.User.Username,
-			CommitOID: latestHead,
+			Author:      note.Author.Username,
+			SubmittedAt: note.CreatedAt,
+			CommitOID:   head,
 		})
 	}
 	return metadata, nil
 }
 
-// latestVersionHead returns the head commit SHA of the newest MR diff
-// version, "" when versions are unavailable. GitLab lists versions newest
-// first.
-func (d *Driver) latestVersionHead(ctx context.Context, pr *forge.PullRequestDetails) string {
-	versions, _, err := d.client.MergeRequests.GetMergeRequestDiffVersions(
-		projectID(pr.Repository), int64(pr.Number), //nolint:gosec // G115: pull request numbers are small forge-assigned integers
-		&gitlab.GetMergeRequestDiffVersionsOptions{
-			ListOptions: gitlab.ListOptions{Page: 1, PerPage: 1},
-		},
-		gitlab.WithContext(ctx))
-	if err != nil || len(versions) == 0 {
+// approvedNote is the body of the system note GitLab writes on approval.
+const approvedNote = "approved this merge request"
+
+// isReviewNote reports whether a note is review activity: a comment, or the
+// system note that records an approval.
+func isReviewNote(note *gitlab.Note) bool {
+	if note.System {
+		return strings.HasPrefix(note.Body, approvedNote)
+	}
+	return strings.TrimSpace(note.Body) != ""
+}
+
+// mergeRequestNotes pages through every note on the MR, system notes
+// included.
+func (d *Driver) mergeRequestNotes(ctx context.Context, pr *forge.PullRequestDetails) ([]*gitlab.Note, error) {
+	var notes []*gitlab.Note
+	page := int64(1)
+	for range maxDiscussionPages {
+		rows, resp, err := d.client.Notes.ListMergeRequestNotes(
+			projectID(pr.Repository), int64(pr.Number), //nolint:gosec // G115: pull request numbers are small forge-assigned integers
+			&gitlab.ListMergeRequestNotesOptions{ListOptions: gitlab.ListOptions{Page: page, PerPage: 100}},
+			gitlab.WithContext(ctx))
+		if err != nil {
+			return nil, err
+		}
+		notes = append(notes, rows...)
+		if resp == nil || resp.NextPage == 0 {
+			break
+		}
+		page = resp.NextPage
+	}
+	return notes, nil
+}
+
+// diffVersions pages through the MR's diff versions, newest first as GitLab
+// lists them; nil when they are unavailable.
+func (d *Driver) diffVersions(ctx context.Context, pr *forge.PullRequestDetails) []*gitlab.MergeRequestDiffVersion {
+	var versions []*gitlab.MergeRequestDiffVersion
+	page := int64(1)
+	for range maxVersionPages {
+		rows, resp, err := d.client.MergeRequests.GetMergeRequestDiffVersions(
+			projectID(pr.Repository), int64(pr.Number), //nolint:gosec // G115: pull request numbers are small forge-assigned integers
+			&gitlab.GetMergeRequestDiffVersionsOptions{ListOptions: gitlab.ListOptions{Page: page, PerPage: 100}},
+			gitlab.WithContext(ctx))
+		if err != nil {
+			return nil
+		}
+		versions = append(versions, rows...)
+		if resp == nil || resp.NextPage == 0 {
+			break
+		}
+		page = resp.NextPage
+	}
+	return versions
+}
+
+// headAt returns the head commit of the newest version created at or before
+// t, "" when every version is newer.
+func headAt(versions []*gitlab.MergeRequestDiffVersion, t time.Time) string {
+	var best *gitlab.MergeRequestDiffVersion
+	for _, v := range versions {
+		if v == nil || v.CreatedAt == nil || v.CreatedAt.After(t) {
+			continue
+		}
+		if best == nil || v.CreatedAt.After(*best.CreatedAt) {
+			best = v
+		}
+	}
+	if best == nil {
 		return ""
 	}
-	return versions[0].HeadCommitSHA
+	return best.HeadCommitSHA
 }

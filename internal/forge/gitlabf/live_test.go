@@ -598,6 +598,17 @@ func (lv *liveMR) approve(t *testing.T) {
 	if state := rs.states[lv.viewer]; state != "APPROVED" {
 		t.Errorf("GitLab reports %s's review state %q after approve, want APPROVED", lv.viewer, state)
 	}
+	// The approval reads back as a review record on the head it approved,
+	// which "commits since your last review" keys on.
+	meta, err := lv.backend.ReviewMetadata(context.Background(), lv.load.Details)
+	if err != nil {
+		t.Fatalf("ReviewMetadata: %v", err)
+	}
+	if !slices.ContainsFunc(meta.Reviews, func(r forge.ReviewRecord) bool {
+		return r.Author == lv.viewer && r.CommitOID == lv.load.Details.HeadSHA
+	}) {
+		t.Errorf("ReviewMetadata has no record of %s's approval at %s: %+v", lv.viewer, lv.load.Details.HeadSHA, meta.Reviews)
+	}
 }
 
 // --- L7: a read_api token is refused with the actionable hint ---

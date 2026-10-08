@@ -172,20 +172,27 @@ func TestListReviewSummariesIsEmpty(t *testing.T) {
 	}
 }
 
-func TestReviewMetadataViewerAndApprovals(t *testing.T) {
+// TestReviewMetadataStampsEachReviewWithItsVersion: an approval given
+// before a later push covers only the commits that existed then. Every
+// approval used to be stamped with the latest head, so "commits since your
+// last review" claimed there were none.
+func TestReviewMetadataStampsEachReviewWithItsVersion(t *testing.T) {
 	mux := newFixtureMux(t)
 	mux.JSON("GET /api/v4/user", `{"username": "ronen"}`)
 	mux.JSON("GET "+projectPrefix+"/versions", `[
 		{"id": 3, "head_commit_sha": "ccc333", "created_at": "2026-06-03T09:00:00Z"},
 		{"id": 2, "head_commit_sha": "bbb222", "created_at": "2026-06-02T09:00:00Z"}
 	]`)
-	mux.JSON("GET "+projectPrefix+"/approvals", `{
-		"approved_by": [
-			{"user": {"username": "ronen"}},
-			{"user": {"username": "alice"}},
-			{}
-		]
-	}`)
+	mux.JSON("GET "+projectPrefix+"/notes", `[
+		{"id": 1, "system": true, "body": "approved this merge request",
+		 "author": {"username": "ronen"}, "created_at": "2026-06-02T10:00:00Z"},
+		{"id": 2, "system": false, "body": "looks good",
+		 "author": {"username": "alice"}, "created_at": "2026-06-03T10:00:00Z"},
+		{"id": 3, "system": true, "body": "added 1 commit",
+		 "author": {"username": "bob"}, "created_at": "2026-06-03T08:59:00Z"},
+		{"id": 4, "system": false, "body": "before any version",
+		 "author": {"username": "eve"}, "created_at": "2026-06-01T00:00:00Z"}
+	]`)
 	d := newTestDriver(t, mux)
 
 	metadata, err := d.ReviewMetadata(context.Background(), testPR())
@@ -195,14 +202,16 @@ func TestReviewMetadataViewerAndApprovals(t *testing.T) {
 	if metadata.ViewerLogin != "ronen" {
 		t.Errorf("ViewerLogin = %q", metadata.ViewerLogin)
 	}
-	if len(metadata.Reviews) != 2 {
-		t.Fatalf("reviews = %+v, want 2 (nil approver dropped)", metadata.Reviews)
+	got := map[string]string{}
+	for _, r := range metadata.Reviews {
+		got[r.Author] = r.CommitOID
+		if r.SubmittedAt == nil {
+			t.Errorf("%s: no SubmittedAt", r.Author)
+		}
 	}
-	if metadata.Reviews[0].Author != "ronen" || metadata.Reviews[0].CommitOID != "ccc333" {
-		t.Errorf("review 0 = %+v", metadata.Reviews[0])
-	}
-	if metadata.Reviews[1].Author != "alice" || metadata.Reviews[1].CommitOID != "ccc333" {
-		t.Errorf("review 1 = %+v", metadata.Reviews[1])
+	want := map[string]string{"ronen": "bbb222", "alice": "ccc333"}
+	if len(got) != len(want) || got["ronen"] != want["ronen"] || got["alice"] != want["alice"] {
+		t.Errorf("reviews = %v, want %v (system events and unplaceable notes dropped)", got, want)
 	}
 }
 
@@ -215,7 +224,7 @@ func TestReviewMetadataDegradesGracefully(t *testing.T) {
 	}
 	mux.Handle("GET /api/v4/user", fail)
 	mux.Handle("GET "+projectPrefix+"/versions", fail)
-	mux.Handle("GET "+projectPrefix+"/approvals", fail)
+	mux.Handle("GET "+projectPrefix+"/notes", fail)
 	d := newTestDriver(t, mux)
 
 	metadata, err := d.ReviewMetadata(context.Background(), testPR())
