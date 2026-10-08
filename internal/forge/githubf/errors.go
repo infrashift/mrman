@@ -3,6 +3,8 @@ package githubf
 import (
 	"errors"
 	"net/http"
+	"strconv"
+	"strings"
 
 	"github.com/google/go-github/v76/github"
 
@@ -59,8 +61,35 @@ func (d *Driver) wrap(op string, err error) error {
 		}
 		return d.err(op, forge.FromHTTPStatus(status), status, statusHint(status), err)
 	}
+	// githubv4 reports a non-200 response only as a formatted string, so
+	// without this a GraphQL 401 read as a network error, with no auth hint.
+	if status, ok := graphqlHTTPStatus(err); ok {
+		return d.err(op, forge.FromHTTPStatus(status), status, statusHint(status), err)
+	}
+	if strings.Contains(err.Error(), "Could not resolve to a ") {
+		// GraphQL's 200 OK answer for a repository or MR the token
+		// cannot see.
+		return d.err(op, forge.ErrorNotFound, 0, hintNotFound, err)
+	}
 	// Cancellation, transport failures, and everything else untyped.
 	return d.err(op, forge.Classify(err), 0, "", err)
+}
+
+// graphqlNon200 prefixes the error githubv4 returns for a non-200 response:
+// "non-200 OK status code: 401 Unauthorized body: ...".
+const graphqlNon200 = "non-200 OK status code: "
+
+// graphqlHTTPStatus extracts the HTTP status from a githubv4 non-200 error.
+func graphqlHTTPStatus(err error) (int, bool) {
+	_, rest, found := strings.Cut(err.Error(), graphqlNon200)
+	if !found || len(rest) < 3 {
+		return 0, false
+	}
+	status, convErr := strconv.Atoi(rest[:3])
+	if convErr != nil {
+		return 0, false
+	}
+	return status, true
 }
 
 // statusHint picks the default actionable hint for an HTTP status.

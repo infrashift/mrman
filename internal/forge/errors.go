@@ -186,17 +186,23 @@ func WrapError(forgeID forgetypes.Kind, op, host string, err error) *Error {
 }
 
 // Classify infers an ErrorKind from an arbitrary error: context
-// cancellation and deadlines map to ErrorCanceled, errs.ErrUnsupported to
+// cancellation maps to ErrorCanceled, errs.ErrUnsupported to
 // ErrorUnsupported, net errors to ErrorNetwork, existing *Error keeps its
 // kind, and anything else defaults to ErrorNetwork (the common transport
 // case for non-HTTP failures).
+//
+// A deadline is a network error, not a cancellation: the only deadline on a
+// forge request is the HTTP client's request timeout, and a request that
+// timed out must be reported, where a cancellation is discarded silently.
 func Classify(err error) ErrorKind {
 	var fe *Error
 	switch {
 	case errors.As(err, &fe):
 		return fe.Kind
-	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+	case errors.Is(err, context.Canceled):
 		return ErrorCanceled
+	case errors.Is(err, context.DeadlineExceeded):
+		return ErrorNetwork
 	case errors.Is(err, errs.ErrUnsupported):
 		return ErrorUnsupported
 	}
