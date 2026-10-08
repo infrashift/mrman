@@ -88,12 +88,12 @@ mutation, which requires **GitLab 15.11 or newer**. Older instances should use
 
 ### Review summaries
 
-The forge's own review-level bodies, rendered inline above the threads they
-belong to.
+The forge's own review-level bodies, rendered in the overview above the diff.
 
-GitLab and Azure DevOps have no review object to carry one, so there is nothing
-to display. Your *own* review body still posts — as a general MR note on GitLab,
-and as a context-less thread on Azure DevOps.
+GitLab and Azure DevOps have no review object to carry one. mrman shows their
+general, file-less discussions there instead, so review bodies posted by
+anyone, mrman included, appear in the same place: a general MR note on GitLab,
+a context-less thread on Azure DevOps. They carry no review state.
 
 ### Thread resolution and outdated state
 

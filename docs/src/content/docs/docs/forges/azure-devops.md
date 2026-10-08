@@ -226,10 +226,9 @@ The header counts unresolved threads, and resolved ones are hidden until
                   ╘══════════════════════════════════════════════════════════
 ```
 
-One asymmetry worth knowing: a thread with **no file context** — the kind the
-web UI shows as a general MR discussion — is not rendered, because Azure DevOps
-has no review-summary concept for mrman to slot it into. Only file-anchored
-threads appear in the diff.
+A thread with **no file context**, the kind the web UI shows as a general
+discussion, appears in the overview above the diff, where GitHub's review
+summaries go. Review bodies, including mrman's own, are among them.
 
 ### Thread dispositions
 

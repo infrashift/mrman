@@ -164,11 +164,31 @@ func TestListReviewThreadsPaginates(t *testing.T) {
 	}
 }
 
-func TestListReviewSummariesIsEmpty(t *testing.T) {
-	d := newTestDriver(t, forbidNetwork(t))
+// TestListReviewSummariesAreTheGeneralNotes: GitLab has no review object,
+// so a review body lands as a general MR note. Those notes come back as
+// summaries; positioned discussions and system notes do not.
+func TestListReviewSummariesAreTheGeneralNotes(t *testing.T) {
+	mux := newFixtureMux(t)
+	mux.JSON("GET "+projectPrefix+"/discussions", discussionsBody)
+	d := newTestDriver(t, mux)
 	summaries, err := d.ListReviewSummaries(context.Background(), testPR())
-	if err != nil || summaries != nil {
-		t.Errorf("summaries = %v err = %v, want nil/nil", summaries, err)
+	if err != nil {
+		t.Fatal(err)
+	}
+	threads, _ := d.ListReviewThreads(context.Background(), testPR())
+	want := 0
+	for _, th := range threads {
+		if th.Path == "" {
+			want++
+		}
+	}
+	if want == 0 || len(summaries) != want {
+		t.Fatalf("summaries = %+v, want one per general note (%d)", summaries, want)
+	}
+	for _, s := range summaries {
+		if s.Body == "" || s.Author == "" {
+			t.Errorf("summary %+v lacks its author or body", s)
+		}
 	}
 }
 

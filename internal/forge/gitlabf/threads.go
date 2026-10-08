@@ -157,11 +157,28 @@ func convertNote(note *gitlab.Note) forge.RemoteReviewComment {
 	}
 }
 
-// ListReviewSummaries returns no summaries: GitLab has no review-level
-// bodies distinct from threads (the ReviewSummaries capability is false);
-// general MR notes surface through ListReviewThreads instead.
-func (d *Driver) ListReviewSummaries(_ context.Context, _ *forge.PullRequestDetails) ([]forge.RemoteReviewSummary, error) {
-	return nil, nil
+// ListReviewSummaries returns the MR's general discussions, the notes with
+// no diff position, review bodies among them. GitLab has no review object
+// (the ReviewSummaries capability is false), so these are the closest thing:
+// one summary per discussion, its first note's author and body. The app
+// draws no path-less thread, so without this they never appeared.
+func (d *Driver) ListReviewSummaries(ctx context.Context, pr *forge.PullRequestDetails) ([]forge.RemoteReviewSummary, error) {
+	threads, err := d.ListReviewThreads(ctx, pr)
+	if err != nil {
+		return nil, err
+	}
+	var summaries []forge.RemoteReviewSummary
+	for _, th := range threads {
+		root := th.Root()
+		if th.Path != "" || root == nil || strings.TrimSpace(root.Body) == "" {
+			continue
+		}
+		summaries = append(summaries, forge.RemoteReviewSummary{
+			ID: th.ID, Author: root.Author, Body: root.Body,
+			State: forge.ReviewCommented, CreatedAt: root.CreatedAt,
+		})
+	}
+	return summaries, nil
 }
 
 // ReviewMetadata reports the viewer login plus one review record per
