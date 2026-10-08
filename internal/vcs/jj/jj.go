@@ -182,9 +182,9 @@ func (b *Backend) FileLineCount(path string, status model.FileStatus, refCommit 
 func (b *Backend) fileContent(path string, status model.FileStatus, refCommit *string) (string, error) {
 	switch {
 	case refCommit != nil:
-		return b.runJJ("file", "show", "-r", *refCommit, path)
+		return b.runJJ("file", "show", "-r", *refCommit, rootFile(path))
 	case status == model.StatusDeleted:
-		return b.runJJ("file", "show", "-r", "@-", path)
+		return b.runJJ("file", "show", "-r", "@-", rootFile(path))
 	default:
 		data, err := os.ReadFile(filepath.Join(b.info.RootPath, path))
 		if err != nil {
@@ -316,7 +316,10 @@ func (b *Backend) showBatch(rev string, paths []string) (map[string]string, erro
 		return map[string]string{}, nil
 	}
 	template := `"\n` + vcs.BatchBoundary + `\n" ++ path ++ "\n"`
-	args := append([]string{"file", "show", "-r", rev, "-T", template}, paths...)
+	args := []string{"file", "show", "-r", rev, "-T", template}
+	for _, p := range paths {
+		args = append(args, rootFile(p))
+	}
 	out, err := b.runJJ(args...)
 	if err != nil {
 		return nil, err
@@ -391,4 +394,13 @@ func splitLines(content string) []string {
 // countLines counts lines with str::lines semantics.
 func countLines(content string) uint32 {
 	return uint32(len(splitLines(content))) //nolint:gosec // G115: line numbers fit uint32
+}
+
+// rootFile turns a repository-relative path into the fileset that names
+// exactly that file. jj reads path arguments as fileset expressions, so a
+// bare name with "(", "|", "&", "~" or a quote in it would parse as an
+// expression, or fail to parse.
+func rootFile(path string) string {
+	escaped := strings.NewReplacer(`\`, `\\`, `"`, `\"`).Replace(path)
+	return `root-file:"` + escaped + `"`
 }
