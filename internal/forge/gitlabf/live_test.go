@@ -599,15 +599,27 @@ func (lv *liveMR) approve(t *testing.T) {
 		t.Errorf("GitLab reports %s's review state %q after approve, want APPROVED", lv.viewer, state)
 	}
 	// The approval reads back as a review record on the head it approved,
-	// which "commits since your last review" keys on.
-	meta, err := lv.backend.ReviewMetadata(context.Background(), lv.load.Details)
-	if err != nil {
-		t.Fatalf("ReviewMetadata: %v", err)
-	}
-	if !slices.ContainsFunc(meta.Reviews, func(r forge.ReviewRecord) bool {
+	// which "commits since your last review" keys on. The record comes from
+	// the approval's system note, which GitLab writes asynchronously (about
+	// 7 s after the approval on gitlab.com), so wait for it.
+	approvedAt := func(r forge.ReviewRecord) bool {
 		return r.Author == lv.viewer && r.CommitOID == lv.load.Details.HeadSHA
-	}) {
-		t.Errorf("ReviewMetadata has no record of %s's approval at %s: %+v", lv.viewer, lv.load.Details.HeadSHA, meta.Reviews)
+	}
+	var meta *forge.ReviewMetadata
+	for start := time.Now(); ; {
+		meta, err = lv.backend.ReviewMetadata(context.Background(), lv.load.Details)
+		if err != nil {
+			t.Fatalf("ReviewMetadata: %v", err)
+		}
+		if slices.ContainsFunc(meta.Reviews, approvedAt) {
+			t.Logf("the approval's review record appeared after %s", time.Since(start).Round(100*time.Millisecond))
+			break
+		}
+		if time.Since(start) > 45*time.Second {
+			t.Errorf("ReviewMetadata has no record of %s's approval at %s: %+v", lv.viewer, lv.load.Details.HeadSHA, meta.Reviews)
+			break
+		}
+		time.Sleep(time.Second)
 	}
 }
 

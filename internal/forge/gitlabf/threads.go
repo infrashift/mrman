@@ -188,8 +188,9 @@ func (d *Driver) ListReviewSummaries(ctx context.Context, pr *forge.PullRequestD
 // count as having reviewed them, and GitLab does not reset approvals on
 // push unless a project setting says so.
 //
-// The approvals API carries no timestamps, so approvals are read from the
-// "approved this merge request" system notes instead. Sub-call failures
+// The approvals API carries no timestamps, so approvals and requests for
+// changes are read from the system notes GitLab writes for them, which can
+// lag the event by a few seconds. Sub-call failures
 // degrade to partial metadata rather than failing the review (tuicr
 // parity); a record that cannot be placed on a version is left out, since
 // a wrong commit would preselect the wrong commits.
@@ -224,14 +225,22 @@ func (d *Driver) ReviewMetadata(ctx context.Context, pr *forge.PullRequestDetail
 	return metadata, nil
 }
 
-// approvedNote is the body of the system note GitLab writes on approval.
-const approvedNote = "approved this merge request"
+// reviewSystemNotes are the bodies of the system notes GitLab writes when a
+// reviewer approves or requests changes. GitLab writes them asynchronously:
+// on gitlab.com the approval note appeared about seven seconds after the
+// approval itself.
+var reviewSystemNotes = []string{"approved this merge request", "requested changes"}
 
 // isReviewNote reports whether a note is review activity: a comment, or the
-// system note that records an approval.
+// system note that records an approval or a request for changes.
 func isReviewNote(note *gitlab.Note) bool {
 	if note.System {
-		return strings.HasPrefix(note.Body, approvedNote)
+		for _, body := range reviewSystemNotes {
+			if strings.HasPrefix(note.Body, body) {
+				return true
+			}
+		}
+		return false
 	}
 	return strings.TrimSpace(note.Body) != ""
 }
