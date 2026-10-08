@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/infrashift/mrman/internal/forge"
@@ -158,16 +159,20 @@ func forbidNetwork(t *testing.T) http.Handler {
 }
 
 // fakeRunner is a canned vcs.Runner: results are keyed by the full command
-// line, missing keys fail like a git error would.
+// line, missing keys fail like a git error would. GetDiff fetches files
+// concurrently, so Run must be safe to call from several goroutines.
 type fakeRunner struct {
 	out   map[string]string
+	mu    sync.Mutex
 	calls []string
 }
 
 // Run replays the canned result for the invoked command line.
 func (r *fakeRunner) Run(_, name string, args ...string) ([]byte, []byte, error) {
 	key := name + " " + strings.Join(args, " ")
+	r.mu.Lock()
 	r.calls = append(r.calls, key)
+	r.mu.Unlock()
 	out, ok := r.out[key]
 	if !ok {
 		return nil, []byte("fatal: not a valid object name"), errors.New("exit status 128")

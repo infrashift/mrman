@@ -12,6 +12,7 @@ import (
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/git"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/webapi"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/infrashift/mrman/internal/diffgen"
 	"github.com/infrashift/mrman/internal/errs"
@@ -245,19 +246,30 @@ func (d *Driver) GetDiff(ctx context.Context, pr *forge.PullRequestDetails) (str
 		return "", err
 	}
 
-	var sb strings.Builder
-	for _, change := range changes {
+	// Each file costs up to two blob requests. Run a bounded number of
+	// files at once: serially, a 500-file PR made about 1000 round trips
+	// one after another before the diff could render.
+	diffs := make([]string, len(changes))
+	group, groupCtx := errgroup.WithContext(ctx)
+	group.SetLimit(blobFetchConcurrency)
+	for i, change := range changes {
 		if change.isFolder || change.path == "" {
 			continue
 		}
-		fileDiff, err := d.synthesizeFileDiff(ctx, op, project, repoName, pr, change)
-		if err != nil {
-			return "", err
-		}
-		sb.WriteString(fileDiff)
+		group.Go(func() error {
+			fileDiff, err := d.synthesizeFileDiff(groupCtx, op, project, repoName, pr, change)
+			diffs[i] = fileDiff
+			return err
+		})
 	}
-	return sb.String(), nil
+	if err := group.Wait(); err != nil {
+		return "", err
+	}
+	return strings.Join(diffs, ""), nil
 }
+
+// blobFetchConcurrency bounds the files GetDiff fetches at once.
+const blobFetchConcurrency = 8
 
 // synthesizeFileDiff fetches the blob pair for one change entry and renders
 // its unified diff.
