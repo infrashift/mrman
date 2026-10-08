@@ -226,3 +226,45 @@ func TestReviewMetadataDegradesGracefully(t *testing.T) {
 		t.Errorf("metadata = %+v, want empty", metadata)
 	}
 }
+
+// TestListReviewThreadsReadsLineRanges: a range comment used to come back
+// as a single line, its end, so the TUI drew it on one line and the live
+// test could assert only the end.
+func TestListReviewThreadsReadsLineRanges(t *testing.T) {
+	mux := newFixtureMux(t)
+	mux.JSON("GET "+projectPrefix+"/discussions", `[
+		{"id": "new-range", "notes": [{"id": 1, "body": "b", "author": {"username": "a"},
+			"position": {"position_type": "text", "new_path": "f.go", "new_line": 18, "old_line": 0,
+				"line_range": {"start": {"type": "new", "new_line": 16}, "end": {"type": "new", "new_line": 18}}}}]},
+		{"id": "context-range", "notes": [{"id": 2, "body": "b", "author": {"username": "a"},
+			"position": {"position_type": "text", "new_path": "f.go", "new_line": 19, "old_line": 16,
+				"line_range": {"start": {"old_line": 5, "new_line": 5}, "end": {"old_line": 16, "new_line": 19}}}}]},
+		{"id": "old-range", "notes": [{"id": 3, "body": "b", "author": {"username": "a"},
+			"position": {"position_type": "text", "old_path": "f.go", "old_line": 9,
+				"line_range": {"start": {"type": "old", "old_line": 7}, "end": {"type": "old", "old_line": 9}}}}]},
+		{"id": "mixed-range", "notes": [{"id": 4, "body": "b", "author": {"username": "a"},
+			"position": {"position_type": "text", "new_path": "f.go", "new_line": 4,
+				"line_range": {"start": {"type": "old", "old_line": 3}, "end": {"type": "new", "new_line": 4}}}}]},
+		{"id": "single", "notes": [{"id": 5, "body": "b", "author": {"username": "a"},
+			"position": {"position_type": "text", "new_path": "f.go", "new_line": 2,
+				"line_range": {"start": {"type": "new", "new_line": 2}, "end": {"type": "new", "new_line": 2}}}}]}
+	]`)
+	d := newTestDriver(t, mux)
+	threads, err := d.ListReviewThreads(context.Background(), testPR())
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]uint32{"new-range": 16, "context-range": 5, "old-range": 7}
+	for _, th := range threads {
+		w, isRange := want[th.ID]
+		switch {
+		case isRange && (th.StartLine == nil || *th.StartLine != w):
+			t.Errorf("%s: StartLine = %v, want %d", th.ID, th.StartLine, w)
+		case !isRange && th.StartLine != nil:
+			t.Errorf("%s: StartLine = %d, want none", th.ID, *th.StartLine)
+		}
+	}
+	if len(threads) != 5 {
+		t.Fatalf("got %d threads, want 5", len(threads))
+	}
+}

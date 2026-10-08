@@ -349,6 +349,9 @@ func (lv *liveMR) comment(t *testing.T) {
 		if th.Line == nil || *th.Line != c.line || th.Side != c.side {
 			t.Errorf("%s: ListReviewThreads reads it back at %v/%s, want %d/%s", c.kind, th.Line, th.Side, c.line, c.side)
 		}
+		if c.start != nil && (th.StartLine == nil || *th.StartLine != *c.start) {
+			t.Errorf("%s: ListReviewThreads reads the range start back as %v, want %d", c.kind, th.StartLine, *c.start)
+		}
 	}
 }
 

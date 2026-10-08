@@ -94,10 +94,30 @@ func convertDiscussion(disc *gitlab.Discussion) (forge.RemoteReviewThread, bool)
 		Path:       path,
 		Line:       &line,
 		Side:       side,
+		StartLine:  rangeStart(pos.LineRange, side, line),
 		IsResolved: root.Resolved,
 		IsOutdated: false,
 		Comments:   comments,
 	}, true
+}
+
+// rangeStart reads a multi-line thread's first line from its line_range, on
+// the thread's own side. It is nil for a single-line thread, and for a range
+// whose start has no line on that side (a range starting on a deletion and
+// ending on an addition), which the neutral thread cannot express.
+func rangeStart(lr *gitlab.LineRange, side forge.Side, end uint32) *uint32 {
+	if lr == nil || lr.StartRange == nil {
+		return nil
+	}
+	start := lr.StartRange.NewLine
+	if side == forge.SideOld {
+		start = lr.StartRange.OldLine
+	}
+	if start <= 0 || start >= int64(end) {
+		return nil
+	}
+	first := uint32(start) //nolint:gosec // G115: 0 < start < end, which is a uint32
+	return &first
 }
 
 // convertIndividualNote maps a general MR note (no diff position) onto a
