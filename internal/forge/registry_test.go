@@ -312,6 +312,8 @@ func TestParseTargetCoordinates(t *testing.T) {
 	adoCheckout := adoRepo("dev.azure.com", "org", "project", "repo")
 	cfgForgejoDefault := defaultForgeConfig()
 	cfgForgejoDefault.Default = "forgejo"
+	cfgGitLabDefault := defaultForgeConfig()
+	cfgGitLabDefault.Default = "gitlab"
 
 	cases := []struct {
 		name     string
@@ -337,6 +339,15 @@ func TestParseTargetCoordinates(t *testing.T) {
 			adoRepo("dev.azure.com", "org", "project", "repo"), 2},
 		{"unknown host falls back to default forge", "git.example.com/o/r#5", nil, defaultForgeConfig(),
 			repo(forgetypes.KindGitHub, "git.example.com", "o", "r"), 5},
+		// A first segment that is not a hostname is a group, not a host.
+		{"group/sub/repo!N takes the GitLab checkout's host", "infrashift-group/sub/scratch!5", glCheckout,
+			defaultForgeConfig(), repo(forgetypes.KindGitLab, "gitlab.corp.example", "infrashift-group/sub", "scratch"), 5},
+		{"group/sub/repo!N with gitlab default", "infrashift-group/sub/scratch!5", nil, cfgGitLabDefault,
+			repo(forgetypes.KindGitLab, "gitlab.com", "infrashift-group/sub", "scratch"), 5},
+		{"org/project/repo#N takes the ADO checkout's host", "org2/proj/repo#6", adoCheckout, defaultForgeConfig(),
+			adoRepo("dev.azure.com", "org2", "proj", "repo"), 6},
+		{"localhost is a host", "localhost:3000/o/r#7", nil, cfgForgejoDefault,
+			repo(forgetypes.KindForgejo, "localhost:3000", "o", "r"), 7},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -376,6 +387,19 @@ func TestParseTargetURLs(t *testing.T) {
 			adoRepo("myorg.visualstudio.com", "myorg", "project", "repo"), 7},
 		{"ado legacy DefaultCollection", "https://myorg.visualstudio.com/DefaultCollection/project/_git/repo/pullrequest/7",
 			adoRepo("myorg.visualstudio.com", "myorg", "project", "repo"), 7},
+		// URLs copied from a PR page's tab.
+		{"github files tab", "https://github.com/o/r/pull/5/files",
+			repo(forgetypes.KindGitHub, "github.com", "o", "r"), 5},
+		{"github commit in commits tab", "https://github.com/o/r/pull/5/commits/0123abc",
+			repo(forgetypes.KindGitHub, "github.com", "o", "r"), 5},
+		{"forgejo files tab", "https://codeberg.org/o/r/pulls/6/files",
+			repo(forgetypes.KindForgejo, "codeberg.org", "o", "r"), 6},
+		{"gitlab diffs tab", "https://gitlab.com/g/sub/r/-/merge_requests/7/diffs",
+			repo(forgetypes.KindGitLab, "gitlab.com", "g/sub", "r"), 7},
+		{"gitlab pipelines tab", "https://gitlab.com/g/r/-/merge_requests/8/pipelines",
+			repo(forgetypes.KindGitLab, "gitlab.com", "g", "r"), 8},
+		{"ado files tab is a query", "https://dev.azure.com/org/project/_git/repo/pullrequest/9?_a=files",
+			adoRepo("dev.azure.com", "org", "project", "repo"), 9},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -453,6 +477,9 @@ func TestParseTargetMalformedInputs(t *testing.T) {
 		"https://github.com/owner/repo/issues/5",
 		"onlyowner#5",
 		"dev.azure.com/org/repo#5", // ADO needs org/project/repo
+		"https://github.com/owner/repo/pull/5/bogus",
+		"https://gitlab.com/g/r/-/merge_requests/5/bogus",
+		"group/sub/repo#5", // a GitHub checkout has no subgroups
 	} {
 		if _, err := ParseTarget(input, checkout, defaultForgeConfig()); err == nil {
 			t.Errorf("ParseTarget(%q) unexpectedly succeeded", input)
