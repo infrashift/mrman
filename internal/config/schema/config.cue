@@ -3,8 +3,10 @@
 // never fails hard.
 package schema
 
-// #ForgeKind enumerates the supported forge drivers.
-#ForgeKind: "github" | "gitlab" | "azuredevops" | "forgejo"
+// #ForgeKind enumerates the supported forge drivers, plus the aliases the
+// forge pages document: "azure_devops" and "ado" for Azure DevOps, "gitea"
+// for Forgejo.
+#ForgeKind: "github" | "gitlab" | "azuredevops" | "azure_devops" | "ado" | "forgejo" | "gitea"
 
 // #ForgeHostBase holds the fields shared by both #ForgeHost variants.
 #ForgeHostBase: {

@@ -326,7 +326,7 @@ func TestPerKeyRejectionsFallBackWhileOthersSurvive(t *testing.T) {
 		{
 			name:     "forge default enum",
 			toml:     "[forge]\ndefault = \"bitbucket\"",
-			wantWarn: "config `forge.default`: must be \"github\", \"gitlab\", \"azuredevops\", or \"forgejo\"",
+			wantWarn: "config `forge.default`: must be \"github\", \"gitlab\", \"azuredevops\", or \"forgejo\" (aliases: \"azure_devops\", \"ado\", \"gitea\")",
 			check: func(t *testing.T, cfg Config) {
 				if cfg.Forge.Default != "github" {
 					t.Errorf("Forge.Default = %q, want github", cfg.Forge.Default)
@@ -613,9 +613,31 @@ forge = "bitbucket"
 host = "good.example"
 forge = "azuredevops"
 `)
-	requireWarning(t, warnings, "config `forge.hosts[0]`: `forge` must be \"github\", \"gitlab\", \"azuredevops\", or \"forgejo\" — entry ignored")
+	requireWarning(t, warnings, "config `forge.hosts[0]`: `forge` must be \"github\", \"gitlab\", \"azuredevops\", or \"forgejo\" (aliases: \"azure_devops\", \"ado\", \"gitea\") — entry ignored")
 	if len(cfg.Forge.Hosts) != 1 || cfg.Forge.Hosts[0].Forge != "azuredevops" {
 		t.Errorf("Hosts = %+v, want only the azuredevops entry", cfg.Forge.Hosts)
+	}
+}
+
+// TestForgeKindAliases: the forge pages document "gitea" for Forgejo and
+// "azure_devops"/"ado" for Azure DevOps. The schema used to reject them, so
+// an entry following the docs was dropped whole, token and api_base with
+// it, and the host ran unauthenticated against the wrong API base.
+func TestForgeKindAliases(t *testing.T) {
+	for _, alias := range []string{"gitea", "azure_devops", "ado"} {
+		t.Run(alias, func(t *testing.T) {
+			cfg, warnings := loadString(t, "[forge]\ndefault = \""+alias+"\"\n"+
+				"[[forge.hosts]]\nhost = \"forge.example\"\nforge = \""+alias+"\"\ntoken = \"t\"\n")
+			if len(warnings) != 0 {
+				t.Fatalf("warnings = %v, want none", warnings)
+			}
+			if cfg.Forge.Default != alias {
+				t.Errorf("Default = %q, want %q", cfg.Forge.Default, alias)
+			}
+			if len(cfg.Forge.Hosts) != 1 || cfg.Forge.Hosts[0].Forge != alias || cfg.Forge.Hosts[0].Token != "t" {
+				t.Errorf("Hosts = %+v, want the %s entry kept", cfg.Forge.Hosts, alias)
+			}
+		})
 	}
 }
 
