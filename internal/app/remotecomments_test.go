@@ -428,7 +428,7 @@ func TestTotalLinesAgreesWithAnnotationsWithRemoteComments(t *testing.T) {
 			a.DiffViewMode = tc.view
 			loadThreads(t, a, tc.threads, tc.summaries)
 
-			if got, want := a.TotalLines(), len(a.LineAnnotations); got != want {
+			if got, want := a.renderedHeight(), len(a.LineAnnotations); got != want {
 				t.Errorf("TotalLines() = %d but the stream has %d rows; the diff pane "+
 					"would truncate at row %d", got, want, min(got, want))
 			}

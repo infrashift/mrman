@@ -340,7 +340,7 @@ func TestReviewedFileCollapsesInMultiFileView(t *testing.T) {
 	if a.TotalLines() >= before {
 		t.Error("reviewed file should collapse to its header")
 	}
-	assertEq(t, a.TotalLines(), len(a.LineAnnotations), "heights stay in lockstep")
+	assertEq(t, a.renderedHeight(), len(a.LineAnnotations), "heights stay in lockstep")
 	if anyAnnotation(a, func(l *AnnotatedLine) bool {
 		return l.Kind == AnnDiffLine && l.FileIdx == 0
 	}) {
@@ -431,7 +431,7 @@ func TestSyncViewportWidthRebuildsOnChange(t *testing.T) {
 
 	a.SyncViewportWidth(80)
 	assertEq(t, a.DiffState.ViewportWidth, 80, "viewport width set")
-	assertEq(t, a.TotalLines(), len(a.LineAnnotations), "annotations rebuilt")
+	assertEq(t, a.renderedHeight(), len(a.LineAnnotations), "annotations rebuilt")
 	a.SyncViewportWidth(80) // no-op path
 }
 

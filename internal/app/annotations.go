@@ -177,6 +177,7 @@ func (a *App) RebuildAnnotations() {
 	}
 
 	a.LineAnnotations = a.LineAnnotations[:0]
+	a.annotationGen++
 
 	// Per-rebuild lookups shared by every builder below.
 	ctx := a.newAnnBuildCtx()

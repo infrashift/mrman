@@ -447,7 +447,7 @@ func TestShouldShowEndOfFileExpander(t *testing.T) {
 	})
 	assertEq(t, hiddenCount, 1, "should show hidden lines count")
 
-	assertEq(t, a.TotalLines(), len(a.LineAnnotations),
+	assertEq(t, a.renderedHeight(), len(a.LineAnnotations),
 		"file render height sum must match annotation count")
 }
 
@@ -525,7 +525,7 @@ func TestTotalLinesMustMatchAnnotationsWithEofGaps(t *testing.T) {
 	}
 	a := buildAppWithFiles(files, 100)
 
-	assertEq(t, a.TotalLines(), len(a.LineAnnotations),
+	assertEq(t, a.renderedHeight(), len(a.LineAnnotations),
 		"TotalLines must equal len(LineAnnotations)")
 }
 
@@ -546,5 +546,5 @@ func TestShouldNotShowEofGapForDeletedFiles(t *testing.T) {
 	})
 	assertEq(t, expanderCount, 0, "deleted files should not have EOF expander")
 
-	assertEq(t, a.TotalLines(), len(a.LineAnnotations), "total lines must match annotations")
+	assertEq(t, a.renderedHeight(), len(a.LineAnnotations), "total lines must match annotations")
 }
