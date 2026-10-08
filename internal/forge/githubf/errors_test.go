@@ -171,3 +171,34 @@ func TestTransportFailureMapsToNetwork(t *testing.T) {
 	_, gerr := d.GetDiff(context.Background(), testPR())
 	wantForgeErr(t, gerr, forge.ErrorNetwork)
 }
+
+// TestGraphQLErrorMapping: ListReviewThreads is the first GraphQL call a PR
+// load makes. githubv4 reports a non-200 only as a formatted string, so a
+// bad token there used to read as "network error" with no auth hint.
+func TestGraphQLErrorMapping(t *testing.T) {
+	cases := []struct {
+		name     string
+		status   int
+		body     string
+		wantKind forge.ErrorKind
+		wantHint string
+	}{
+		{"401", http.StatusUnauthorized, `{"message":"Bad credentials"}`, forge.ErrorAuth, "GITHUB_TOKEN"},
+		{"403", http.StatusForbidden, `{"message":"Forbidden"}`, forge.ErrorForbidden, "scopes"},
+		{"502", http.StatusBadGateway, `bad gateway`, forge.ErrorServer, ""},
+		{"unresolvable repository", http.StatusOK,
+			`{"data":null,"errors":[{"type":"NOT_FOUND","message":"Could not resolve to a Repository with the name 'o/r'."}]}`,
+			forge.ErrorNotFound, "not found"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			d := newTestDriver(t, errorServer(c.status, c.body, nil))
+			_, err := d.ListReviewThreads(context.Background(), testPR())
+			wantForgeErr(t, err, c.wantKind)
+			fe := mustForgeErr(t, err)
+			if c.wantHint != "" && !strings.Contains(fe.Hint, c.wantHint) {
+				t.Errorf("hint = %q, want it to mention %q", fe.Hint, c.wantHint)
+			}
+		})
+	}
+}

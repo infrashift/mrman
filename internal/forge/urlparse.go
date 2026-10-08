@@ -1,6 +1,7 @@
 package forge
 
 import (
+	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
@@ -56,8 +57,12 @@ func SplitRemoteURL(raw string) (host string, segments []string, ok bool) {
 }
 
 // hostAndSegments normalizes the host (lowercase, port stripped, transport
-// aliases mapped) and splits the path into non-empty segments with the
-// trailing ".git" removed.
+// aliases mapped) and splits the path into non-empty, percent-decoded
+// segments with the trailing ".git" removed.
+//
+// Decoding matters for Azure DevOps, whose clone URLs encode a space in a
+// project or repository name as %20: kept encoded, the SDK escapes it again
+// and every request 404s on "My%2520Project".
 func hostAndSegments(host, path string) (string, []string, bool) {
 	host = normalizeTransportHost(strings.ToLower(stripPort(host)))
 	if host == "" {
@@ -66,6 +71,11 @@ func hostAndSegments(host, path string) (string, []string, bool) {
 	segments := nonEmptySegments(path)
 	if len(segments) == 0 {
 		return "", nil, false
+	}
+	for i, seg := range segments {
+		if decoded, err := url.PathUnescape(seg); err == nil {
+			segments[i] = decoded
+		}
 	}
 	last := strings.TrimSuffix(segments[len(segments)-1], ".git")
 	if last == "" {

@@ -3,6 +3,8 @@ package gitlabf
 import (
 	"fmt"
 	"strings"
+
+	"github.com/infrashift/mrman/internal/vcs"
 )
 
 // defaultFileMode is used when GitLab omits a file mode on a new or
@@ -20,6 +22,10 @@ type fileDiff struct {
 	New     bool
 	Renamed bool
 	Deleted bool
+	// TooLarge marks an entry GitLab sent without its diff because the file
+	// exceeds the instance's diff limits (too_large, or collapsed with no
+	// body).
+	TooLarge bool
 }
 
 // synthesizeUnifiedDiff builds a git-style unified diff from GitLab's
@@ -60,7 +66,10 @@ func appendFileDiff(b *strings.Builder, f *fileDiff) {
 	}
 	body := f.Body
 	if body == "" {
-		// Rename-only, binary, or collapsed entries carry no hunks.
+		if f.TooLarge {
+			b.WriteString(vcs.TooLargeDiffMarker + "\n")
+		}
+		// Rename-only and binary entries carry no hunks.
 		return
 	}
 	// Defensive: some GitLab versions already include the ---/+++ pair in

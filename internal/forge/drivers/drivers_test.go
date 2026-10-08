@@ -41,3 +41,24 @@ func TestEveryForgeKindHasADriver(t *testing.T) {
 		}
 	}
 }
+
+// TestADOOrgURL: a legacy {org}.visualstudio.com host already names the
+// organization, so repeating it in the path made the API read it as a
+// project and fail every call.
+func TestADOOrgURL(t *testing.T) {
+	repo := forgetypes.Repository{Kind: forgetypes.KindAzureDevOps, Owner: "myorg", Project: "p", Name: "r"}
+	cases := []struct {
+		cfg  forge.HostConfig
+		want string
+	}{
+		{forge.HostConfig{Host: "dev.azure.com"}, "https://dev.azure.com/myorg"},
+		{forge.HostConfig{Host: "myorg.visualstudio.com"}, "https://myorg.visualstudio.com"},
+		{forge.HostConfig{Host: "ado.corp.example", APIBase: "https://ado.corp.example/tfs/Coll"},
+			"https://ado.corp.example/tfs/Coll"},
+	}
+	for _, tc := range cases {
+		if got := adoOrgURL(tc.cfg, repo); got != tc.want {
+			t.Errorf("adoOrgURL(%s) = %q, want %q", tc.cfg.Host, got, tc.want)
+		}
+	}
+}

@@ -92,9 +92,14 @@ func (d *Driver) GetPullRequest(ctx context.Context, target forge.Target) (*forg
 		MergedAt:           mergedAt(pr),
 	}
 
-	payload, err := d.iterationPayload(ctx, op, project, repoName, prID)
+	payload, mergeBase, err := d.iterationPayload(ctx, op, project, repoName, prID)
 	if err != nil {
 		return nil, err
+	}
+	if mergeBase != "" {
+		// lastMergeTargetCommit is the target branch's tip: diffing against
+		// it would show the target's own later changes, reversed.
+		details.BaseSHA = mergeBase
 	}
 	if payload.IterationID > 0 {
 		raw, err := json.Marshal(payload)
@@ -107,31 +112,36 @@ func (d *Driver) GetPullRequest(ctx context.Context, target forge.Target) (*forg
 }
 
 // iterationPayload fetches the latest iteration id and its per-path change
-// tracking ids. A PR without iterations yields the zero payload so callers
+// tracking ids, plus that iteration's merge base (its commonRefCommit, ""
+// when absent). A PR without iterations yields the zero payload so callers
 // degrade gracefully instead of failing the whole fetch.
-func (d *Driver) iterationPayload(ctx context.Context, op, project, repoName string, prID int) (forgePayload, error) {
+func (d *Driver) iterationPayload(ctx context.Context, op, project, repoName string, prID int) (forgePayload, string, error) {
 	iterations, err := d.gitClient.GetPullRequestIterations(ctx, git.GetPullRequestIterationsArgs{
 		RepositoryId:  &repoName,
 		Project:       &project,
 		PullRequestId: &prID,
 	})
 	if err != nil {
-		return forgePayload{}, d.wrap(op, err)
+		return forgePayload{}, "", d.wrap(op, err)
 	}
-	latest := 0
+	latest, mergeBase := 0, ""
 	if iterations != nil {
 		for _, it := range *iterations {
 			if it.Id != nil && *it.Id > latest {
 				latest = *it.Id
+				mergeBase = ""
+				if it.CommonRefCommit != nil {
+					mergeBase = deref(it.CommonRefCommit.CommitId)
+				}
 			}
 		}
 	}
 	if latest == 0 {
-		return forgePayload{}, nil
+		return forgePayload{}, "", nil
 	}
 	changes, err := d.iterationChanges(ctx, op, project, repoName, prID, latest)
 	if err != nil {
-		return forgePayload{}, err
+		return forgePayload{}, "", err
 	}
 	tracking := make(map[string]int, len(changes))
 	for _, change := range changes {
@@ -139,7 +149,7 @@ func (d *Driver) iterationPayload(ctx context.Context, op, project, repoName str
 			tracking[change.path] = change.changeTrackingID
 		}
 	}
-	return forgePayload{IterationID: latest, ChangeTracking: tracking}, nil
+	return forgePayload{IterationID: latest, ChangeTracking: tracking}, mergeBase, nil
 }
 
 // iterationChange is the digested form of one iteration change entry.
@@ -230,7 +240,7 @@ func (d *Driver) GetDiff(ctx context.Context, pr *forge.PullRequestDetails) (str
 
 	iterationID := decodePayload(pr).IterationID
 	if iterationID == 0 {
-		payload, err := d.iterationPayload(ctx, op, project, repoName, prID)
+		payload, _, err := d.iterationPayload(ctx, op, project, repoName, prID)
 		if err != nil {
 			return "", err
 		}

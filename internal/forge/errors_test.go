@@ -106,7 +106,7 @@ func TestClassify(t *testing.T) {
 		want ErrorKind
 	}{
 		{"context canceled", context.Canceled, ErrorCanceled},
-		{"deadline exceeded", context.DeadlineExceeded, ErrorCanceled},
+		{"deadline exceeded is a timeout, reported", context.DeadlineExceeded, ErrorNetwork},
 		{"wrapped canceled", fmt.Errorf("op: %w", context.Canceled), ErrorCanceled},
 		{"unsupported sentinel", errs.ErrUnsupported, ErrorUnsupported},
 		{"net error", &net.DNSError{Err: "no such host"}, ErrorNetwork},

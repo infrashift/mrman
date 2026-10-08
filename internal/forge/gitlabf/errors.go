@@ -2,6 +2,7 @@ package gitlabf
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 
 	gitlab "gitlab.com/gitlab-org/api/client-go"
@@ -13,9 +14,10 @@ import (
 // Actionable hints attached to translated errors. The submit-specific one
 // ports the tuicr glab.rs wording.
 const (
-	hintAuth = "GitLab authentication failed. Set GITLAB_TOKEN (or configure " +
+	// hintAuthFormat takes the host, which also names the token page.
+	hintAuthFormat = "GitLab authentication failed. Set GITLAB_TOKEN (or configure " +
 		"a token for this host) with the `api` scope — create one at " +
-		"https://HOST/-/user_settings/personal_access_tokens."
+		"https://%s/-/user_settings/personal_access_tokens."
 	hintForbidden = "The token was accepted but this operation is forbidden — " +
 		"check the token's project access and that it has the `api` scope."
 	hintNotFound = "Merge request or project not found — check the target " +
@@ -25,6 +27,9 @@ const (
 	hintReviewForbidden = "Cannot submit review: the GitLab token lacks merge " +
 		"request write permission. Use a token with the `api` scope and at " +
 		"least Reporter access to the project."
+	hintApproveRefused = "GitLab refused the approval: you may already have " +
+		"approved this merge request, or the project does not let you approve " +
+		"it (an author approving their own merge request, for one)."
 )
 
 // err builds a forge.Error with the driver's identity filled in.
@@ -52,17 +57,17 @@ func (d *Driver) wrap(op string, err error) error {
 		if glErr.Response != nil {
 			status = glErr.Response.StatusCode
 		}
-		return d.err(op, forge.FromHTTPStatus(status), status, statusHint(status), err)
+		return d.err(op, forge.FromHTTPStatus(status), status, d.statusHint(status), err)
 	}
 	// Cancellation, transport failures, and everything else untyped.
 	return d.err(op, forge.Classify(err), 0, "", err)
 }
 
 // statusHint picks the default actionable hint for an HTTP status.
-func statusHint(status int) string {
+func (d *Driver) statusHint(status int) string {
 	switch status {
 	case http.StatusUnauthorized:
-		return hintAuth
+		return fmt.Sprintf(hintAuthFormat, d.host)
 	case http.StatusForbidden:
 		return hintForbidden
 	case http.StatusNotFound, http.StatusGone:
@@ -84,4 +89,18 @@ func (d *Driver) wrapCreateReview(err error) error {
 		return d.err(op, forge.ErrorForbidden, http.StatusForbidden, hintReviewForbidden, err)
 	}
 	return d.wrap(op, err)
+}
+
+// wrapApprove translates a failed approve call. GitLab answers 401 there
+// when the approval itself is refused (already approved, or approval not
+// allowed), not only for a bad token. The approve call comes after requests
+// that succeeded with the same token, so a 401 here is a refusal, not an
+// authentication failure.
+func (d *Driver) wrapApprove(err error) error {
+	const op = "create_review"
+	if glErr, ok := errors.AsType[*gitlab.ErrorResponse](err); ok && glErr.Response != nil &&
+		glErr.Response.StatusCode == http.StatusUnauthorized {
+		return d.err(op, forge.ErrorForbidden, http.StatusUnauthorized, hintApproveRefused, err)
+	}
+	return d.wrapCreateReview(err)
 }

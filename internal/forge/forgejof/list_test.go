@@ -185,3 +185,38 @@ func TestNextPageFromLink(t *testing.T) {
 		}
 	}
 }
+
+// TestReviewRequestedSkipsPagesTheRepoFilterEmpties: the search pages by
+// owner and the repository filter runs afterwards, so page 1 can hold only
+// sibling repositories while page 2 holds this one's PR. The caller must get
+// that PR, not an empty page that says there is more. The server's casing
+// of the repository name need not match the remote's.
+func TestReviewRequestedSkipsPagesTheRepoFilterEmpties(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/repos/issues/search", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Query().Get("page") {
+		case "1":
+			w.Header().Set("Link", fmt.Sprintf("<http://%s/api/v1/repos/issues/search?page=2>; rel=\"next\"", r.Host))
+			_, _ = fmt.Fprint(w, `[{"number":1,"title":"x","repository":{"full_name":"octo/other"}}]`)
+		case "2":
+			_, _ = fmt.Fprint(w, `[{"number":7,"title":"mine","repository":{"full_name":"Octo/Hello"}}]`)
+		default:
+			t.Errorf("unexpected page %q", r.URL.Query().Get("page"))
+		}
+	})
+	d := newTestDriver(t, mux)
+
+	page, err := d.ListPullRequests(context.Background(), forge.ListQuery{
+		Repository: testRepo(), Scope: forge.ScopeReviewRequested,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Items) != 1 || page.Items[0].Number != 7 {
+		t.Fatalf("items = %+v, want PR 7 from page 2", page.Items)
+	}
+	if page.NextPageToken != "" {
+		t.Errorf("NextPageToken = %q, want none after the last page", page.NextPageToken)
+	}
+}
