@@ -64,6 +64,11 @@ func (d *Driver) GetDiff(ctx context.Context, pr *forge.PullRequestDetails) (str
 	const op = "get_diff"
 	diff, _, err := d.rest.PullRequests.GetRaw(ctx, pr.Repository.Owner, pr.Repository.Name,
 		int(pr.Number), github.RawOptions{Type: github.Diff}) //nolint:gosec // G115: pull request numbers are small forge-assigned integers
+	if isDiffTooLarge(err) {
+		// Over 300 files: GitHub refuses the raw diff but still lists the
+		// files, each with its own patch.
+		return d.filesDiff(ctx, pr)
+	}
 	if err != nil {
 		return "", d.wrap(op, err)
 	}
