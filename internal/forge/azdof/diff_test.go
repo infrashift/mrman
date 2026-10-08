@@ -16,7 +16,7 @@ const diffChangesJSON = `{
 	"changeEntries": [
 		{"changeTrackingId": 1, "changeType": "edit", "item": {"path": "/src/main.go"}},
 		{"changeTrackingId": 2, "changeType": "add", "item": {"path": "/added.txt"}},
-		{"changeTrackingId": 3, "changeType": "delete", "item": {"path": "/removed.txt"}},
+		{"changeTrackingId": 3, "changeType": "delete", "originalPath": "/removed.txt", "item": {"path": null}},
 		{"changeTrackingId": 4, "changeType": "rename, edit", "originalPath": "/old/name.txt", "item": {"path": "/new/name.txt"}},
 		{"changeTrackingId": 5, "changeType": "edit", "item": {"path": "/img.bin"}},
 		{"changeTrackingId": 6, "changeType": "edit", "item": {"path": "/dir", "isFolder": true}}
