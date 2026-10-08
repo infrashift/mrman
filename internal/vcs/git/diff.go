@@ -39,7 +39,7 @@ func revisionSource(rev string) contentSource {
 // files as synthetic addition-only diffs.
 func (b *Backend) WorkingTreeDiff(h *syntax.Highlighter) ([]model.DiffFile, error) {
 	return b.cliDiff(
-		[]string{"diff", "--no-ext-diff", "--binary", "HEAD", "--"},
+		[]string{"diff", "--no-ext-diff", "HEAD", "--"},
 		true,
 		revisionSource("HEAD"),
 		contentSource{kind: sourceWorkdir},
@@ -54,7 +54,7 @@ func (b *Backend) StagedDiff(h *syntax.Highlighter) ([]model.DiffFile, error) {
 		oldSource = revisionSource("HEAD")
 	}
 	return b.cliDiff(
-		[]string{"diff", "--no-ext-diff", "--binary", "--cached", "--"},
+		[]string{"diff", "--no-ext-diff", "--cached", "--"},
 		false,
 		oldSource,
 		contentSource{kind: sourceIndex},
@@ -66,7 +66,7 @@ func (b *Backend) StagedDiff(h *syntax.Highlighter) ([]model.DiffFile, error) {
 // untracked files.
 func (b *Backend) UnstagedDiff(h *syntax.Highlighter) ([]model.DiffFile, error) {
 	return b.cliDiff(
-		[]string{"diff", "--no-ext-diff", "--binary", "--"},
+		[]string{"diff", "--no-ext-diff", "--"},
 		true,
 		contentSource{kind: sourceIndex},
 		contentSource{kind: sourceWorkdir},
@@ -94,7 +94,7 @@ func (b *Backend) CommitRangeDiff(rng vcs.ResolvedRevisionRange, h *syntax.Highl
 		newestRev = rng.CommitIDs[len(rng.CommitIDs)-1]
 	}
 	return b.cliDiff(
-		[]string{"diff", "--no-ext-diff", "--binary", baseRev, newestRev, "--"},
+		[]string{"diff", "--no-ext-diff", baseRev, newestRev, "--"},
 		false,
 		revisionSource(baseRev),
 		revisionSource(newestRev),
@@ -111,7 +111,7 @@ func (b *Backend) WorkingTreeWithCommitsDiff(ids []string, h *syntax.Highlighter
 
 	baseRev := b.parentRevOrEmpty(ids[0])
 	return b.cliDiff(
-		[]string{"diff", "--no-ext-diff", "--binary", baseRev, "--"},
+		[]string{"diff", "--no-ext-diff", baseRev, "--"},
 		true,
 		revisionSource(baseRev),
 		contentSource{kind: sourceWorkdir},
