@@ -4,6 +4,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/infrashift/mrman/internal/app"
+	"github.com/infrashift/mrman/internal/forge"
 	"github.com/infrashift/mrman/internal/ignore"
 	"github.com/infrashift/mrman/internal/model"
 	"github.com/infrashift/mrman/internal/syntax"
@@ -120,7 +121,7 @@ func (m *Model) handlePrRangeDiffResult(msg prRangeDiffResultMsg) {
 	}
 	a.Pr.Reloading = false
 	if msg.Err != nil {
-		a.SetError("Load failed: " + msg.Err.Error())
+		a.SetError("Load failed: " + forge.Describe(msg.Err))
 		return
 	}
 	a.ApplyInlineSelectionDiff(msg.Files)

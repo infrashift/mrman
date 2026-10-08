@@ -148,7 +148,7 @@ func (m *Model) handleSubmitResult(msg prSubmitResultMsg) {
 	}
 	a.Pr.Submitting = false
 	if msg.Err != nil {
-		a.SetError("Submit failed: " + msg.Err.Error())
+		a.SetError("Submit failed: " + forge.Describe(msg.Err))
 		return
 	}
 	outcome := a.ApplySubmitResult(msg.Result, msg.Event)

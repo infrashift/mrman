@@ -70,7 +70,7 @@ func (m *Model) handlePrContextResult(msg prContextResultMsg) {
 		return // the PR was reloaded or switched underneath the fetch
 	}
 	if msg.Err != nil {
-		a.FailPrContextSnapshot(msg.Request, msg.Err.Error())
+		a.FailPrContextSnapshot(msg.Request, forge.Describe(msg.Err))
 		return
 	}
 	a.ApplyPrContextSnapshot(msg.Request, msg.Lines)

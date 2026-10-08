@@ -152,6 +152,22 @@ func (e *Error) render() string {
 	return b.String()
 }
 
+// Describe is the one-line form of err for a status bar. For a forge error
+// that carries a hint it is the failure kind, status and host followed by
+// the hint, without the SDK's own message: that message (usually the full
+// request URL and response body) came first, so the hint, the part that
+// says what to do, was cut off at the edge of the screen. Any other error
+// reads as its Error().
+func Describe(err error) string {
+	fe, ok := errors.AsType[*Error](err)
+	if !ok || fe.Hint == "" {
+		return err.Error()
+	}
+	short := *fe
+	short.Err = nil
+	return short.Error()
+}
+
 // Unwrap exposes the wrapped error to errors.Is/As.
 func (e *Error) Unwrap() error {
 	return e.Err

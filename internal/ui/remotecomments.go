@@ -57,7 +57,7 @@ func (m *Model) drainRemoteCommentsLoad() tea.Cmd {
 // handleRemoteCommentsResult applies fetched discussions.
 func (m *Model) handleRemoteCommentsResult(msg remoteCommentsResultMsg) {
 	if msg.Err != nil {
-		m.App.FailRemoteComments(msg.Gen, msg.Key, msg.Err.Error())
+		m.App.FailRemoteComments(msg.Gen, msg.Key, forge.Describe(msg.Err))
 		return
 	}
 	m.App.ApplyRemoteComments(msg.Gen, msg.Key, msg.Threads, msg.Summaries)

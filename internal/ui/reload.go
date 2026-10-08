@@ -118,7 +118,7 @@ func (m *Model) handlePrReloadResult(msg prReloadResultMsg) tea.Cmd {
 	}
 	a.Pr.Reloading = false
 	if msg.Err != nil {
-		a.FailPrReload(msg.Err.Error())
+		a.FailPrReload(forge.Describe(msg.Err))
 		return nil
 	}
 
