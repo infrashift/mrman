@@ -98,6 +98,36 @@ func TestGetPullRequest(t *testing.T) {
 	}
 }
 
+// TestGetPullRequestDiffsFromTheMergeBase: lastMergeTargetCommit is the
+// target branch's tip. Diffing head against it shows every change made on
+// the target since the branch point, reversed, and numbers old-side lines
+// against the wrong file. The latest iteration's commonRefCommit is the
+// merge base, which is what Azure DevOps's own PR view compares against.
+func TestGetPullRequestDiffsFromTheMergeBase(t *testing.T) {
+	d := newTestDriver(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case prByIDPath:
+			writeJSON(w, http.StatusOK, prByIDJSON("active"))
+		case iterationsPath:
+			writeJSON(w, http.StatusOK, `{"count":2,"value":[
+				{"id":2,"commonRefCommit":{"commitId":"mergebase2"}},
+				{"id":1,"commonRefCommit":{"commitId":"mergebase1"}}]}`)
+		case changesPath:
+			writeJSON(w, http.StatusOK, changesJSON)
+		default:
+			t.Errorf("unexpected call %s %s", r.Method, r.URL)
+		}
+	}))
+	repo := testRepo()
+	pr, err := d.GetPullRequest(context.Background(), forge.Target{Repository: &repo, Number: 42})
+	if err != nil {
+		t.Fatalf("GetPullRequest: %v", err)
+	}
+	if pr.BaseSHA != "mergebase2" {
+		t.Errorf("BaseSHA = %q, want the latest iteration's merge base", pr.BaseSHA)
+	}
+}
+
 func TestGetPullRequestCompleted(t *testing.T) {
 	d := newTestDriver(t, prHandler(t, "completed"))
 	repo := testRepo()
