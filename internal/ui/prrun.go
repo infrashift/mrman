@@ -115,7 +115,7 @@ func RunPr(target string, opts cli.TuiOptions) error {
 	if storeErr != nil {
 		store = nil
 	}
-	lifecycle, session := openPrSession(store, fresh, opts.GrantedEvents)
+	lifecycle, session := openPrSession(store, fresh, load.Files, opts.GrantedEvents)
 
 	info := &vcs.Info{
 		RootPath:   localCheckout,
@@ -179,8 +179,12 @@ func fetchPullRequest(
 //
 // grantedEvents is the agent-submit authorization from an interactive
 // --auto; it is recorded against this process so it dies when the TUI does.
+//
+// The diff files are registered before the first save: an agent may run
+// `mrman review add` the moment the session is announced, and the store
+// refuses a comment on a file the session does not list.
 func openPrSession(
-	store *persistence.Store, fresh *model.ReviewSession, grantedEvents []string,
+	store *persistence.Store, fresh *model.ReviewSession, files []model.DiffFile, grantedEvents []string,
 ) (*sessionLifecycle, *model.ReviewSession) {
 	lc := &sessionLifecycle{store: store, watchEvery: msDuration(1000)}
 	session := fresh
@@ -191,6 +195,7 @@ func openPrSession(
 			lc.path = path
 			lc.wasCreated = false
 		}
+		app.RegisterDiffFiles(session, files)
 		if path, err := store.SaveSession(session); err == nil {
 			lc.path = path
 			lc.snapshot = session.Clone()

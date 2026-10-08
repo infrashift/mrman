@@ -231,7 +231,7 @@ func (m *Model) confirmSelection() {
 	if m.session != nil {
 		m.session.finish(a)
 	}
-	m.session, session = openSession(m.store, fresh)
+	m.session, session = openSession(m.store, fresh, files)
 	a.ApplyLoadedSelection(files, session, source)
 	// ApplyLoadedSelection replaces DiffState wholesale, which zeroes the
 	// viewport dimensions, and no WindowSizeMsg follows a selector confirm.

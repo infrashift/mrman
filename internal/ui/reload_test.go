@@ -226,7 +226,7 @@ func TestAHeadMovedReloadLeavesTheForgeReachable(t *testing.T) {
 	// A running TUI always holds an open session; the head-moved branch
 	// shuts it down, which is what poisoned every later request.
 	m.store = &persistence.Store{ReviewsDir: t.TempDir()}
-	m.session, _ = openPrSession(m.store, app.NewPrSession(m.App.Pr.Details), nil)
+	m.session, _ = openPrSession(m.store, app.NewPrSession(m.App.Pr.Details), m.App.DiffFiles, nil)
 
 	// The head moved: the outgoing session is shut down, the new one opened,
 	// and its existing comments fetched.

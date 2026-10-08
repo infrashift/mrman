@@ -30,7 +30,7 @@ func TestOpenSessionCarriesReviewAcrossAmend(t *testing.T) {
 	m := testModel(t)
 
 	// A branch, not a detached HEAD: carry-forward needs a stable anchor.
-	lc1, session := openSession(store, branchSession(t, "abc1234567"))
+	lc1, session := openSession(store, branchSession(t, "abc1234567"), nil)
 	session.ReviewComments = append(session.ReviewComments,
 		model.NewComment("still relevant", model.CommentTypeFromID("note"), nil))
 	m.App.Session = session
@@ -42,7 +42,7 @@ func TestOpenSessionCarriesReviewAcrossAmend(t *testing.T) {
 	// The amend: same branch, same working-tree source, new HEAD.
 	fresh := model.NewReviewSession(
 		session.RepoPath, "9999999aaaaaaa", session.BranchName, session.DiffSource)
-	lc2, resumed := openSession(store, fresh)
+	lc2, resumed := openSession(store, fresh, nil)
 
 	if lc2.wasCreated {
 		t.Error("a session carried forward is not a fresh one")
@@ -71,7 +71,7 @@ func TestOpenSessionAtSameHeadIsNotAdoption(t *testing.T) {
 	store := &persistence.Store{ReviewsDir: t.TempDir()}
 	m := testModel(t)
 
-	lc1, session := openSession(store, branchSession(t, "abc1234567"))
+	lc1, session := openSession(store, branchSession(t, "abc1234567"), nil)
 	session.ReviewComments = append(session.ReviewComments,
 		model.NewComment("keep me", model.CommentTypeFromID("note"), nil))
 	m.App.Session = session
@@ -82,7 +82,7 @@ func TestOpenSessionAtSameHeadIsNotAdoption(t *testing.T) {
 
 	fresh := model.NewReviewSession(
 		session.RepoPath, session.BaseCommit, session.BranchName, session.DiffSource)
-	lc2, resumed := openSession(store, fresh)
+	lc2, resumed := openSession(store, fresh, nil)
 
 	if lc2.adoptedFrom != "" {
 		t.Errorf("adoptedFrom = %q, want empty at an unmoved HEAD", lc2.adoptedFrom)
@@ -102,7 +102,7 @@ func TestOpenSessionDoesNotCarryDetachedHead(t *testing.T) {
 	repo := t.TempDir()
 
 	lc1, session := openSession(store,
-		model.NewReviewSession(repo, "abc1234567", nil, model.SourceWorkingTree))
+		model.NewReviewSession(repo, "abc1234567", nil, model.SourceWorkingTree), nil)
 	session.ReviewComments = append(session.ReviewComments,
 		model.NewComment("about the old commit", model.CommentTypeFromID("note"), nil))
 	m.App.Session = session
@@ -112,7 +112,7 @@ func TestOpenSessionDoesNotCarryDetachedHead(t *testing.T) {
 	}
 
 	lc2, resumed := openSession(store,
-		model.NewReviewSession(repo, "9999999aaaaaaa", nil, model.SourceWorkingTree))
+		model.NewReviewSession(repo, "9999999aaaaaaa", nil, model.SourceWorkingTree), nil)
 	if !lc2.wasCreated || lc2.adoptedFrom != "" {
 		t.Error("a detached HEAD must start a fresh review, not adopt")
 	}
@@ -125,7 +125,7 @@ func TestOpenSessionDoesNotCarryDetachedHead(t *testing.T) {
 // neither lookup nor adoption is available.
 func TestOpenSessionWithoutStoreStillOpens(t *testing.T) {
 	m := testModel(t)
-	lc, session := openSession(nil, m.App.Session)
+	lc, session := openSession(nil, m.App.Session, nil)
 	if session == nil || !lc.wasCreated || lc.adoptedFrom != "" {
 		t.Errorf("a storeless open must yield the fresh session: %+v", lc)
 	}

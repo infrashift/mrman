@@ -127,7 +127,7 @@ func (m *Model) handlePrOpenResult(msg prOpenResultMsg) tea.Cmd {
 	if m.session != nil {
 		m.shutdown(a)
 	}
-	lifecycle, session := openPrSession(m.store, fresh, m.grantedEvents)
+	lifecycle, session := openPrSession(m.store, fresh, msg.Load.Files, m.grantedEvents)
 	m.session = lifecycle
 	a.ApplyPullRequest(msg.Load, session)
 	a.InputMode = input.ModeNormal

@@ -66,7 +66,10 @@ func statFile(path string) *fileState {
 // tried only when the exact lookup misses, so an unmoved HEAD never pays for
 // it, and it is safe only because NewApp re-validates every comment's anchor
 // against the new diff afterwards.
-func openSession(store *persistence.Store, fresh *model.ReviewSession) (*sessionLifecycle, *model.ReviewSession) {
+//
+// The diff files are registered before the first save, so an agent's
+// `mrman review add` can target them as soon as the session exists.
+func openSession(store *persistence.Store, fresh *model.ReviewSession, files []model.DiffFile) (*sessionLifecycle, *model.ReviewSession) {
 	lc := &sessionLifecycle{store: store, watchEvery: time.Second}
 	session := fresh
 	lc.wasCreated = true
@@ -86,6 +89,7 @@ func openSession(store *persistence.Store, fresh *model.ReviewSession) (*session
 			lc.wasCreated = false
 			lc.adoptedFrom = adopted.FromHead
 		}
+		app.RegisterDiffFiles(session, files)
 		if path, err := store.SaveSession(session); err == nil {
 			lc.path = path
 			lc.snapshot = session.Clone()
