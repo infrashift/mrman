@@ -302,6 +302,11 @@ func newReviewCmd(args *Args) *cobra.Command {
 	submitFlags.StringVar(&args.Review.Session, "session", "", "session slug or path (required)")
 	submitFlags.StringVar(&args.Review.Event, "event", "comment", "comment|approve|request-changes|draft")
 	submitFlags.StringVar(&args.Review.Username, "username", "", "comment author recorded on submit")
+	submitFlags.StringVar(&args.Review.GrantPolicy, "grant-policy", "", "authorize by this committed garmr policy directory instead of a human grant (unattended use)")
+	submitFlags.StringVar(&args.Review.GrantNamespace, "grant-namespace", "mrman", "policy namespace for --grant-policy")
+	submitFlags.StringVar(&args.Review.Garmr, "garmr", "garmr", "garmr binary for --grant-policy")
+	submitFlags.StringVar(&args.Review.RunID, "run-id", "", "the caller's run id, recorded with the authorization")
+	submitFlags.StringVar(&args.Review.Agent, "agent", "", "the calling tool, recorded with the authorization")
 
 	review.AddCommand(list, add, comments, watch, submit)
 	return review

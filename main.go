@@ -4,6 +4,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"errors"
 	"os/signal"
 	"syscall"
@@ -115,9 +116,20 @@ func runWatch(store *persistence.Store, opts reviewcli.Options, args *cli.Args) 
 // so an agent can parse the reason rather than scraping a message.
 func runSubmit(store *persistence.Store, opts reviewcli.Options, args *cli.Args) error {
 	err := agentsubmit.Submit(store, agentsubmit.Options{
-		Options: opts,
-		Event:   args.Review.Event,
+		Options:        opts,
+		Event:          args.Review.Event,
+		GrantPolicy:    args.Review.GrantPolicy,
+		GrantNamespace: args.Review.GrantNamespace,
+		Garmr:          args.Review.Garmr,
+		RunID:          args.Review.RunID,
+		Agent:          args.Review.Agent,
 	}, os.Stdout)
+	if denied, ok := errors.AsType[*agentsubmit.PolicyDenied](err); ok {
+		if writeErr := json.NewEncoder(os.Stdout).Encode(denied); writeErr != nil {
+			return writeErr
+		}
+		os.Exit(1)
+	}
 	if denied, ok := errors.AsType[*agentsubmit.SubmitDenied](err); ok {
 		if writeErr := agentsubmit.WriteDenial(os.Stdout, denied); writeErr != nil {
 			return writeErr

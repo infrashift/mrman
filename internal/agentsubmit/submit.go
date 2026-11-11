@@ -29,6 +29,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/infrashift/mrman/internal/app"
@@ -38,6 +39,7 @@ import (
 	"github.com/infrashift/mrman/internal/persistence"
 	"github.com/infrashift/mrman/internal/prload"
 	"github.com/infrashift/mrman/internal/reviewcli"
+	"github.com/infrashift/mrman/internal/slug"
 	"github.com/infrashift/mrman/internal/vcs"
 )
 
@@ -46,6 +48,15 @@ type Options struct {
 	reviewcli.Options
 	// Event is comment | approve | request-changes | draft.
 	Event string
+	// GrantPolicy, when set, authorizes the submit by policy instead of a
+	// human grant: garmr must allow it (policy.go, Vizzini ADR-0016).
+	GrantPolicy string
+	// GrantNamespace is the policy namespace (default "mrman").
+	GrantNamespace string
+	// Garmr is the garmr binary (default "garmr" on PATH).
+	Garmr string
+	// RunID and Agent identify the caller's run for the policy and audit.
+	RunID, Agent string
 }
 
 // SubmitDenied is the JSON an agent gets when the interlock refuses.
@@ -84,6 +95,8 @@ type SubmitResultOutput struct {
 	OmittedCount  int    `json:"omitted_count"`
 	MovedToBody   int    `json:"moved_to_body"`
 	LockedComment int    `json:"locked_comments"`
+	// Authorization is the policy decision when --grant-policy was used.
+	Authorization *AuthorizationRecord `json:"authorization,omitempty"`
 	// Partial is set when the forge accepted some comments and refused
 	// one; the unposted comments stay local and a second submit retries
 	// them. Forges that post comment by comment (GitLab, Azure DevOps) can
@@ -118,13 +131,17 @@ func Submit(store *persistence.Store, opts Options, out io.Writer) error {
 		return err
 	}
 
-	// The interlock, first and unconditionally.
-	granted, reason, err := store.AgentSubmitGrant(path, opts.Event)
-	if err != nil {
-		return err
-	}
-	if reason != persistence.GrantOK {
-		return denial(reason, opts.Event, granted)
+	// The interlock, first and unconditionally: a human grant, or (with
+	// --grant-policy) the committed policy, decided after the read-only
+	// forge work that tells it who the token is and what would be posted.
+	if opts.GrantPolicy == "" {
+		granted, reason, gerr := store.AgentSubmitGrant(path, opts.Event)
+		if gerr != nil {
+			return gerr
+		}
+		if reason != persistence.GrantOK {
+			return denial(reason, opts.Event, granted)
+		}
 	}
 
 	session, err := store.LoadSession(path)
@@ -143,6 +160,13 @@ func Submit(store *persistence.Store, opts Options, out io.Writer) error {
 	moved := len(a.Submit.MovedToSummary())
 	omitted := len(a.Submit.Unmappable) - moved
 
+	var authz *AuthorizationRecord
+	if opts.GrantPolicy != "" {
+		if authz, err = authorizeSubmit(&opts, a, path, inline+moved); err != nil {
+			return err
+		}
+	}
+
 	result, outcome, _, err := app.SubmitReviewOutcome(a, "")
 	if err != nil {
 		return err
@@ -159,6 +183,7 @@ func Submit(store *persistence.Store, opts Options, out io.Writer) error {
 		MovedToBody:   moved,
 		LockedComment: lockedCount(a.Session),
 	}
+	output.Authorization = authz
 	if result != nil {
 		output.ReviewID, output.URL, output.State = result.ReviewID, result.URL, result.State
 	}
@@ -179,6 +204,47 @@ func Submit(store *persistence.Store, opts Options, out io.Writer) error {
 		return ErrPartialSubmit
 	}
 	return nil
+}
+
+// sessionSlug is the session's stable slug (as `mrman pr --json` prints
+// it), or its file name when no slug can be derived.
+func sessionSlug(a *app.App, sessionPath string) string {
+	if s, err := slug.ForSession(a.Session); err == nil {
+		return s.String()
+	}
+	return filepath.Base(strings.TrimSuffix(sessionPath, ".json"))
+}
+
+// authorizeSubmit asks the grant policy about this submit, records the
+// decision beside the session and on stderr, and refuses unless allowed.
+func authorizeSubmit(opts *Options, a *app.App, sessionPath string, comments int) (*AuthorizationRecord, error) {
+	ctx := context.Background()
+	in := &PolicyInput{
+		Event:    strings.ToLower(strings.TrimSpace(opts.Event)),
+		Forge:    string(a.Pr.Backend.ID()),
+		PR:       sessionSlug(a, sessionPath),
+		Comments: comments,
+		RunID:    opts.RunID,
+		Agent:    opts.Agent,
+	}
+	// The forge says who the token is; a caller's claim would authorize nothing.
+	if meta, err := a.Pr.Backend.ReviewMetadata(ctx, a.Pr.Details); err == nil && meta != nil {
+		in.Identity = meta.ViewerLogin
+	}
+	rec, err := authorize(ctx, opts, in)
+	if err != nil {
+		return nil, err
+	}
+	if line, merr := json.Marshal(rec); merr == nil {
+		fmt.Fprintf(os.Stderr, "mrman: authorization: %s\n", line)
+	}
+	if aerr := appendAudit(sessionPath, rec); aerr != nil {
+		return nil, fmt.Errorf("could not record the authorization, not submitting: %w", aerr)
+	}
+	if !rec.Allowed {
+		return nil, policyDenial(rec)
+	}
+	return rec, nil
 }
 
 // denial builds the refusal, with a message that says what a human must do.
