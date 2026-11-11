@@ -145,13 +145,17 @@ func TestRealThreadedSeriesCarriesMessageIDs(t *testing.T) {
 		t.Skip("git not installed")
 	}
 	dir := t.TempDir()
+	// Every git call, format-patch included, carries an identity: --thread
+	// derives Message-IDs from the committer, and a machine with no global
+	// user.email (a fresh CI runner) would otherwise fail with exit 128.
+	env := append(os.Environ(),
+		"GIT_AUTHOR_NAME=Dev", "GIT_AUTHOR_EMAIL=dev@example.org",
+		"GIT_COMMITTER_NAME=Dev", "GIT_COMMITTER_EMAIL=dev@example.org")
 	git := func(args ...string) {
 		t.Helper()
 		cmd := exec.Command("git", args...)
 		cmd.Dir = dir
-		cmd.Env = append(os.Environ(),
-			"GIT_AUTHOR_NAME=Dev", "GIT_AUTHOR_EMAIL=dev@example.org",
-			"GIT_COMMITTER_NAME=Dev", "GIT_COMMITTER_EMAIL=dev@example.org")
+		cmd.Env = env
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("git %v: %v\n%s", args, err, out)
 		}
@@ -169,8 +173,10 @@ func TestRealThreadedSeriesCarriesMessageIDs(t *testing.T) {
 	git("add", ".")
 	git("commit", "-q", "-m", "add b")
 
-	out, err := exec.Command("git", "-C", dir, "format-patch", "--thread",
-		"--stdout", "HEAD~1..HEAD").Output()
+	formatPatch := exec.Command("git", "-C", dir, "format-patch", "--thread",
+		"--stdout", "HEAD~1..HEAD")
+	formatPatch.Env = env
+	out, err := formatPatch.Output()
 	if err != nil {
 		t.Fatalf("format-patch --thread: %v", err)
 	}
