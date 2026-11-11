@@ -219,6 +219,7 @@ submit a review is done per-session, at launch:
 ```sh
 mrman pr 1 --auto                        # comment and draft
 mrman pr 1 --auto=comment,draft,approve  # explicitly wider
+mrman pr 1 --auto=comment,resolve        # may also resolve its own threads
 ```
 
 A persistent switch in this file was considered and rejected: it would be

@@ -148,12 +148,14 @@ session that already exists.
 
 ## The submit interlock
 
-Submitting a review is the one `review` command that writes to a forge, and it
-is gated. It works only while a human has the review open with a grant:
+Submitting a review and resolving threads are the `review` commands that
+write to a forge, and both are gated. They work only while a human has the
+review open with a grant:
 
 ```sh
 mrman pr 1 --auto                        # comment and draft
 mrman pr 1 --auto=comment,draft,approve  # explicitly wider
+mrman pr 1 --auto=comment,resolve        # may also resolve its own threads
 ```
 
 While a grant is live the header carries a persistent `AGENT SUBMIT:

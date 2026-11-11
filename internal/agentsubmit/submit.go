@@ -6,7 +6,8 @@
 // reviewcli sits below app, since it owns the comment-insertion primitive
 // app builds on.
 //
-// This is the only CLI path that writes to a forge, and the only one gated.
+// These are the only CLI paths that write to a forge (submit here, resolve
+// in threads.go), and the only ones gated.
 //
 // The grant is not a flag on this command: the agent writes this command
 // line, so a flag here would authorize nothing. It is issued by a human
