@@ -32,6 +32,9 @@ const (
 	// CommandReviewResolve resolves threads the token's identity started,
 	// behind the same grant as a submit.
 	CommandReviewResolve
+	// CommandReviewReply answers in an existing thread, behind the same
+	// grant as a submit.
+	CommandReviewReply
 	// CommandVersion prints the version line.
 	CommandVersion
 )
@@ -97,9 +100,11 @@ type ReviewOptions struct {
 	Garmr          string
 	RunID          string
 	Agent          string
-	// ThreadIDs and Reply drive `review resolve`.
+	// ThreadIDs and Reply drive `review resolve`; ThreadIDs[0], ParentID
+	// and Comment drive `review reply`.
 	ThreadIDs []string
 	Reply     string
+	ParentID  string
 	// TimeoutSeconds and IntervalMS bound `review watch`; Since resumes it.
 	TimeoutSeconds int
 	IntervalMS     int

@@ -33,6 +33,12 @@ func (f *resolverForge) ReviewMetadata(context.Context, *forge.PullRequestDetail
 	return &forge.ReviewMetadata{ViewerLogin: "vizzini-bot"}, nil
 }
 
+func (f *resolverForge) ReplyToThread(_ context.Context, _ *forge.PullRequestDetails, thread, parent, body string) (string, error) {
+	f.calls = append(f.calls, "reply:"+thread+":"+parent)
+	f.replies = append(f.replies, body)
+	return "55", nil
+}
+
 func (f *resolverForge) ResolveOwnThread(_ context.Context, _ *forge.PullRequestDetails, id, reply string) (forge.ResolveOutcome, error) {
 	f.calls = append(f.calls, id)
 	f.replies = append(f.replies, reply)
@@ -183,4 +189,50 @@ func registerFake(t *testing.T, f forge.Forge) {
 	t.Helper()
 	forge.Register(forge.Driver{ID: forgetypes.KindForgejo, SlugPrefix: "fj",
 		New: func(forge.HostConfig) (forge.Forge, error) { return f, nil }})
+}
+
+func TestReply(t *testing.T) {
+	fake := &resolverForge{submitForge: &submitForge{head: "head1234"}}
+	store, path := sessionWithGrant(t, fake, []string{"comment"})
+	opts := ReplyOptions{Options: Options{Options: reviewcli.Options{Session: path}}, ThreadID: "7", ParentID: "2", Body: "answer"}
+
+	// A comment grant does not cover replies.
+	err := Reply(store, opts, &bytes.Buffer{})
+	if denied, ok := errors.AsType[*SubmitDenied](err); !ok || denied.Reason != string(persistence.GrantEventNotAllowed) {
+		t.Fatalf("err = %v, want event not allowed", err)
+	}
+	if len(fake.calls) != 0 {
+		t.Fatalf("replied without a grant: %v", fake.calls)
+	}
+
+	// By policy: authorized as event reply, one comment.
+	input := fakeGarmr(t, `{"decision":"allow","results":[]}`, 0, nil)
+	opts.GrantPolicy, opts.RunID = policyDir(t), "r1"
+	var out bytes.Buffer
+	if err := Reply(store, opts, &out); err != nil {
+		t.Fatal(err)
+	}
+	var got ReplyOutput
+	if err := json.Unmarshal(out.Bytes(), &got); err != nil || got.CommentID != "55" || got.Thread != "7" || got.Authorization == nil {
+		t.Errorf("output %s (%v)", out.String(), err)
+	}
+	var sent PolicyInput
+	if err := json.Unmarshal(*input, &sent); err != nil || sent.Event != "reply" || sent.Comments != 1 {
+		t.Errorf("policy input %s", *input)
+	}
+	if !slices.Equal(fake.calls, []string{"reply:7:2"}) || fake.replies[0] != "answer" {
+		t.Errorf("calls %v replies %v", fake.calls, fake.replies)
+	}
+
+	// A deny posts nothing; a missing body or thread is refused up front.
+	fake.calls = nil
+	fakeGarmr(t, `{"decision":"deny","results":[{"rule_id":"MRM-001","passed":false,"message":"no"}]}`, 1, nil)
+	if err := Reply(store, opts, &bytes.Buffer{}); err == nil || len(fake.calls) != 0 {
+		t.Errorf("deny: %v, calls %v", err, fake.calls)
+	}
+	for _, bad := range []ReplyOptions{{Options: opts.Options, Body: "x"}, {Options: opts.Options, ThreadID: "7", Body: " "}} {
+		if err := Reply(store, bad, &bytes.Buffer{}); err == nil {
+			t.Errorf("%+v must be refused", bad)
+		}
+	}
 }

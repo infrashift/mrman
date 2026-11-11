@@ -32,12 +32,15 @@ import (
 // alter whether code merges, so they must be named explicitly. resolve
 // (`mrman review resolve`) closes threads the token's own identity started;
 // it is named explicitly too, since it changes what the author sees open.
+// reply (`mrman review reply`) answers in an existing thread, e.g. a bot
+// answering a /vizzini command; also explicit.
 var grantableEvents = map[string]bool{
 	"comment":         true,
 	"draft":           true,
 	"approve":         false,
 	"request-changes": false,
 	"resolve":         false,
+	"reply":           false,
 }
 
 // DefaultGrantedEvents is what a bare --auto authorizes.

@@ -7,7 +7,7 @@
 // app builds on.
 //
 // These are the only CLI paths that write to a forge (submit here, resolve
-// in threads.go), and the only ones gated.
+// and reply in threads.go), and the only ones gated.
 //
 // The grant is not a flag on this command: the agent writes this command
 // line, so a flag here would authorize nothing. It is issued by a human

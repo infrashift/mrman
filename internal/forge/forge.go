@@ -96,18 +96,35 @@ type ThreadResolver interface {
 // AsThreadResolver returns f's ThreadResolver, looking beneath wrappers
 // that expose Unwrap (ForRepository wraps every driver in the sanitizer,
 // which would otherwise hide the optional interface).
-func AsThreadResolver(f Forge) (ThreadResolver, bool) {
+func AsThreadResolver(f Forge) (ThreadResolver, bool) { return unwrapAs[ThreadResolver](f) }
+
+// ThreadReplier is implemented by drivers that can post a reply into an
+// existing review thread. Optional, like ThreadResolver.
+type ThreadReplier interface {
+	// ReplyToThread posts body into thread threadID on pr, as a reply to
+	// comment parentID (the thread's root comment when parentID is empty),
+	// and returns the new comment's id.
+	ReplyToThread(ctx context.Context, pr *PullRequestDetails, threadID, parentID, body string) (string, error)
+}
+
+// AsThreadReplier returns f's ThreadReplier, looking beneath wrappers.
+func AsThreadReplier(f Forge) (ThreadReplier, bool) { return unwrapAs[ThreadReplier](f) }
+
+// unwrapAs finds an optional interface on f or beneath the wrappers around
+// it that expose Unwrap.
+func unwrapAs[T any](f Forge) (T, bool) {
+	var zero T
 	for f != nil {
-		if r, ok := f.(ThreadResolver); ok {
+		if r, ok := f.(T); ok {
 			return r, true
 		}
 		u, ok := f.(interface{ Unwrap() Forge })
 		if !ok {
-			return nil, false
+			return zero, false
 		}
 		f = u.Unwrap()
 	}
-	return nil, false
+	return zero, false
 }
 
 // ResolveOutcome is what ResolveOwnThread did.

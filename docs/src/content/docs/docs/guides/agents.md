@@ -148,8 +148,8 @@ session that already exists.
 
 ## The submit interlock
 
-Submitting a review and resolving threads are the `review` commands that
-write to a forge, and both are gated. They work only while a human has the
+Submitting a review, resolving threads and replying in them are the
+`review` commands that write to a forge, and all three are gated. They work only while a human has the
 review open with a grant:
 
 ```sh
@@ -248,7 +248,7 @@ The starting pack is `policies/garmr/mrman/agent-submit.cue`, tested with
 
 | Value | Default | Meaning |
 |---|---|---|
-| `_allowedEvents` | `["comment", "resolve"]` | events the bot may submit or perform. Add `approve` or `request-changes` only on purpose |
+| `_allowedEvents` | `["comment", "resolve", "reply"]` | events the bot may submit or perform. Add `approve` or `request-changes` only on purpose |
 | `_allowedIdentities` | `["vizzini-bot"]` | forge identities allowed to submit unattended |
 | `_maxComments` | `50` | the most comments one submit may post, or threads one resolve may close |
 
@@ -278,6 +278,9 @@ memory from the forge itself, with no store of its own:
   --grant-policy DIR` resolves threads under the same policy, with event
   `resolve`. mrman resolves only threads the token's identity started. A
   person's thread can never be closed this way, whatever the policy says.
+- `mrman review reply --session "$SLUG" --thread ID --parent COMMENT
+  --input @answer.md --grant-policy DIR` answers in a thread, with event
+  `reply`. A bot uses it to answer commands people write in the PR.
 
 ## Comments an agent must not touch
 

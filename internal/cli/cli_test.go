@@ -286,3 +286,29 @@ func TestParseReviewSubmitGrantPolicy(t *testing.T) {
 		t.Errorf("parsed %+v", r)
 	}
 }
+
+func TestParseReviewThreadsResolveReply(t *testing.T) {
+	args, err := Parse([]string{"review", "threads", "--session", "s"})
+	if err != nil || args.Command != CommandReviewThreads || args.Review.Session != "s" {
+		t.Errorf("threads: %+v %v", args, err)
+	}
+	args, err = Parse([]string{"review", "resolve", "--session", "s", "--thread", "7", "--thread", "9", "--reply", "fixed",
+		"--grant-policy", "p"})
+	if err != nil || args.Command != CommandReviewResolve || len(args.Review.ThreadIDs) != 2 || args.Review.Reply != "fixed" ||
+		args.Review.GrantPolicy != "p" {
+		t.Errorf("resolve: %+v %v", args.Review, err)
+	}
+	args, err = Parse([]string{"review", "reply", "--session", "s", "--thread", "7", "--parent", "2", "the answer"})
+	if err != nil || args.Command != CommandReviewReply || args.Review.ParentID != "2" || args.Review.Comment != "the answer" {
+		t.Errorf("reply: %+v %v", args.Review, err)
+	}
+	if _, err := Parse([]string{"review", "reply", "--session", "s", "--thread", "7"}); err == nil {
+		t.Error("a reply without a body must not parse")
+	}
+	if _, err := Parse([]string{"review", "reply", "--session", "s", "body"}); err == nil {
+		t.Error("a reply without --thread must not parse")
+	}
+	if events, err := ParseAutoGrant("comment,reply,resolve"); err != nil || len(events) != 3 {
+		t.Errorf("--auto=comment,reply,resolve: %v %v", events, err)
+	}
+}
