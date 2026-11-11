@@ -273,3 +273,16 @@ func TestParseVizziniReport(t *testing.T) {
 		}
 	}
 }
+
+func TestParseReviewSubmitGrantPolicy(t *testing.T) {
+	args, err := Parse([]string{"review", "submit", "--session", "s", "--event", "comment",
+		"--grant-policy", ".mrman/policy", "--run-id", "r1", "--agent", "vizzini-bot", "--garmr", "/opt/garmr"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := args.Review
+	if args.Command != CommandReviewSubmit || r.GrantPolicy != ".mrman/policy" || r.GrantNamespace != "mrman" ||
+		r.RunID != "r1" || r.Agent != "vizzini-bot" || r.Garmr != "/opt/garmr" {
+		t.Errorf("parsed %+v", r)
+	}
+}

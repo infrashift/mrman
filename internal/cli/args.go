@@ -84,6 +84,14 @@ type ReviewOptions struct {
 	Comment    string
 	// Event is the submit event for `review submit`.
 	Event string
+	// GrantPolicy, GrantNamespace and Garmr authorize `review submit` by a
+	// committed garmr policy instead of a human grant (Vizzini ADR-0016);
+	// RunID and Agent identify the caller's run for it and the audit.
+	GrantPolicy    string
+	GrantNamespace string
+	Garmr          string
+	RunID          string
+	Agent          string
 	// TimeoutSeconds and IntervalMS bound `review watch`; Since resumes it.
 	TimeoutSeconds int
 	IntervalMS     int

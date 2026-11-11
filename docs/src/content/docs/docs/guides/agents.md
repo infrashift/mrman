@@ -216,6 +216,53 @@ submit, on Linux, macOS and Windows alike. The files that record it live in
 `~/.local/share/mrman/reviews/`, which mrman keeps owner-only (0700/0600);
 an older store is tightened the first time a newer mrman opens it.
 
+## Unattended submit: a committed policy instead of a person
+
+A bot running in CI has no human at a terminal to grant it anything. For
+that case, `review submit --grant-policy DIR` authorizes the submit with a
+**policy committed to the repository** instead. [garmr](https://github.com/infrashift/garmr-policy-agent)
+evaluates the policy in-process:
+
+```sh
+mrman review submit --session "$SLUG" --event comment \
+  --grant-policy .mrman/policy --run-id "$RUN_ID" --agent vizzini-bot
+```
+
+mrman sends garmr an `AgentSubmit` input (`mrman.infrashift.io/v1`)
+containing:
+- the event;
+- the **forge-verified identity**: the login the token authenticates as, as
+  the forge reports it. On Azure DevOps that's the display name. It is never
+  the caller's claim;
+- the pull request;
+- how many comments would be posted;
+- the run ID and the agent.
+
+It submits only on allow (or warn). A deny or an evaluation error refuses,
+and mrman never fails open.
+
+The starting pack is `policies/garmr/mrman/agent-submit.cue`, tested with
+`garmr test`. Copy it into your repository and set three values:
+
+| Value | Default | Meaning |
+|---|---|---|
+| `_allowedEvents` | `["comment"]` | events the bot may submit. Add `approve` or `request-changes` only on purpose |
+| `_allowedIdentities` | `["vizzini-bot"]` | forge identities allowed to submit unattended |
+| `_maxComments` | `50` | the most comments one submit may post |
+
+A run ID is required, so every post traces back to the run that produced it.
+
+The agent can't grant itself anything this way either. It doesn't write the
+policy: the policy changes only through a reviewed commit, so a person
+decided in advance what a named bot may post. Every decision (allow, warn or
+deny, with the failed rules and a digest of the policy files) is:
+- printed on stderr as `mrman: authorization: {...}`;
+- included in the submit's JSON as `authorization`;
+- appended to `<session>.audit.jsonl` beside the session file.
+
+A denial prints `{"error": "policy_denied", "authorization": {...},
+"message": "..."}` and exits 1.
+
 ## Comments an agent must not touch
 
 A comment whose `lifecycle_state` is `pushed_draft` or `submitted` is already
