@@ -38,6 +38,9 @@ func (p *DiffPane) commentPeekOverlay(a *app.App, width, maxHeight int) []string
 
 	title := a.PeekTitle()
 	hint := " (j/k scroll · Esc close) "
+	if len(peek.Findings) > 0 {
+		hint = " (j/k scroll · p promote to draft · Esc close) "
+	}
 	rows := make([]string, 0, height)
 	rows = append(rows, emitter.Line(peekRule(t, "╭──", title, hint, width)))
 
@@ -102,6 +105,11 @@ func peekRow(t *theme.Theme, line *app.PeekLine, width int) []render.Span {
 	case app.PeekCommentBody:
 		spans = append(spans, render.Span{
 			Text: "  " + line.Text, Style: render.Style{Fg: t.FgPrimary},
+		})
+	case app.PeekFindingHeader:
+		spans = append(spans, render.Span{
+			Text:  line.Text,
+			Style: render.Style{Fg: severityColor(t, line.Severity), Bold: true},
 		})
 	case app.PeekNotice:
 		spans = append(spans, render.Span{

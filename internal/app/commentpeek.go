@@ -29,6 +29,11 @@ type CommentPeekState struct {
 	AnchorRow      int
 	ScrollOffset   int
 	ViewportHeight int
+	// Title replaces the comment-location title (the findings peek uses it).
+	Title string
+	// Findings holds the Vizzini finding indices shown, most severe first;
+	// empty for a comment peek. p promotes the first not yet promoted.
+	Findings []int
 }
 
 // PeekLineKind discriminates a peek row for styling.
@@ -48,6 +53,8 @@ const (
 	PeekSeparator
 	// PeekNotice explains why there is no context to show.
 	PeekNotice
+	// PeekFindingHeader is a Vizzini finding's severity, category and title.
+	PeekFindingHeader
 )
 
 // PeekLine is one row of the peek panel.
@@ -59,6 +66,8 @@ type PeekLine struct {
 	Text   string
 	// CommentType styles a comment header row.
 	CommentType model.CommentType
+	// Severity styles a finding header row.
+	Severity string
 }
 
 // OpenCommentPeek opens the peek panel for a navigator item. Returns false
@@ -94,6 +103,9 @@ func (a *App) PeekTitle() string {
 	p := a.CommentPeek
 	if p == nil {
 		return ""
+	}
+	if p.Title != "" {
+		return p.Title
 	}
 	switch {
 	case p.Item.Path != nil && p.Item.Line != nil:

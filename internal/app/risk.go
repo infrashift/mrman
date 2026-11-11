@@ -19,10 +19,12 @@ func (a *App) EnableRisk(p *risk.Policy) {
 	a.rescoreRisk()
 }
 
-// rescoreRisk recomputes the score after DiffFiles changed. It must run
+// rescoreRisk recomputes the score after DiffFiles changed, and re-checks a
+// loaded Vizzini report against the new diff. It must run
 // after SortFilesByDirectory, since the per-file results are aligned by
 // index with the files as displayed.
 func (a *App) rescoreRisk() {
+	a.refreshVizzini()
 	if a.Risk == nil {
 		return
 	}

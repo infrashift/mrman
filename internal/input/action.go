@@ -92,6 +92,12 @@ const (
 	ToggleExpand
 	ExpandAll
 	CollapseAll
+	// NextFinding jumps to the next Vizzini finding; ShowFinding opens the
+	// peek on the findings at the cursor; PromoteFinding turns one from the
+	// peek into a draft comment.
+	NextFinding
+	ShowFinding
+	PromoteFinding
 )
 
 // Action is a dispatched action with its parameters.

@@ -33,6 +33,8 @@ type (
 	FileRisk = vrisk.FileRisk
 	// Report is the risk part of a review someone else ran.
 	Report = vrisk.Report
+	// Finding is one finding of that review, as Vizzini wrote it.
+	Finding = vrisk.Finding
 )
 
 // Bands, lowest first.

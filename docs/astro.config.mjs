@@ -61,6 +61,7 @@ export default defineConfig({
 					items: [
 						{ label: 'Sharing a Review', slug: 'docs/guides/sharing' },
 						{ label: 'Agent Collaboration', slug: 'docs/guides/agents' },
+						{ label: 'Vizzini Findings', slug: 'docs/guides/vizzini-findings' },
 						{ label: 'Terminal Setup', slug: 'docs/guides/terminals' },
 					],
 				},

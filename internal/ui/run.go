@@ -249,6 +249,7 @@ func Run(opts cli.TuiOptions) error {
 	a.CommentTypePrefix = cfg.Forge.CommentTypePrefix
 	applyConfig(cfg, a, m)
 	warnings = append(warnings, applyRisk(cfg, a)...)
+	warnings = append(warnings, applyVizzini(cfg, a, opts.VizziniReport)...)
 	// After applyConfig, which would otherwise reset the strip's visibility
 	// to the configured default and hide a range the user explicitly asked
 	// for — the selector path installs commits well after config too.

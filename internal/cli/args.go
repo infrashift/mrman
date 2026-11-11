@@ -45,8 +45,11 @@ type TuiOptions struct {
 	// Patch is a .patch, .diff or mbox artifact to review without a
 	// repository; PatchStrip is how many leading path components to drop
 	// from the paths it declares (0 means the -p1 convention).
-	Patch      string
-	PatchStrip int
+	Patch string
+	// VizziniReport is a Vizzini review report (pr-review --format json)
+	// whose findings are shown on the diff and can be promoted to comments.
+	VizziniReport string
+	PatchStrip    int
 	// DiffOld and DiffNew are the two paths of `mrman diff <old> <new>`,
 	// empty unless that subcommand ran. They live here rather than beside
 	// PrTarget so the subcommand can resolve to CommandTui and reuse the
