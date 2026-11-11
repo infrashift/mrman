@@ -32,8 +32,7 @@ go install github.com/infrashift/mrman@latest
 make install
 ```
 
-mrman has no release tag yet, so `@latest` installs the newest commit on
-`main`.
+`@latest` installs the newest release tag; `@main` installs the newest commit.
 
 Requires `git` on PATH (and `jj` for Jujutsu repos). Best experienced in a
 terminal with full kitty-keyboard support such as **Ghostty**.
