@@ -248,6 +248,7 @@ func Run(opts cli.TuiOptions) error {
 	m.localCheckout = info.RootPath
 	a.CommentTypePrefix = cfg.Forge.CommentTypePrefix
 	applyConfig(cfg, a, m)
+	warnings = append(warnings, applyRisk(cfg, a)...)
 	// After applyConfig, which would otherwise reset the strip's visibility
 	// to the configured default and hide a range the user explicitly asked
 	// for — the selector path installs commits well after config too.

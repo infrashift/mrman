@@ -16,6 +16,7 @@ require (
 	github.com/google/go-github/v76 v76.0.0
 	github.com/google/uuid v1.6.0
 	github.com/infrashift/mrman/charmkit v0.1.0
+	github.com/infrashift/vizzini-pr-reviewer v0.0.0-20261111124152-fa8d609bd143
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/microsoft/azure-devops-go-api/azuredevops/v7 v7.1.0
 	github.com/shurcooL/githubv4 v0.0.0-20260209031235-2402fdf4a9ed
@@ -28,6 +29,7 @@ require (
 
 require (
 	github.com/42wim/httpsig v1.2.3 // indirect
+	github.com/bluekeyes/go-gitdiff v0.9.0 // indirect
 	github.com/charmbracelet/colorprofile v0.4.3 // indirect
 	github.com/charmbracelet/ultraviolet v0.0.0-20260811164956-006e29f97886 // indirect
 	github.com/charmbracelet/x/termios v0.1.1 // indirect

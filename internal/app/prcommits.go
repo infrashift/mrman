@@ -218,6 +218,7 @@ func (a *App) ApplyInlineSelectionDiff(files []model.DiffFile) {
 
 	a.insertCommitMessageIfSingle()
 	a.SortFilesByDirectory(true)
+	a.rescoreRisk()
 	a.ExpandAllDirs()
 	a.populateFileLineCountCache()
 	a.RebuildAnnotations()

@@ -149,6 +149,7 @@ func (a *App) ApplyPullRequest(load PullRequestLoad, session *model.ReviewSessio
 	a.SetupPrCommitSelector(load.Commits)
 
 	a.SortFilesByDirectory(true)
+	a.rescoreRisk()
 	a.ExpandAllDirs()
 	a.populateFileLineCountCache()
 	a.RebuildAnnotations()

@@ -73,6 +73,17 @@ type ForgeConfig struct {
 	Hosts []ForgeHost
 }
 
+// RiskConfig holds the [risk] section: Vizzini's deterministic risk score,
+// off by default. With it off, mrman shows and records nothing about risk.
+type RiskConfig struct {
+	// Enabled turns risk scoring on.
+	Enabled bool
+	// Policy is a Vizzini #RiskPolicy JSON file used when the repository
+	// has no .vizzini/risk.json of its own. A relative path is resolved
+	// against the config directory. Empty means Vizzini's defaults.
+	Policy string
+}
+
 // Config is mrman's fully-resolved user configuration. Every field carries a
 // usable value after Load; warnings describe anything that fell back to a
 // default.
@@ -141,6 +152,8 @@ type Config struct {
 	Templates TemplatesConfig
 	// Forge holds the [forge] section.
 	Forge ForgeConfig
+	// Risk holds the [risk] section.
+	Risk RiskConfig
 }
 
 // Default returns the built-in configuration used when the config file is

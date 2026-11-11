@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"maps"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -43,6 +44,12 @@ var knownTopLevelKeys = map[string]struct{}{
 	"show_own_author":          {},
 	"templates":                {},
 	"forge":                    {},
+	"risk":                     {},
+}
+
+var knownRiskKeys = map[string]struct{}{
+	"enabled": {},
+	"policy":  {},
 }
 
 var knownForgeKeys = map[string]struct{}{
@@ -104,7 +111,7 @@ func LoadFrom(path string) (Config, []string) {
 	var warnings []string
 	stripUnknownKeys(raw, &warnings)
 	vetConfig(raw, &warnings)
-	apply(raw, &cfg, &warnings)
+	apply(raw, &cfg, path, &warnings)
 	return cfg, warnings
 }
 
@@ -169,6 +176,9 @@ func stripUnknownKeys(raw map[string]any, warnings *[]string) {
 	if templates, ok := raw["templates"].(map[string]any); ok {
 		stripUnknown(templates, knownTemplateKeys, "templates.", warnings)
 	}
+	if risk, ok := raw["risk"].(map[string]any); ok {
+		stripUnknown(risk, knownRiskKeys, "risk.", warnings)
+	}
 	if items, ok := tableList(raw["comment_types"]); ok {
 		stripUnknownList(items, knownCommentTypeKeys, "comment_types", warnings)
 		raw["comment_types"] = items
@@ -178,7 +188,7 @@ func stripUnknownKeys(raw map[string]any, warnings *[]string) {
 // apply decodes the CUE-cleaned map onto cfg. Types are already vetted, so
 // failed assertions simply keep the default. The scalar keys are tables of
 // destination fields; the structured ones are handled by hand.
-func apply(raw map[string]any, cfg *Config, warnings *[]string) {
+func apply(raw map[string]any, cfg *Config, path string, warnings *[]string) {
 	stringKeys := map[string]*string{
 		"theme": &cfg.Theme, "theme_dark": &cfg.ThemeDark, "theme_light": &cfg.ThemeLight,
 		"appearance": &cfg.Appearance, "backend": &cfg.Backend, "diff_view": &cfg.DiffView,
@@ -230,6 +240,23 @@ func apply(raw map[string]any, cfg *Config, warnings *[]string) {
 	}
 	if f, ok := raw["forge"].(map[string]any); ok {
 		applyForge(f, &cfg.Forge, warnings)
+	}
+	if r, ok := raw["risk"].(map[string]any); ok {
+		applyRisk(r, &cfg.Risk, filepath.Dir(path))
+	}
+}
+
+// applyRisk decodes the vetted [risk] table. A relative policy path is read
+// from the directory holding config.toml, not from wherever mrman started.
+func applyRisk(r map[string]any, risk *RiskConfig, configDir string) {
+	if v, ok := boolAt(r, "enabled"); ok {
+		risk.Enabled = v
+	}
+	if v, ok := stringAt(r, "policy"); ok {
+		if !filepath.IsAbs(v) {
+			v = filepath.Join(configDir, v)
+		}
+		risk.Policy = v
 	}
 }
 
