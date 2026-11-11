@@ -71,6 +71,9 @@ var keyMessages = map[string]string{ //nolint:gosec // G101: key names and their
 	"forge.comment_type_prefix": "must be true or false",
 	"forge.cli_token_fallback":  "must be true or false",
 	"forge.hosts":               "must be an array of tables",
+	"risk":                      "must be a table",
+	"risk.enabled":              "must be true or false",
+	"risk.policy":               "must be a non-empty string",
 }
 
 // compileSchema compiles an embedded CUE source and looks up the named
@@ -137,18 +140,10 @@ func dropFirstOffender(raw map[string]any, verr error, warnings *[]string) bool 
 			if dropForgeOffender(raw, path, warnings) {
 				return true
 			}
-		case "templates":
-			if t, ok := raw["templates"].(map[string]any); ok && len(path) >= 2 {
-				if _, present := t[path[1]]; present {
-					delete(t, path[1])
-					warnKey(warnings, "templates."+path[1])
-					return true
-				}
-				continue
+		case "templates", "risk":
+			if dropTableOffender(raw, path, warnings) {
+				return true
 			}
-			delete(raw, "templates")
-			warnKey(warnings, "templates")
-			return true
 		default:
 			if _, present := raw[path[0]]; present {
 				delete(raw, path[0])
@@ -158,6 +153,25 @@ func dropFirstOffender(raw map[string]any, verr error, warnings *[]string) bool 
 		}
 	}
 	return false
+}
+
+// dropTableOffender removes the offending key of a flat table section
+// ([templates], [risk]), or the whole section when it is not a table. It
+// reports false when the error names a key that is no longer there, so the
+// caller moves on to the next error.
+func dropTableOffender(raw map[string]any, path []string, warnings *[]string) bool {
+	section := path[0]
+	if t, ok := raw[section].(map[string]any); ok && len(path) >= 2 {
+		if _, present := t[path[1]]; present {
+			delete(t, path[1])
+			warnKey(warnings, section+"."+path[1])
+			return true
+		}
+		return false
+	}
+	delete(raw, section)
+	warnKey(warnings, section)
+	return true
 }
 
 // dropForgeOffender removes the offending piece under the [forge] section:

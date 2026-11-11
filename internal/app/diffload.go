@@ -228,6 +228,7 @@ func (a *App) ApplyLoadedSelection(files []model.DiffFile, session *model.Review
 	}
 
 	a.SortFilesByDirectory(true)
+	a.rescoreRisk()
 	a.ExpandAllDirs()
 	a.populateFileLineCountCache()
 	a.RebuildAnnotations()

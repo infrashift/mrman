@@ -39,6 +39,12 @@ package schema
 	patch_reply?: string
 }
 
+// #Risk is the [risk] section: Vizzini's deterministic risk score, opt-in.
+#Risk: {
+	enabled?: bool
+	policy?:  string & !=""
+}
+
 // #Config is the top-level config.toml schema. comment_types entries are
 // validated in Go (per-entry drop semantics); here only the array shape is
 // enforced.
@@ -71,4 +77,5 @@ package schema
 	show_own_author?:          bool
 	templates?:                #Templates
 	forge?:                    #Forge
+	risk?:                     #Risk
 }

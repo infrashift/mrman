@@ -85,6 +85,7 @@ func (a *App) ApplyReloadedDiff(files []model.DiffFile) ReloadStats {
 	a.PrContext = nil
 
 	a.SortFilesByDirectory(true)
+	a.rescoreRisk()
 	a.ExpandAllDirs()
 	a.populateFileLineCountCache()
 

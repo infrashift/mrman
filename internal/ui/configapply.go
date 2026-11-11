@@ -3,6 +3,7 @@ package ui
 import (
 	"github.com/infrashift/mrman/internal/app"
 	"github.com/infrashift/mrman/internal/config"
+	"github.com/infrashift/mrman/internal/risk"
 )
 
 // applyConfig wires loaded configuration onto the app state and model,
@@ -64,4 +65,21 @@ func applyConfig(cfg config.Config, a *app.App, m *Model) {
 			m.session.watchEvery = msDuration(cfg.ReviewWatchIntervalMS)
 		}
 	}
+}
+
+// applyRisk turns on the opt-in risk score when [risk] enabled is set,
+// resolving the policy from the repository under review first. It returns
+// warnings about policies that were found but could not be used. With risk
+// off it does nothing, and App.Risk stays nil.
+func applyRisk(cfg config.Config, a *app.App) []string {
+	if !cfg.Risk.Enabled {
+		return nil
+	}
+	root := ""
+	if a.VcsInfo != nil {
+		root = a.VcsInfo.RootPath
+	}
+	policy, warnings := risk.ResolvePolicy(root, cfg.Risk.Policy)
+	a.EnableRisk(policy)
+	return warnings
 }

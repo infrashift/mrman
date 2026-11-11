@@ -141,6 +141,7 @@ func RunPr(target string, opts cli.TuiOptions) error {
 	m.localCheckout = localCheckout
 	m.grantedEvents = opts.GrantedEvents
 	applyConfig(cfg, a, m)
+	warnings = append(warnings, applyRisk(cfg, a)...)
 	for _, w := range warnings {
 		a.SetWarning(w)
 	}

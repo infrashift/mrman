@@ -56,6 +56,7 @@ func NewApp(backend vcs.Backend, info *vcs.Info, files []model.DiffFile, session
 	a.CommentType = a.DefaultCommentType()
 
 	a.SortFilesByDirectory(true)
+	a.rescoreRisk()
 	a.ExpandAllDirs()
 	a.populateFileLineCountCache()
 

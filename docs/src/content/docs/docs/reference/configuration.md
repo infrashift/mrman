@@ -186,6 +186,30 @@ Go `text/template` with embedded defaults, and a
 template that fails to parse falls back to its default with a warning rather
 than losing your review.
 
+## Risk score (optional)
+
+```toml
+[risk]
+enabled = true                 # off by default
+policy = "risk.json"           # optional; relative to this directory
+```
+
+When enabled, mrman computes the deterministic risk score of the diff with
+[Vizzini](https://github.com/infrashift/vizzini-pr-reviewer)'s `pkg/risk`. It
+is the same number as a Vizzini review's `base_risk_score`, computed from
+path weights and the change itself. mrman never calls a model, and nothing
+about risk changes what you can submit.
+
+The policy is the first of these that exists and validates:
+
+1. `.vizzini/risk.json` in the repository under review
+2. the file named by `policy`
+3. Vizzini's built-in policy
+
+A policy file that is present but invalid is reported as a warning and
+skipped. With `enabled = false` (the default), mrman behaves exactly as if
+the feature did not exist.
+
 ## Agent submission
 
 There is no config key for this, deliberately. Authorizing an agent to

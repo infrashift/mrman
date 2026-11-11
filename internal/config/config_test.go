@@ -841,3 +841,48 @@ patch_reply = "/abs/reply.txt.tmpl"
 		t.Fatalf("PatchReply = %q", cfg.Templates.PatchReply)
 	}
 }
+
+func TestRiskSectionDefaultsOff(t *testing.T) {
+	cfg, warnings := loadString(t, "")
+	if len(warnings) != 0 || cfg.Risk != (RiskConfig{}) {
+		t.Errorf("risk %+v warnings %q; want off with no policy", cfg.Risk, warnings)
+	}
+}
+
+func TestRiskSection(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	if err := os.WriteFile(path, []byte("[risk]\nenabled = true\npolicy = \"risk.json\"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, warnings := LoadFrom(path)
+	if len(warnings) != 0 {
+		t.Errorf("warnings = %q, want none", warnings)
+	}
+	// A relative policy is read from beside config.toml.
+	if !cfg.Risk.Enabled || cfg.Risk.Policy != filepath.Join(filepath.Dir(path), "risk.json") {
+		t.Errorf("risk %+v", cfg.Risk)
+	}
+
+	cfg, _ = loadString(t, "[risk]\nenabled = true\npolicy = \"/abs/risk.json\"\n")
+	if cfg.Risk.Policy != "/abs/risk.json" {
+		t.Errorf("absolute policy rewritten: %q", cfg.Risk.Policy)
+	}
+}
+
+func TestRiskSectionRejections(t *testing.T) {
+	cfg, warnings := loadString(t, "[risk]\nenabled = \"yes\"\npolicy = \"p.json\"\nshow_everything = true\n")
+	requireWarning(t, warnings, "config `risk.enabled`: must be true or false")
+	requireWarning(t, warnings, "unknown config key `risk.show_everything` — ignored")
+	if cfg.Risk.Enabled || cfg.Risk.Policy == "" {
+		t.Errorf("risk %+v: enabled must fall back to off, policy must survive", cfg.Risk)
+	}
+
+	_, warnings = loadString(t, "[risk]\npolicy = \"\"\n")
+	requireWarning(t, warnings, "config `risk.policy`: must be a non-empty string")
+
+	cfg, warnings = loadString(t, "risk = true\n")
+	requireWarning(t, warnings, "config `risk`: must be a table")
+	if cfg.Risk.Enabled {
+		t.Error("a malformed section must leave risk off")
+	}
+}
