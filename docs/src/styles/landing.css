@@ -123,6 +123,17 @@ a:hover {
 	margin: 0 auto;
 }
 
+.mascot {
+	display: block;
+	width: 100%;
+	max-width: 44rem;
+	height: auto;
+	margin: 0 auto 2rem;
+	border-radius: 0.75rem;
+	border: 1px solid var(--border);
+	box-shadow: 0 12px 40px hsl(200, 20%, 4%, 0.35);
+}
+
 .wordmark {
 	font-family: var(--font-mono);
 	font-size: clamp(2.75rem, 9vw, 5rem);
