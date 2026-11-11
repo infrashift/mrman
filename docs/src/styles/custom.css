@@ -1,12 +1,23 @@
 /* mrman Starlight theme — teal accent, picked to read as "terminal" and to
    stay distinct from the sibling garmr site's violet. */
 
+/* Starlight declares its theme variables inside @layer starlight.base, and
+   unlayered CSS like this file beats any layered rule regardless of
+   specificity. So every color set on plain :root here also wins in light
+   mode, and each one needs a light counterpart below or a dark-only
+   selector. */
 :root {
 	--sl-color-accent-low: hsl(172, 40%, 14%);
 	--sl-color-accent: hsl(172, 62%, 42%);
 	--sl-color-accent-high: hsl(172, 70%, 80%);
-	--sl-color-black: hsl(200, 14%, 8%);
 	--sl-content-width: 52rem;
+}
+
+/* --sl-color-black is the page background. Dark only: in light mode
+   Starlight's own (white) value must stand. :not() keeps the dark default
+   when the theme script has not set data-theme. */
+:root:not([data-theme='light']) {
+	--sl-color-black: hsl(200, 14%, 8%);
 }
 
 :root[data-theme='light'] {
