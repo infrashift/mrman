@@ -1,6 +1,8 @@
 ---
 // Landing page — not managed by Starlight.
+import { Image } from 'astro:assets';
 import '../styles/landing.css';
+import mascot from '../assets/mrman.jpeg';
 
 // A real mrman frame, captured from a running TUI and converted to spans.
 // Regenerate with docs/src/demo/ansi2html.py — see that file's header.
@@ -35,6 +37,18 @@ const repo = 'https://github.com/infrashift/mrman';
 
 <!-- Hero -->
 <section class="hero">
+	<Image
+		src={mascot}
+		alt="The Go gopher as a merman, in a Go cap and glasses and holding a trident, reviewing merge request #42 in mrman on an underwater monitor while fish look on."
+		class="mascot"
+		width={1600}
+		widths={[480, 800, 1200, 1600]}
+		sizes="(max-width: 46rem) calc(100vw - 2rem), 44rem"
+		format="webp"
+		quality={80}
+		loading="eager"
+		fetchpriority="high"
+	/>
 	<div class="wordmark"><span class="prompt">&gt;</span> mrman<span class="caret">_</span></div>
 	<h1>Code review that stays in your terminal</h1>
 	<p class="tagline">
