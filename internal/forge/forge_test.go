@@ -1,6 +1,7 @@
 package forge
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -157,3 +158,24 @@ func TestRemoteReviewThreadHelpers(t *testing.T) {
 		t.Fatal("resolved/outdated threads are not active")
 	}
 }
+
+type resolvingForge struct{ Forge }
+
+func (resolvingForge) ResolveOwnThread(context.Context, *PullRequestDetails, string, string) (ResolveOutcome, error) {
+	return ResolveResolved, nil
+}
+
+// The sanitizer every driver is wrapped in must not hide thread resolution.
+func TestAsThreadResolverSeesThroughTheSanitizer(t *testing.T) {
+	if _, ok := AsThreadResolver(Sanitized(resolvingForge{})); !ok {
+		t.Error("a sanitized resolving driver was not found")
+	}
+	if _, ok := AsThreadResolver(Sanitized(&plainTestForge{})); ok {
+		t.Error("a driver without resolution was reported as resolving")
+	}
+	if _, ok := AsThreadResolver(nil); ok {
+		t.Error("nil resolves nothing")
+	}
+}
+
+type plainTestForge struct{ Forge }

@@ -215,20 +215,26 @@ func sessionSlug(a *app.App, sessionPath string) string {
 	return filepath.Base(strings.TrimSuffix(sessionPath, ".json"))
 }
 
-// authorizeSubmit asks the grant policy about this submit, records the
-// decision beside the session and on stderr, and refuses unless allowed.
+// authorizeSubmit asks the grant policy about this submit.
 func authorizeSubmit(opts *Options, a *app.App, sessionPath string, comments int) (*AuthorizationRecord, error) {
+	return authorizeAction(opts, opts.Event, a.Pr.Backend, a.Pr.Details, sessionSlug(a, sessionPath), sessionPath, comments)
+}
+
+// authorizeAction asks the grant policy whether event (affecting count
+// comments or threads) may be performed on the PR, records the decision
+// beside the session and on stderr, and refuses unless allowed.
+func authorizeAction(opts *Options, event string, backend forge.Forge, details *forge.PullRequestDetails, pr, sessionPath string, count int) (*AuthorizationRecord, error) {
 	ctx := context.Background()
 	in := &PolicyInput{
-		Event:    strings.ToLower(strings.TrimSpace(opts.Event)),
-		Forge:    string(a.Pr.Backend.ID()),
-		PR:       sessionSlug(a, sessionPath),
-		Comments: comments,
+		Event:    strings.ToLower(strings.TrimSpace(event)),
+		Forge:    string(backend.ID()),
+		PR:       pr,
+		Comments: count,
 		RunID:    opts.RunID,
 		Agent:    opts.Agent,
 	}
 	// The forge says who the token is; a caller's claim would authorize nothing.
-	if meta, err := a.Pr.Backend.ReviewMetadata(ctx, a.Pr.Details); err == nil && meta != nil {
+	if meta, err := backend.ReviewMetadata(ctx, details); err == nil && meta != nil {
 		in.Identity = meta.ViewerLogin
 	}
 	rec, err := authorize(ctx, opts, in)

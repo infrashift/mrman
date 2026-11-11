@@ -308,7 +308,38 @@ func newReviewCmd(args *Args) *cobra.Command {
 	submitFlags.StringVar(&args.Review.RunID, "run-id", "", "the caller's run id, recorded with the authorization")
 	submitFlags.StringVar(&args.Review.Agent, "agent", "", "the calling tool, recorded with the authorization")
 
-	review.AddCommand(list, add, comments, watch, submit)
+	threads := &cobra.Command{
+		Use:   "threads",
+		Short: "Print the pull request's existing review threads as JSON (read-only)",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			args.Command = CommandReviewThreads
+			return nil
+		},
+	}
+	threads.Flags().StringVar(&args.Review.Session, "session", "", "session slug or path (required)")
+	_ = threads.MarkFlagRequired("session")
+
+	resolve := &cobra.Command{
+		Use:   "resolve",
+		Short: "Resolve threads this token's identity started (requires a grant naming resolve, or --grant-policy)",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			args.Command = CommandReviewResolve
+			return nil
+		},
+	}
+	resolveFlags := resolve.Flags()
+	resolveFlags.StringVar(&args.Review.Session, "session", "", "session slug or path (required)")
+	resolveFlags.StringArrayVar(&args.Review.ThreadIDs, "thread", nil, "forge thread id to resolve (repeatable; required)")
+	resolveFlags.StringVar(&args.Review.Reply, "reply", "", "comment to post in each thread before resolving it")
+	resolveFlags.StringVar(&args.Review.GrantPolicy, "grant-policy", "", "authorize by this committed garmr policy directory instead of a human grant (unattended use)")
+	resolveFlags.StringVar(&args.Review.GrantNamespace, "grant-namespace", "mrman", "policy namespace for --grant-policy")
+	resolveFlags.StringVar(&args.Review.Garmr, "garmr", "garmr", "garmr binary for --grant-policy")
+	resolveFlags.StringVar(&args.Review.RunID, "run-id", "", "the caller's run id, recorded with the authorization")
+	resolveFlags.StringVar(&args.Review.Agent, "agent", "", "the calling tool, recorded with the authorization")
+	_ = resolve.MarkFlagRequired("session")
+	_ = resolve.MarkFlagRequired("thread")
+
+	review.AddCommand(list, add, comments, watch, submit, threads, resolve)
 	return review
 }
 

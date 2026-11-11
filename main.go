@@ -48,7 +48,7 @@ func main() {
 			os.Exit(1)
 		}
 	case cli.CommandReviewList, cli.CommandReviewAdd, cli.CommandReviewComments,
-		cli.CommandReviewWatch, cli.CommandReviewSubmit:
+		cli.CommandReviewWatch, cli.CommandReviewSubmit, cli.CommandReviewThreads, cli.CommandReviewResolve:
 		if err := runReview(args); err != nil {
 			fmt.Fprintln(os.Stderr, "error:", err)
 			os.Exit(1)
@@ -85,6 +85,10 @@ func runReview(args *cli.Args) error {
 		return runWatch(store, opts, args)
 	case cli.CommandReviewSubmit:
 		return runSubmit(store, opts, args)
+	case cli.CommandReviewThreads:
+		return agentsubmit.Threads(store, opts, os.Stdout)
+	case cli.CommandReviewResolve:
+		return runResolve(store, opts, args)
 	}
 	return nil
 }
@@ -110,6 +114,40 @@ func runWatch(store *persistence.Store, opts reviewcli.Options, args *cli.Args) 
 		Since:    args.Review.Since,
 		Done:     done,
 	}, out)
+}
+
+// runResolve resolves threads, rendering a refusal as JSON on stdout like
+// runSubmit does.
+func runResolve(store *persistence.Store, opts reviewcli.Options, args *cli.Args) error {
+	err := agentsubmit.Resolve(store, agentsubmit.ResolveOptions{
+		Options: agentsubmit.Options{
+			Options:        opts,
+			GrantPolicy:    args.Review.GrantPolicy,
+			GrantNamespace: args.Review.GrantNamespace,
+			Garmr:          args.Review.Garmr,
+			RunID:          args.Review.RunID,
+			Agent:          args.Review.Agent,
+		},
+		ThreadIDs: args.Review.ThreadIDs,
+		Reply:     args.Review.Reply,
+	}, os.Stdout)
+	if denied, ok := errors.AsType[*agentsubmit.PolicyDenied](err); ok {
+		if writeErr := json.NewEncoder(os.Stdout).Encode(denied); writeErr != nil {
+			return writeErr
+		}
+		os.Exit(1)
+	}
+	if denied, ok := errors.AsType[*agentsubmit.SubmitDenied](err); ok {
+		if writeErr := agentsubmit.WriteDenial(os.Stdout, denied); writeErr != nil {
+			return writeErr
+		}
+		os.Exit(1)
+	}
+	if errors.Is(err, agentsubmit.ErrPartialResolve) {
+		// The JSON on stdout already says which threads failed and why.
+		os.Exit(1)
+	}
+	return err
 }
 
 // runSubmit posts a review, rendering an interlock refusal as JSON on stdout

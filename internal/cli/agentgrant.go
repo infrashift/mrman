@@ -29,12 +29,15 @@ import (
 // comment and draft are the default because neither changes a pull
 // request's fate: a comment review is commentary, and a draft is invisible
 // to the author until a human releases it. approve and request-changes
-// alter whether code merges, so they must be named explicitly.
+// alter whether code merges, so they must be named explicitly. resolve
+// (`mrman review resolve`) closes threads the token's own identity started;
+// it is named explicitly too, since it changes what the author sees open.
 var grantableEvents = map[string]bool{
 	"comment":         true,
 	"draft":           true,
 	"approve":         false,
 	"request-changes": false,
+	"resolve":         false,
 }
 
 // DefaultGrantedEvents is what a bare --auto authorizes.

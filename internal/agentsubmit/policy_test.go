@@ -150,6 +150,7 @@ func TestAuthorize_CommittedPolicyWithRealGarmr(t *testing.T) {
 	}{
 		{PolicyInput{Event: "comment", Identity: "vizzini-bot", Comments: 5, RunID: "r"}, true, nil},
 		{PolicyInput{Event: "approve", Identity: "vizzini-bot", Comments: 5, RunID: "r"}, false, []string{"MRM-001"}},
+		{PolicyInput{Event: "resolve", Identity: "vizzini-bot", Comments: 2, RunID: "r"}, true, nil},
 		{PolicyInput{Event: "comment", Identity: "someone-else", Comments: 5, RunID: "r"}, false, []string{"MRM-002"}},
 		{PolicyInput{Event: "comment", Identity: "vizzini-bot", Comments: 5}, false, []string{"MRM-004"}},
 	} {

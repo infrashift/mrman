@@ -246,9 +246,9 @@ The starting pack is `policies/garmr/mrman/agent-submit.cue`, tested with
 
 | Value | Default | Meaning |
 |---|---|---|
-| `_allowedEvents` | `["comment"]` | events the bot may submit. Add `approve` or `request-changes` only on purpose |
+| `_allowedEvents` | `["comment", "resolve"]` | events the bot may submit or perform. Add `approve` or `request-changes` only on purpose |
 | `_allowedIdentities` | `["vizzini-bot"]` | forge identities allowed to submit unattended |
-| `_maxComments` | `50` | the most comments one submit may post |
+| `_maxComments` | `50` | the most comments one submit may post, or threads one resolve may close |
 
 A run ID is required, so every post traces back to the run that produced it.
 
@@ -262,6 +262,20 @@ deny, with the failed rules and a digest of the policy files) is:
 
 A denial prints `{"error": "policy_denied", "authorization": {...},
 "message": "..."}` and exits 1.
+
+### Thread memory: what the bot already said
+
+A bot that re-reviews every push must not repeat itself. It also has to
+close what it raised once the code is fixed. Two commands give it that
+memory from the forge itself, with no store of its own:
+
+- `mrman review threads --session "$SLUG"` lists the PR's threads, including
+  resolved ones. A bot recognizes its own threads by a hidden marker it put
+  in their bodies, and skips findings it already posted.
+- `mrman review resolve --session "$SLUG" --thread ID --reply "..."
+  --grant-policy DIR` resolves threads under the same policy, with event
+  `resolve`. mrman resolves only threads the token's identity started. A
+  person's thread can never be closed this way, whatever the policy says.
 
 ## Comments an agent must not touch
 
