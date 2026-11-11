@@ -100,6 +100,20 @@ func Watch(store *persistence.Store, opts Options, w WatchOptions, out io.Writer
 		}
 	}
 
+	// Both baselines are taken before the session is read and the snapshot
+	// sent, so nothing that happens after a caller sees the snapshot can
+	// fall into the baseline unnoticed. A write landing between this stat
+	// and the load only costs one redundant reload; stat-ing after the load
+	// would fold that write into the baseline and never emit its comments.
+	// Likewise a TUI that exits right after the snapshot is still seen as a
+	// held-then-released transition.
+	//
+	// "The TUI exited" is a transition, not a state: a session opened
+	// headlessly is never held by a TUI, and must not read as closed just
+	// because some other review is open on the machine.
+	last := statSession(path)
+	held := sessionHeld(store, path)
+
 	session, err := store.LoadSession(path)
 	if err != nil {
 		return err
@@ -129,11 +143,6 @@ func Watch(store *persistence.Store, opts Options, w WatchOptions, out io.Writer
 		return err
 	}
 
-	last := statSession(path)
-	// "The TUI exited" is a transition, not a state: a session opened
-	// headlessly is never held by a TUI, and must not read as closed just
-	// because some other review is open on the machine.
-	held := sessionHeld(store, path)
 	for {
 		select {
 		case <-w.Done:
