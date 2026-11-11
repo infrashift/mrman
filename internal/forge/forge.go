@@ -81,6 +81,46 @@ type Forge interface {
 	LocalCheckoutPath() string
 }
 
+// ThreadResolver is implemented by drivers that can resolve a review
+// thread. It is optional: callers type-assert a Forge and report the forge
+// as unsupported when it does not implement it.
+type ThreadResolver interface {
+	// ResolveOwnThread marks thread threadID on pr resolved, first posting
+	// reply into it when reply is not empty. It refuses (ErrorForbidden) a
+	// thread whose root comment the token's own identity did not write, so
+	// a bot can close the discussions it opened and never anyone else's. A
+	// thread that is already resolved is left untouched.
+	ResolveOwnThread(ctx context.Context, pr *PullRequestDetails, threadID, reply string) (ResolveOutcome, error)
+}
+
+// AsThreadResolver returns f's ThreadResolver, looking beneath wrappers
+// that expose Unwrap (ForRepository wraps every driver in the sanitizer,
+// which would otherwise hide the optional interface).
+func AsThreadResolver(f Forge) (ThreadResolver, bool) {
+	for f != nil {
+		if r, ok := f.(ThreadResolver); ok {
+			return r, true
+		}
+		u, ok := f.(interface{ Unwrap() Forge })
+		if !ok {
+			return nil, false
+		}
+		f = u.Unwrap()
+	}
+	return nil, false
+}
+
+// ResolveOutcome is what ResolveOwnThread did.
+type ResolveOutcome string
+
+// Resolve outcomes.
+const (
+	// ResolveResolved means the thread was open and is now resolved.
+	ResolveResolved ResolveOutcome = "resolved"
+	// ResolveAlreadyResolved means the thread was resolved before the call.
+	ResolveAlreadyResolved ResolveOutcome = "already_resolved"
+)
+
 // ListScope selects which pull requests to list.
 type ListScope int
 

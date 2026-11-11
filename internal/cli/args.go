@@ -27,6 +27,11 @@ const (
 	CommandReviewWatch
 	// CommandReviewSubmit posts a review, behind the agent-submit grant.
 	CommandReviewSubmit
+	// CommandReviewThreads prints the PR's existing review threads as JSON.
+	CommandReviewThreads
+	// CommandReviewResolve resolves threads the token's identity started,
+	// behind the same grant as a submit.
+	CommandReviewResolve
 	// CommandVersion prints the version line.
 	CommandVersion
 )
@@ -92,6 +97,9 @@ type ReviewOptions struct {
 	Garmr          string
 	RunID          string
 	Agent          string
+	// ThreadIDs and Reply drive `review resolve`.
+	ThreadIDs []string
+	Reply     string
 	// TimeoutSeconds and IntervalMS bound `review watch`; Since resumes it.
 	TimeoutSeconds int
 	IntervalMS     int

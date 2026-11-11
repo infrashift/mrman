@@ -23,6 +23,16 @@ tests: [
 		expect: {decision: "allow", noViolations: true}
 	},
 	{
+		name:  "the bot may resolve the threads it opened"
+		input: _input & {event: "resolve", comments: 3}
+		expect: {decision: "allow", noViolations: true}
+	},
+	{
+		name:  "draft is not allowed unattended by default"
+		input: _input & {event: "draft"}
+		expect: {decision: "deny", violations: [{id: "MRM-001"}]}
+	},
+	{
 		name:  "approve is never unattended by default"
 		input: _input & {event: "approve"}
 		expect: {decision: "deny", violations: [{id: "MRM-001"}]}
@@ -35,6 +45,11 @@ tests: [
 	{
 		name:  "another identity may not post"
 		input: _input & {identity: "alice"}
+		expect: {decision: "deny", violations: [{id: "MRM-002"}]}
+	},
+	{
+		name:  "another identity may not resolve"
+		input: _input & {event: "resolve", identity: "alice"}
 		expect: {decision: "deny", violations: [{id: "MRM-002"}]}
 	},
 	{

@@ -264,8 +264,12 @@ mrman review submit --session <slug> --event comment --username "Claude"
 | `--session <slug>` | — | **Required** |
 | `--event <event>` | `comment` | `comment`, `approve`, `request-changes`, `draft` |
 | `--username <name>` | — | Author recorded on submit |
+| `--grant-policy <dir>` | — | Authorize by this committed garmr policy instead of a human grant ([unattended submit](../../guides/agents/#unattended-submit-a-committed-policy-instead-of-a-person)) |
+| `--grant-namespace <ns>` | `mrman` | Policy namespace for `--grant-policy` |
+| `--garmr <path>` | `garmr` | The garmr binary that evaluates the policy |
+| `--run-id <id>`, `--agent <name>` | — | The caller's run and tool, recorded with the authorization |
 
-Requires the session's agent-submit grant. Without one, it prints a refusal as
+Requires the session's agent-submit grant, or with `--grant-policy` an allow from the policy. Without one, it prints a refusal as
 JSON on stdout and exits `1`:
 
 ```json
@@ -294,12 +298,59 @@ exactly those.
  "partial":{"posted_inline":1,"unposted_inline":2,"failed_at":1,"error":"..."}}
 ```
 
+### `review threads`
+
+```sh
+mrman review threads --session <slug>
+```
+
+Prints the pull request's file-anchored review threads as one JSON object.
+That includes resolved and outdated threads, each with its comments (root
+first), author, anchor and state. The command only reads; it needs no grant.
+
+```json
+{"pr":"ado:dev.azure.com/org/proj/repo/pr/42","head_sha":"...","threads":[
+ {"id":"7","path":"src/x.go","line":12,"side":"new","start_line":null,"is_resolved":false,
+  "is_outdated":false,"comments":[{"id":"1","author":"vizzini-bot","body":"...","created_at":"...",
+  "in_reply_to":"","url":""}]}]}
+```
+
+### `review resolve`
+
+```sh
+mrman review resolve --session <slug> --thread 7 --thread 9 --reply "Fixed in abc1234."
+```
+
+Resolves threads, first posting `--reply` in each when it is given. mrman
+resolves only threads whose first comment **the token's own identity** wrote,
+compared by the forge's identity id, not a display name. A bot can close the
+discussions it opened and never a person's. A thread that is already
+resolved is left alone.
+
+| Flag | Default | Meaning |
+|---|---|---|
+| `--session <slug>` | — | **Required** |
+| `--thread <id>` | — | **Required**, repeatable: forge thread ids from `review threads` |
+| `--reply <text>` | — | Comment posted in each thread before it is resolved |
+| `--grant-policy`, `--grant-namespace`, `--garmr`, `--run-id`, `--agent` | | As for `review submit`; the policy sees event `resolve` and the thread count |
+
+It needs a human grant that names `resolve` (`mrman pr <target>
+--auto=comment,resolve`), or an allow from `--grant-policy`. Refusals print as
+for `review submit`. On completion it prints:
+
+```json
+{"resolved":["7"],"already_resolved":[],"failed":[{"thread":"9","error":"..."}]}
+```
+
+and exits `1` when `failed` is not empty. Supported on Azure DevOps; other
+forges report that resolving is not supported.
+
 ## Exit codes
 
 | Code | Meaning |
 |---|---|
 | `0` | Done |
-| `1` | A runtime failure (`error: ...` on stderr), or from `review submit` an interlock refusal or a partial submit, both reported as JSON on stdout |
+| `1` | A runtime failure (`error: ...` on stderr), or from `review submit` / `review resolve` an interlock refusal or a partial result, both reported as JSON on stdout |
 | `2` | The command line did not parse |
 
 ## Environment

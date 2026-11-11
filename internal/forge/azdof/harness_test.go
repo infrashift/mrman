@@ -63,6 +63,8 @@ func resourceLocationsJSON() string {
 			"{project}/_apis/git/repositories/{repositoryId}/pullrequests/{pullRequestId}/commits"},
 		{"ab6e2e5d-a0b7-4153-b64a-a4efe0d49449", "threads",
 			"{project}/_apis/git/repositories/{repositoryId}/pullrequests/{pullRequestId}/threads/{threadId}"},
+		{"965a3ec7-5ed8-455a-bdcb-835a5ea7fe7b", "comments",
+			"{project}/_apis/git/repositories/{repositoryId}/pullRequests/{pullRequestId}/threads/{threadId}/comments/{commentId}"},
 		{"4b6702c7-aa35-4b89-9c96-b9abf6d3e540", "reviewers",
 			"{project}/_apis/git/repositories/{repositoryId}/pullrequests/{pullRequestId}/reviewers/{reviewerId}"},
 		{"fb93c0db-47ed-4a31-8c20-47552878fb44", "items",
