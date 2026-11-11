@@ -248,8 +248,8 @@ there, or select it together with a patch that does carry a diff.
 
 ## `go install` fails
 
-`go install github.com/infrashift/mrman@latest` needs Go 1.26.8 or newer
-(the `go 1.26.8` line in `go.mod` makes an older Go fetch it automatically when `GOTOOLCHAIN`
+`go install github.com/infrashift/mrman@latest` needs Go 1.26.11 or newer
+(the `go 1.26.11` line in `go.mod` makes an older Go fetch it automatically when `GOTOOLCHAIN`
 allows). It resolves the tagged `charmkit` module like any other dependency,
 and CI checks that shape (`GOWORK=off go build ./...`) on every change. If it
 still fails, building from a checkout (`make install`) narrows it down. See
