@@ -345,12 +345,36 @@ for `review submit`. On completion it prints:
 and exits `1` when `failed` is not empty. Supported on Azure DevOps; other
 forges report that resolving is not supported.
 
+### `review reply`
+
+```sh
+mrman review reply --session <slug> --thread 7 --parent 12 "The answer."
+mrman review reply --session <slug> --thread 7 --input @answer.md
+```
+
+Posts a reply into an existing thread, under comment `--parent` (default:
+the thread's first comment). A reply only adds a comment, so it is not
+limited to threads the token started. A bot answering a `/vizzini` command
+in someone's thread uses it.
+
+| Flag | Default | Meaning |
+|---|---|---|
+| `--session <slug>` | — | **Required** |
+| `--thread <id>` | — | **Required**: the forge thread id, from `review threads` |
+| `--parent <id>` | the root comment | The comment answered |
+| `--input <@file\|->` | — | Read the body from a file or stdin, instead of the argument |
+| `--grant-policy`, `--grant-namespace`, `--garmr`, `--run-id`, `--agent` | | As for `review submit`; the policy sees event `reply` and one comment |
+
+It needs a human grant that names `reply`, or an allow from
+`--grant-policy`. It prints `{"thread":"7","comment_id":"55"}`. Supported on
+Azure DevOps.
+
 ## Exit codes
 
 | Code | Meaning |
 |---|---|
 | `0` | Done |
-| `1` | A runtime failure (`error: ...` on stderr), or from `review submit` / `review resolve` an interlock refusal or a partial result, both reported as JSON on stdout |
+| `1` | A runtime failure (`error: ...` on stderr), or from `review submit` / `review resolve` / `review reply` an interlock refusal or a partial result, both reported as JSON on stdout |
 | `2` | The command line did not parse |
 
 ## Environment

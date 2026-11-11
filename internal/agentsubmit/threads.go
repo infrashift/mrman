@@ -13,6 +13,7 @@ import (
 	"io"
 	"os"
 	"slices"
+	"strings"
 
 	"github.com/infrashift/mrman/internal/config"
 	"github.com/infrashift/mrman/internal/forge"
@@ -21,8 +22,12 @@ import (
 	"github.com/infrashift/mrman/internal/slug"
 )
 
-// resolveEvent is the grant and policy event for `review resolve`.
-const resolveEvent = "resolve"
+// resolveEvent and replyEvent are the grant and policy events for
+// `review resolve` and `review reply`.
+const (
+	resolveEvent = "resolve"
+	replyEvent   = "reply"
+)
 
 // ErrPartialResolve reports that some threads were not resolved; the JSON
 // on stdout says which and why.
@@ -134,6 +139,67 @@ func Resolve(store *persistence.Store, opts ResolveOptions, out io.Writer) error
 		return ErrPartialResolve
 	}
 	return nil
+}
+
+// ReplyOptions configures `review reply`.
+type ReplyOptions struct {
+	// Options carries the session and the grant settings (Event is ignored).
+	Options
+	// ThreadID is the forge thread to answer in.
+	ThreadID string
+	// ParentID is the comment answered; empty means the thread's root.
+	ParentID string
+	// Body is the reply's Markdown.
+	Body string
+}
+
+// ReplyOutput is what `review reply` prints.
+type ReplyOutput struct {
+	Thread        string               `json:"thread"`
+	CommentID     string               `json:"comment_id"`
+	Authorization *AuthorizationRecord `json:"authorization,omitempty"`
+}
+
+// Reply posts a reply into an existing thread of the session's PR, behind
+// the same interlock as a submit (event reply).
+func Reply(store *persistence.Store, opts ReplyOptions, out io.Writer) error {
+	if opts.ThreadID == "" {
+		return errors.New("--thread is required")
+	}
+	if strings.TrimSpace(opts.Body) == "" {
+		return errors.New("a reply body is required")
+	}
+	path, err := reviewcli.ResolveSessionPath(store, opts.Repo, opts.Session)
+	if err != nil {
+		return err
+	}
+	if opts.GrantPolicy == "" {
+		granted, reason, gerr := store.AgentSubmitGrant(path, replyEvent)
+		if gerr != nil {
+			return gerr
+		}
+		if reason != persistence.GrantOK {
+			return denial(reason, replyEvent, granted)
+		}
+	}
+	backend, details, pr, err := prForSession(store, path, opts.Session)
+	if err != nil {
+		return err
+	}
+	replier, ok := forge.AsThreadReplier(backend)
+	if !ok {
+		return fmt.Errorf("%s: replying in threads from the command line is not supported on this forge", backend.ID())
+	}
+	output := ReplyOutput{Thread: opts.ThreadID}
+	if opts.GrantPolicy != "" {
+		if output.Authorization, err = authorizeAction(&opts.Options, replyEvent, backend, details, pr, path, 1); err != nil {
+			return err
+		}
+	}
+	if output.CommentID, err = replier.ReplyToThread(context.Background(), details, opts.ThreadID, opts.ParentID, opts.Body); err != nil {
+		return err
+	}
+	return json.NewEncoder(out).Encode(output)
 }
 
 // prForSession loads the session at path and fetches its pull request: the

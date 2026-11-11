@@ -28,6 +28,11 @@ tests: [
 		expect: {decision: "allow", noViolations: true}
 	},
 	{
+		name:  "the bot may reply in a thread"
+		input: _input & {event: "reply", comments: 1}
+		expect: {decision: "allow", noViolations: true}
+	},
+	{
 		name:  "draft is not allowed unattended by default"
 		input: _input & {event: "draft"}
 		expect: {decision: "deny", violations: [{id: "MRM-001"}]}

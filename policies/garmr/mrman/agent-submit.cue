@@ -7,7 +7,8 @@
 //   garmr eval --policy-dir DIR -n mrman -o json --input -
 //
 // `mrman review resolve --grant-policy DIR` is decided the same way, with
-// event "resolve" and comments counting the threads to resolve.
+// event "resolve" and comments counting the threads to resolve, and
+// `mrman review reply` with event "reply" and one comment.
 //
 // A human grant (`mrman pr <target> --auto`) is the interactive way; this
 // file is the unattended one. Commit it, review changes to it like code: the
@@ -19,8 +20,9 @@ package mrman
 // merges; list them only deliberately. resolve (`mrman review resolve`)
 // closes threads: mrman resolves only threads the token's own identity
 // started, so the bot can close what it opened and never a person's
-// discussion.
-_allowedEvents: ["comment", "resolve"]
+// discussion. reply (`mrman review reply`) answers in an existing thread,
+// e.g. a /vizzini command; it adds a comment and changes nothing else.
+_allowedEvents: ["comment", "resolve", "reply"]
 
 // Forge identities (the login the token authenticates as, as the forge
 // reports it; on Azure DevOps the display name) allowed to submit.

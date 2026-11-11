@@ -339,7 +339,35 @@ func newReviewCmd(args *Args) *cobra.Command {
 	_ = resolve.MarkFlagRequired("session")
 	_ = resolve.MarkFlagRequired("thread")
 
-	review.AddCommand(list, add, comments, watch, submit, threads, resolve)
+	reply := &cobra.Command{
+		Use:   "reply [body]",
+		Short: "Reply in an existing thread (requires a grant naming reply, or --grant-policy)",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(_ *cobra.Command, positional []string) error {
+			args.Command = CommandReviewReply
+			if len(positional) == 1 {
+				args.Review.Comment = positional[0]
+			}
+			if args.Review.Comment == "" && args.Review.Input == "" {
+				return fmt.Errorf("a reply body argument or --input is required")
+			}
+			return nil
+		},
+	}
+	replyFlags := reply.Flags()
+	replyFlags.StringVar(&args.Review.Session, "session", "", "session slug or path (required)")
+	replyFlags.StringArrayVar(&args.Review.ThreadIDs, "thread", nil, "forge thread id to reply in (required)")
+	replyFlags.StringVar(&args.Review.ParentID, "parent", "", "comment id to reply to (default: the thread's first comment)")
+	replyFlags.StringVar(&args.Review.Input, "input", "", "read the body from @file, or - for stdin")
+	replyFlags.StringVar(&args.Review.GrantPolicy, "grant-policy", "", "authorize by this committed garmr policy directory instead of a human grant (unattended use)")
+	replyFlags.StringVar(&args.Review.GrantNamespace, "grant-namespace", "mrman", "policy namespace for --grant-policy")
+	replyFlags.StringVar(&args.Review.Garmr, "garmr", "garmr", "garmr binary for --grant-policy")
+	replyFlags.StringVar(&args.Review.RunID, "run-id", "", "the caller's run id, recorded with the authorization")
+	replyFlags.StringVar(&args.Review.Agent, "agent", "", "the calling tool, recorded with the authorization")
+	_ = reply.MarkFlagRequired("session")
+	_ = reply.MarkFlagRequired("thread")
+
+	review.AddCommand(list, add, comments, watch, submit, threads, resolve, reply)
 	return review
 }
 

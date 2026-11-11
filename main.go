@@ -6,7 +6,9 @@ import (
 	"bufio"
 	"encoding/json"
 	"errors"
+	"io"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -48,7 +50,8 @@ func main() {
 			os.Exit(1)
 		}
 	case cli.CommandReviewList, cli.CommandReviewAdd, cli.CommandReviewComments,
-		cli.CommandReviewWatch, cli.CommandReviewSubmit, cli.CommandReviewThreads, cli.CommandReviewResolve:
+		cli.CommandReviewWatch, cli.CommandReviewSubmit, cli.CommandReviewThreads, cli.CommandReviewResolve,
+		cli.CommandReviewReply:
 		if err := runReview(args); err != nil {
 			fmt.Fprintln(os.Stderr, "error:", err)
 			os.Exit(1)
@@ -89,6 +92,8 @@ func runReview(args *cli.Args) error {
 		return agentsubmit.Threads(store, opts, os.Stdout)
 	case cli.CommandReviewResolve:
 		return runResolve(store, opts, args)
+	case cli.CommandReviewReply:
+		return runReply(store, opts, args)
 	}
 	return nil
 }
@@ -114,6 +119,58 @@ func runWatch(store *persistence.Store, opts reviewcli.Options, args *cli.Args) 
 		Since:    args.Review.Since,
 		Done:     done,
 	}, out)
+}
+
+// runReply answers in a thread, rendering a refusal as JSON on stdout like
+// runSubmit does. The body is the argument, or --input: @file or - (stdin).
+func runReply(store *persistence.Store, opts reviewcli.Options, args *cli.Args) error {
+	body := args.Review.Comment
+	switch in := args.Review.Input; {
+	case in == "-":
+		data, err := io.ReadAll(os.Stdin)
+		if err != nil {
+			return err
+		}
+		body = string(data)
+	case strings.HasPrefix(in, "@"):
+		data, err := os.ReadFile(strings.TrimPrefix(in, "@")) //nolint:gosec // G703: reading the user-named body file is the point
+		if err != nil {
+			return fmt.Errorf("--input: %w", err)
+		}
+		body = string(data)
+	case in != "":
+		return fmt.Errorf("--input takes @file or -")
+	}
+	var thread string
+	if len(args.Review.ThreadIDs) > 0 {
+		thread = args.Review.ThreadIDs[len(args.Review.ThreadIDs)-1]
+	}
+	err := agentsubmit.Reply(store, agentsubmit.ReplyOptions{
+		Options: agentsubmit.Options{
+			Options:        opts,
+			GrantPolicy:    args.Review.GrantPolicy,
+			GrantNamespace: args.Review.GrantNamespace,
+			Garmr:          args.Review.Garmr,
+			RunID:          args.Review.RunID,
+			Agent:          args.Review.Agent,
+		},
+		ThreadID: thread,
+		ParentID: args.Review.ParentID,
+		Body:     body,
+	}, os.Stdout)
+	if denied, ok := errors.AsType[*agentsubmit.PolicyDenied](err); ok {
+		if writeErr := json.NewEncoder(os.Stdout).Encode(denied); writeErr != nil {
+			return writeErr
+		}
+		os.Exit(1)
+	}
+	if denied, ok := errors.AsType[*agentsubmit.SubmitDenied](err); ok {
+		if writeErr := agentsubmit.WriteDenial(os.Stdout, denied); writeErr != nil {
+			return writeErr
+		}
+		os.Exit(1)
+	}
+	return err
 }
 
 // runResolve resolves threads, rendering a refusal as JSON on stdout like
