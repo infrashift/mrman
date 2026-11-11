@@ -20,6 +20,7 @@ import (
 	"github.com/infrashift/mrman/internal/model"
 	"github.com/infrashift/mrman/internal/persistence"
 	"github.com/infrashift/mrman/internal/prload"
+	"github.com/infrashift/mrman/internal/risk"
 	"github.com/infrashift/mrman/internal/slug"
 	"github.com/infrashift/mrman/internal/syntax"
 	"github.com/infrashift/mrman/internal/theme"
@@ -142,6 +143,7 @@ func RunPr(target string, opts cli.TuiOptions) error {
 	m.grantedEvents = opts.GrantedEvents
 	applyConfig(cfg, a, m)
 	warnings = append(warnings, applyRisk(cfg, a)...)
+	warnings = append(warnings, applyVizzini(cfg, a, opts.VizziniReport)...)
 	for _, w := range warnings {
 		a.SetWarning(w)
 	}
@@ -254,6 +256,42 @@ type PrSessionOutput struct {
 	// grant, because this is the path an agent can invoke. See
 	// internal/cli/agentgrant.go.
 	GrantedEvents []string `json:"granted_events"`
+	// Vizzini summarizes the --vizzini-report given with --json; absent
+	// without one.
+	Vizzini *VizziniOutput `json:"vizzini,omitempty"`
+}
+
+// VizziniOutput is a loaded Vizzini report as the headless session reports
+// it: the scores, whether it matches this pull request's diff, and the
+// findings mrman will show.
+type VizziniOutput struct {
+	Report         string         `json:"report"`
+	RiskScore      int            `json:"risk_score"`
+	BaseRiskScore  int            `json:"base_risk_score"`
+	ModelRiskScore int            `json:"model_risk_score"`
+	AutoApprove    bool           `json:"auto_approve"`
+	Stale          bool           `json:"stale"`
+	Unanchored     int            `json:"unanchored"`
+	Summary        string         `json:"summary"`
+	Findings       []risk.Finding `json:"findings"`
+}
+
+// headlessVizzini loads opts.VizziniReport against the pull request's
+// files. Unlike the TUI, a bad report is an error: an agent asked for it.
+func headlessVizzini(cfg config.Config, root, path string, files []model.DiffFile) (*VizziniOutput, []string, error) {
+	if path == "" {
+		return nil, nil, nil
+	}
+	r, err := risk.ReadReport(path)
+	if err != nil {
+		return nil, nil, err
+	}
+	policy, warnings := risk.ResolvePolicy(root, cfg.Risk.Policy)
+	v := app.NewVizziniState(path, r, files, policy)
+	return &VizziniOutput{
+		Report: path, RiskScore: r.RiskScore, BaseRiskScore: r.BaseRiskScore, ModelRiskScore: r.ModelRiskScore,
+		AutoApprove: r.AutoApprove, Stale: v.Stale, Unanchored: v.Unanchored, Summary: r.Summary, Findings: r.Findings,
+	}, append(warnings, vizziniWarnings(v)...), nil
 }
 
 // RunPrHeadless opens a pull-request session without a TUI and prints it as
@@ -271,6 +309,13 @@ func RunPrHeadless(target string, opts cli.TuiOptions, out io.Writer) error {
 		fmt.Fprintf(os.Stderr, "mrman: %s\n", w)
 	}
 	details := opened.load.Details
+	viz, vizWarnings, err := headlessVizzini(opened.cfg, opened.localCheckout, opts.VizziniReport, opened.load.Files)
+	if err != nil {
+		return fmt.Errorf("--vizzini-report: %w", err)
+	}
+	for _, w := range vizWarnings {
+		fmt.Fprintf(os.Stderr, "mrman: %s\n", w)
+	}
 
 	store, storeErr := persistence.NewDefaultStore()
 	if storeErr != nil {
@@ -298,6 +343,7 @@ func RunPrHeadless(target string, opts cli.TuiOptions, out io.Writer) error {
 		HeadSHA:       details.HeadSHA,
 		BaseSHA:       details.BaseSHA,
 		FileCount:     len(opened.load.Files),
+		Vizzini:       viz,
 		ReadOnly:      details.IsReadOnly(),
 		GrantedEvents: []string{},
 	})

@@ -166,6 +166,8 @@ var normalRunes = map[rune]Action{
 	'q': act(Quit),
 	'o': act(ExpandAll),
 	'O': act(CollapseAll),
+	'f': act(ShowFinding),
+	'F': act(NextFinding),
 }
 
 func mapNormal(k tea.Key, leader rune) Action {
@@ -293,6 +295,8 @@ func mapCommentPeek(k tea.Key) Action {
 			return actN(CursorDown, 1)
 		case 'k':
 			return actN(CursorUp, 1)
+		case 'p':
+			return act(PromoteFinding)
 		}
 	}
 	return act(None)

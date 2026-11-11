@@ -941,6 +941,10 @@ func (m *Model) dispatchCommentPeek(action input.Action) bool {
 		a.PeekScroll(max(a.CommentPeek.ViewportHeight/2, 1))
 	case input.HalfPageUp:
 		a.PeekScroll(-max(a.CommentPeek.ViewportHeight/2, 1))
+	case input.PromoteFinding:
+		if a.PromoteFinding() {
+			m.enterComposeMode()
+		}
 	}
 	return false
 }

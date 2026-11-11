@@ -23,6 +23,8 @@ func helpContent(leader rune) []string {
 		"  }/{         next/previous file",
 		"  ]/[         next/previous hunk",
 		"  m/M         next/previous comment",
+		"  F           next Vizzini finding (--vizzini-report)",
+		"  f           read the Vizzini findings on this line (p promotes one to a draft)",
 		"  (/)         previous/next commit (multi-commit reviews)",
 		"  h/l         scroll horizontally",
 		"  Enter/Space expand/collapse hidden context",

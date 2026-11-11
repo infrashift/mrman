@@ -34,6 +34,7 @@ These are persistent flags on the root command, so they apply to `mrman`,
 | `--repo-url <url>` | — | Override the forge repository for MR operations |
 | `--forge <kind>` | — | Forge for ambiguous targets: `github`, `gitlab`, `azuredevops`, `forgejo` |
 | `--json` | false | Open the merge request headlessly and print its session as JSON |
+| `--vizzini-report <file>` | — | Show the findings of a Vizzini review (`pr-review --format json`) on the diff ([guide](../../guides/vizzini-findings/)) |
 | `--auto[=events]` | — | Authorize agent submission for this session (see below) |
 
 ### Mutually exclusive combinations
@@ -116,6 +117,15 @@ exits. It is how an agent learns a review's slug.
 
 `granted_events` is always empty: a command an agent can run cannot
 authorize anything. `read_only` is true for a closed or merged merge request.
+
+With `--vizzini-report`, the output gains a `vizzini` object containing:
+- `report`
+- the `risk_score`, `base_risk_score` and `model_risk_score` scores
+- `auto_approve` and `summary`
+- `stale` and `unanchored` (findings in files outside the diff)
+- the `findings` as Vizzini wrote them
+
+A report that cannot be read is an error here, while the TUI only warns.
 
 ## `mrman diff <old> <new>`
 

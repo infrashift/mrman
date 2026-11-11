@@ -377,7 +377,8 @@ func (p *DiffPane) diffLineRow(a *app.App, ann *app.AnnotatedLine, ind render.Sp
 
 	spans := []render.Span{
 		ind,
-		{Text: fmt.Sprintf("%*s ", lw, lineno), Style: render.Style{Fg: t.FgDim}},
+		{Text: fmt.Sprintf("%*s", lw, lineno), Style: render.Style{Fg: t.FgDim}},
+		p.findingMarker(a, ann),
 		{Text: prefix, Style: contentStyle},
 	}
 	if line.HighlightedSpans != nil {
@@ -386,6 +387,35 @@ func (p *DiffPane) diffLineRow(a *app.App, ann *app.AnnotatedLine, ind render.Sp
 		spans = append(spans, render.Span{Text: line.Content, Style: contentStyle})
 	}
 	return render.LogicalLine{Kind: render.RowDiffLine, BaseBg: baseBg, Spans: spans}
+}
+
+// findingMarker is the one-column gap after a line number: blank, or a
+// Vizzini finding marker (◆ where a finding starts, ┊ inside its range)
+// colored by the most severe finding on the line. It reuses the gap so the
+// gutter width, and the selection and mouse math built on it, never change.
+func (p *DiffPane) findingMarker(a *app.App, ann *app.AnnotatedLine) render.Span {
+	mark, severity := a.FindingMarkAt(ann)
+	switch mark {
+	case app.FindingStart:
+		return render.Span{Text: "◆", Style: render.Style{Fg: severityColor(p.Theme, severity), Bold: true}}
+	case app.FindingInside:
+		return render.Span{Text: "┊", Style: render.Style{Fg: severityColor(p.Theme, severity)}}
+	case app.FindingNone:
+	}
+	return render.Span{Text: " "}
+}
+
+// severityColor maps a Vizzini severity onto the theme's comment palette.
+func severityColor(t *theme.Theme, severity string) color.Color {
+	switch severity {
+	case "Critical":
+		return t.DiffDel
+	case "Major":
+		return t.CommentIssue
+	case "Minor":
+		return t.CommentSuggestion
+	}
+	return t.FgDim
 }
 
 // sbsLineRow renders one paired side-by-side row:
@@ -439,8 +469,14 @@ func (p *DiffPane) sbsLineRow(a *app.App, ann *app.AnnotatedLine, ind render.Spa
 				}
 			}
 		}
+		gap := render.Span{Text: " "}
+		if wantOrigin == model.OriginAddition {
+			// Findings anchor to the new side, so only the right column marks them.
+			gap = p.findingMarker(a, ann)
+		}
 		row := []render.Span{
-			{Text: fmt.Sprintf("%*s ", lw, numText), Style: render.Style{Fg: t.FgDim}},
+			{Text: fmt.Sprintf("%*s", lw, numText), Style: render.Style{Fg: t.FgDim}},
+			gap,
 			{Text: marker, Style: render.Style{Fg: style.Fg, Bg: bg}},
 		}
 		row = append(row, render.TruncateOrPadSpans(content, contentWidth, padStyle)...)

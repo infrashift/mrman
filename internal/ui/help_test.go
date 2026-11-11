@@ -33,6 +33,7 @@ func TestHelpDocumentsEveryNormalModeKey(t *testing.T) {
 		{'}', "}/{"}, {'{', "}/{"},
 		{']', "]/["}, {'[', "]/["},
 		{'m', "m/M"}, {'M', "m/M"},
+		{'F', "next Vizzini finding"}, {'f', "Vizzini findings on this line"},
 		{'(', "(/)"}, {')', "(/)"},
 		{'h', "h/l"}, {'l', "h/l"},
 		{'r', "toggle file reviewed"},

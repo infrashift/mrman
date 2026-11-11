@@ -37,6 +37,9 @@ func HeaderWithGrant(a *app.App, t *theme.Theme, width int, grantedEvents []stri
 	if src := headerSourceChunk(a); src != "" {
 		chunks = append(chunks, src)
 	}
+	if v := a.VizziniHeader(); v != "" {
+		chunks = append(chunks, v)
+	}
 	if a.IsSingleFileView {
 		chunks = append(chunks, "FOCUS")
 	}
@@ -221,6 +224,9 @@ func modeHint(a *app.App) string {
 	case input.ModeHelp:
 		return "   / search · n/N match · q/?/esc close"
 	case input.ModeCommentPeek:
+		if a.CommentPeek != nil && len(a.CommentPeek.Findings) > 0 {
+			return "   j/k scroll · p promote to draft · q/esc/↵ close"
+		}
 		return "   j/k scroll · ctrl-d/u page · q/esc/↵ close"
 	case input.ModeConfirm:
 		return "   y yes · n no"

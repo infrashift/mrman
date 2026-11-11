@@ -207,7 +207,8 @@ The policy is the first of these that exists and validates:
 3. Vizzini's built-in policy
 
 A policy file that is present but invalid is reported as a warning and
-skipped. With `enabled = false` (the default), mrman behaves exactly as if
+skipped. The same policy checks whether a `--vizzini-report` is stale
+([guide](../../guides/vizzini-findings/)). With `enabled = false` (the default), mrman behaves exactly as if
 the feature did not exist.
 
 ## Agent submission

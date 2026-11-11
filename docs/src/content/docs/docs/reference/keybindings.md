@@ -24,6 +24,8 @@ source lines to jump to.
 | `}` / `{` | Next / previous file |
 | `]` / `[` | Next / previous hunk |
 | `m` / `M` | Next / previous comment (including forge comments) |
+| `F` | Next Vizzini finding (with `--vizzini-report`) |
+| `f` | Read the Vizzini findings on the cursor line; in that panel `p` copies one into a draft comment |
 | `(` / `)` | Previous / next commit in a multi-commit review |
 | `zt` / `zz` / `zb` | Cursor to top / center / bottom |
 | `Enter` or `Space` | Expand or collapse hidden context at the cursor |

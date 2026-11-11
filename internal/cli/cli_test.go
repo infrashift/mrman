@@ -171,6 +171,7 @@ func TestParseReviewRejectsTuiFlags(t *testing.T) {
 		// Both used to be accepted and silently ignored.
 		{"--json", "review", "list"},
 		{"--auto=comment", "review", "submit", "--session", "s"},
+		{"--vizzini-report", "r.json", "review", "list"},
 	} {
 		_, err := Parse(argv)
 		if err == nil {
@@ -253,6 +254,22 @@ func TestParseDiffAllowsPresentationFlags(t *testing.T) {
 	} {
 		if _, err := Parse(argv); err != nil {
 			t.Errorf("%v: unexpected error: %v", argv, err)
+		}
+	}
+}
+
+func TestParseVizziniReport(t *testing.T) {
+	for _, argv := range [][]string{
+		{"pr", "owner/repo#1", "--vizzini-report", "r.json"},
+		{"pr", "owner/repo#1", "--json", "--vizzini-report", "r.json"},
+		{"--patch", "x.patch", "--vizzini-report", "r.json"},
+	} {
+		args, err := Parse(argv)
+		if err != nil {
+			t.Fatalf("%v: %v", argv, err)
+		}
+		if args.Tui.VizziniReport != "r.json" {
+			t.Errorf("%v: VizziniReport = %q", argv, args.Tui.VizziniReport)
 		}
 	}
 }

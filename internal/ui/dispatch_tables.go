@@ -227,6 +227,8 @@ var normalActions = map[input.Kind]actionHandler{
 	input.EnterVisualMode: appAct(func(a *app.App, _ input.Action) { a.EnterVisualModeAtCursor() }),
 	input.NextComment:     appAct(func(a *app.App, _ input.Action) { a.NextComment() }),
 	input.PrevComment:     appAct(func(a *app.App, _ input.Action) { a.PrevComment() }),
+	input.NextFinding:     appAct(func(a *app.App, _ input.Action) { a.NextFinding() }),
+	input.ShowFinding:     appAct(func(a *app.App, _ input.Action) { a.OpenFindingPeek() }),
 }
 
 // appAct adapts an action that only touches the app state.

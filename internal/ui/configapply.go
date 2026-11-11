@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"fmt"
+
 	"github.com/infrashift/mrman/internal/app"
 	"github.com/infrashift/mrman/internal/config"
 	"github.com/infrashift/mrman/internal/risk"
@@ -82,4 +84,44 @@ func applyRisk(cfg config.Config, a *app.App) []string {
 	policy, warnings := risk.ResolvePolicy(root, cfg.Risk.Policy)
 	a.EnableRisk(policy)
 	return warnings
+}
+
+// applyVizzini loads a --vizzini-report onto the review. An unreadable
+// report is a warning rather than a failure: the review works without it.
+// The policy that checks it for staleness is the one risk scoring uses.
+func applyVizzini(cfg config.Config, a *app.App, path string) []string {
+	if path == "" {
+		return nil
+	}
+	r, err := risk.ReadReport(path)
+	if err != nil {
+		return []string{"Vizzini report not loaded: " + err.Error()}
+	}
+	var policy *risk.Policy
+	var warnings []string
+	if a.Risk != nil {
+		policy = a.Risk.Policy
+	} else {
+		root := ""
+		if a.VcsInfo != nil {
+			root = a.VcsInfo.RootPath
+		}
+		policy, warnings = risk.ResolvePolicy(root, cfg.Risk.Policy)
+	}
+	a.LoadVizzini(path, r, policy)
+	return append(warnings, vizziniWarnings(a.Vizzini)...)
+}
+
+// vizziniWarnings are the ways a loaded report may not describe the diff.
+func vizziniWarnings(v *app.VizziniState) []string {
+	var out []string
+	if v.Stale {
+		out = append(out, fmt.Sprintf(
+			"Vizzini report looks stale: its diff score %d does not match this diff, so findings may point at the wrong lines",
+			v.Report.BaseRiskScore))
+	}
+	if v.Unanchored > 0 {
+		out = append(out, fmt.Sprintf("%d Vizzini finding(s) name files that are not in this diff", v.Unanchored))
+	}
+	return out
 }

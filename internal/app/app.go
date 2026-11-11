@@ -352,6 +352,9 @@ type App struct {
 	Pr *PrState
 	// Risk is the opt-in risk score of the diff; nil unless [risk] is on.
 	Risk *RiskState
+	// Vizzini is a loaded Vizzini review report (--vizzini-report); nil
+	// without one.
+	Vizzini *VizziniState
 	// PrContext caches whole-file snapshots fetched from the forge so gap
 	// expansion stays synchronous in PR mode (see prcontext.go).
 	PrContext *PrContextProvider
