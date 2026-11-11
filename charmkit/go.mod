@@ -1,6 +1,6 @@
 module github.com/infrashift/mrman/charmkit
 
-go 1.26.8
+go 1.26.11
 
 require (
 	charm.land/bubbletea/v2 v2.0.9
