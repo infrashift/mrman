@@ -3,6 +3,8 @@ package azdof
 import (
 	"errors"
 	"net/http"
+	"regexp"
+	"strings"
 
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7"
 
@@ -51,7 +53,11 @@ func (d *Driver) wrap(op string, err error) error {
 		if wrapped.StatusCode != nil {
 			status = *wrapped.StatusCode
 		}
-		return d.err(op, forge.FromHTTPStatus(status), status, statusHint(status), err)
+		hint := statusHint(status)
+		if status == http.StatusForbidden && wrapped.Message != nil {
+			hint = forbiddenHint(*wrapped.Message, hint)
+		}
+		return d.err(op, forge.FromHTTPStatus(status), status, hint, err)
 	}
 	// Cancellation, transport failures, and everything else untyped.
 	return d.err(op, forge.Classify(err), 0, "", err)
@@ -82,4 +88,45 @@ func statusHint(status int) string {
 		return hintRateLimited
 	}
 	return ""
+}
+
+// missingPermissionRE reads Azure DevOps' "TF401027: You need the Git
+// 'PullRequestContribute' permission to perform this action. Details:
+// identity 'Build\<id>', scope 'repository'."
+var missingPermissionRE = regexp.MustCompile(`TF401027: You need the Git '(\w+)' permission.*?identity '([^']*)'`)
+
+// gitPermissionLabels are the Security page's names for Git permissions.
+var gitPermissionLabels = map[string]string{
+	"GenericRead":           "Read",
+	"GenericContribute":     "Contribute",
+	"PullRequestContribute": "Contribute to pull requests",
+	"CreateBranch":          "Create branch",
+	"CreateTag":             "Create tag",
+	"ManagePermissions":     "Manage permissions",
+	"PolicyExempt":          "Bypass policies when pushing",
+}
+
+// forbiddenHint replaces the generic 403 hint when Azure DevOps says which
+// Git permission the identity lacks (TF401027). Then the token and its scope
+// are fine: the identity needs a repository permission, and when that
+// identity is a pipeline's (Build\...), it is the build service that needs
+// it, not a PAT anyone can rescope.
+func forbiddenHint(message, fallback string) string {
+	m := missingPermissionRE.FindStringSubmatch(message)
+	if m == nil {
+		return fallback
+	}
+	permission := m[1]
+	if label, ok := gitPermissionLabels[permission]; ok {
+		permission = label
+	}
+	if strings.HasPrefix(m[2], "Build\\") {
+		return "The pipeline's build identity lacks the repository permission \"" + permission + "\". " +
+			"Grant it to \"<Project> Build Service (<org>)\" (or \"Project Collection Build Service (<org>)\" " +
+			"when the job's authorization scope is the collection) under Project settings > Repositories > " +
+			"the repository > Security."
+	}
+	return "The token was accepted, but its identity lacks the repository permission \"" + permission + "\". " +
+		"Ask a project administrator to grant it under Project settings > Repositories > the repository > Security; " +
+		"a broader PAT scope will not help."
 }

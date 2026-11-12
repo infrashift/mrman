@@ -99,3 +99,39 @@ func TestWrapNil(t *testing.T) {
 		t.Fatalf("wrap(nil) = %v", err)
 	}
 }
+
+// A TF401027 refusal names the missing Git permission: the hint says what to
+// grant, to whom, instead of blaming the PAT's scope.
+func TestWrapForbiddenNamesTheMissingPermission(t *testing.T) {
+	d := newBareDriver(t)
+	forbidden := func(message string) *forge.Error {
+		status := http.StatusForbidden
+		return mustForgeErr(t, d.wrap("create_review", azuredevops.WrappedError{Message: &message, StatusCode: &status}))
+	}
+	build := forbidden("TF401027: You need the Git 'PullRequestContribute' permission to perform this action. " +
+		"Details: identity 'Build\\cff044ed-6ca0-4495-a0bd-521cc145ceeb', scope 'repository'.")
+	for _, want := range []string{"build identity", `"Contribute to pull requests"`, "Build Service (<org>)", "Security"} {
+		if !strings.Contains(build.Hint, want) {
+			t.Errorf("pipeline hint %q lacks %q", build.Hint, want)
+		}
+	}
+	if strings.Contains(build.Hint, "PAT carries") || build.Kind != forge.ErrorForbidden {
+		t.Errorf("pipeline hint still blames the PAT, or kind %v: %q", build.Kind, build.Hint)
+	}
+
+	user := forbidden("TF401027: You need the Git 'GenericContribute' permission to perform this action. " +
+		"Details: identity 'Vera Viewer', scope 'repository'.")
+	if !strings.Contains(user.Hint, `"Contribute"`) || !strings.Contains(user.Hint, "project administrator") ||
+		strings.Contains(user.Hint, "Build Service") {
+		t.Errorf("user hint %q", user.Hint)
+	}
+	// A permission without a known label is named as Azure DevOps names it.
+	if odd := forbidden("TF401027: You need the Git 'EditPolicies' permission to perform this action. " +
+		"Details: identity 'Build\\x', scope 'repository'."); !strings.Contains(odd.Hint, `"EditPolicies"`) {
+		t.Errorf("unlabelled permission hint %q", odd.Hint)
+	}
+	// Any other 403 keeps the token hint.
+	if other := forbidden("VS403403: access denied"); !strings.Contains(other.Hint, "Code (Read & Write)") {
+		t.Errorf("generic 403 hint %q", other.Hint)
+	}
+}

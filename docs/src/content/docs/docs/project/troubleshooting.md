@@ -65,6 +65,20 @@ actually prints the token.
 A host entry may set `token` **or** `token_cmd`, never both. The schema rejects
 that rather than picking one silently.
 
+## Azure DevOps refuses a post: `TF401027 … permission`
+
+`TF401027: You need the Git 'PullRequestContribute' permission … identity '…'`
+means the token was accepted, and its scope is fine. The **identity** behind
+it lacks a permission on the repository, and a broader PAT scope will not
+fix that. Grant the named permission under Project settings → Repositories →
+*the repository* → Security. mrman's hint names the permission as that page
+does: `PullRequestContribute` is *Contribute to pull requests*.
+
+In a pipeline that runs mrman with `System.AccessToken` (for example
+vizzini-bot), the identity is `Build\…`, the pipeline's build service. Grant the
+permission to **<Project> Build Service (<org>)**, or to **Project Collection
+Build Service (<org>)** when the job's authorization scope is the collection.
+
 ## "cannot determine the forge for host"
 
 ```
