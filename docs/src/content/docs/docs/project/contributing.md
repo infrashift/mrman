@@ -161,6 +161,15 @@ tag, or the commit until there is one. charmkit's `charmkit/vX.Y.Z` tags
 never count. CI's `release-shape` job packages and runs a Linux archive on
 every change, so a broken release is caught before a tag is cut.
 
+**Runner loss.** GitHub sometimes cancels a job that never got a runner,
+most often a macOS job: it sits queued, then is cancelled with no steps run.
+A release then skips `publish`, and CI fails a pull request, although no code
+ran. `.github/workflows/retry-runner-loss.yml` re-runs the failed jobs of a CI
+or Release run, but only when **every** failed or cancelled job never started
+(no runner, no steps). A real failure is never retried, and it stops after
+the third attempt. The `check` and `smoke` jobs also have `timeout-minutes`
+(30 and 15), so a job that hangs once it is running fails in bounded time.
+
 ## Testing against a real forge
 
 Every unit test runs against fakes. Fakes cannot catch a driver that builds a

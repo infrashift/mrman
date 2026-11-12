@@ -91,6 +91,9 @@ jobs:
           - platform: windows_amd64
             os: windows-latest
     runs-on: ${{ matrix.os }}
+    # Each smoke test takes a minute or two. A job GitHub never starts (no
+    # macOS runner) is re-run by retry-runner-loss.yml.
+    timeout-minutes: 15
     steps:
       - uses: actions/download-artifact@v4
         with:

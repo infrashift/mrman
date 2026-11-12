@@ -1,0 +1,49 @@
+name: Retry runner loss
+
+# GitHub sometimes cancels a job that never got a runner (seen with
+# macos-latest: queued, then cancelled with no steps run). A Release run then
+# skips publish, and a CI run fails a pull request, although no code ran.
+# This re-runs the failed jobs of a CI or Release run, and only when every
+# failed or cancelled job never started (no runner, no steps), so a real
+# failure is never retried. At most two retries: attempt 3 is left alone.
+on:
+  workflow_run:
+    workflows: [CI, Release]
+    types: [completed]
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  retry:
+    if: github.event.workflow_run.conclusion == 'failure' || github.event.workflow_run.conclusion == 'cancelled'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Re-run jobs that never got a runner
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+        run: |
+          set -euo pipefail
+          if [ "$ATTEMPT" -ge 3 ]; then
+            echo "run $RUN_ID attempt $ATTEMPT: no further retry"
+            exit 0
+          fi
+          # failed or cancelled jobs, as "name<TAB>steps<TAB>runner"
+          failed="$(gh api "repos/$REPO/actions/runs/$RUN_ID/attempts/$ATTEMPT/jobs" --paginate \
+            -q '.jobs[] | select(.conclusion == "failure" or .conclusion == "cancelled") | [.name, (.steps | length), (.runner_name // "")] | @tsv')"
+          if [ -z "$failed" ]; then
+            echo "run $RUN_ID: no failed or cancelled job"
+            exit 0
+          fi
+          printf '%s\n' "$failed"
+          if printf '%s\n' "$failed" | awk -F'\t' '$2 != 0 || $3 != "" { found = 1 } END { exit !found }'; then
+            echo "run $RUN_ID: a job ran and failed; not retrying"
+            exit 0
+          fi
+          echo "run $RUN_ID attempt $ATTEMPT: every failed job never got a runner; re-running them"
+          gh run rerun "$RUN_ID" --failed -R "$REPO"
