@@ -68,10 +68,12 @@ func New(opts Options) (*Driver, error) {
 		localCheckout: opts.LocalCheckout,
 		runner:        opts.Runner,
 	}
-	rest := github.NewClient(opts.HTTPClient)
+	// Reads and unsent requests are retried; writes never are (retry.go).
+	httpClient := withRetries(opts.HTTPClient)
+	rest := github.NewClient(httpClient)
 	if opts.APIBase == "" && host == defaultHost {
 		d.graphqlURL = "https://api.github.com/graphql"
-		d.gql = githubv4.NewClient(opts.HTTPClient)
+		d.gql = githubv4.NewClient(httpClient)
 	} else {
 		apiBase := opts.APIBase
 		if apiBase == "" {
@@ -85,7 +87,7 @@ func New(opts Options) (*Driver, error) {
 		}
 		rest.BaseURL = base
 		d.graphqlURL = graphqlEndpoint(apiBase)
-		d.gql = githubv4.NewEnterpriseClient(d.graphqlURL, opts.HTTPClient)
+		d.gql = githubv4.NewEnterpriseClient(d.graphqlURL, httpClient)
 	}
 	d.rest = rest
 	return d, nil

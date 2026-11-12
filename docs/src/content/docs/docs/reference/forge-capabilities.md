@@ -178,6 +178,19 @@ practical reason to prefer smaller reviews on these two forges.
 One nuance on Azure DevOps: a *pure vote* submit — no body, no comments — that
 fails, fails outright, because nothing landed worth keeping.
 
+### Transient failures
+
+On GitHub and GitLab, mrman resends a request only when doing so can't
+act twice:
+- **Reads (GET, HEAD):** resent after a 5xx (other than 501) or a dropped
+  connection.
+- **Any request:** resent if it failed before anything reached the server
+  (DNS, connect).
+
+A write (a comment, a review, a resolve, a GraphQL mutation) that got a 5xx
+or lost its connection partway is not resent, because the forge may already
+have applied it. It fails with the forge's error.
+
 ### Commit-scoped reviews
 
 Whether the forge records which commit a review covered, which is what lets
