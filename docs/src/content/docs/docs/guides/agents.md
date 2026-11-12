@@ -241,7 +241,10 @@ containing:
 - the run ID and the agent.
 
 It submits only on allow (or warn). A deny or an evaluation error refuses,
-and mrman never fails open.
+and mrman never fails open. If mrman cannot ask the forge who the token is
+(a network error or an outage), it evaluates nothing and posts nothing, and
+the error is the forge's own, so a caller can retry it. It is not reported
+as a policy denial.
 
 The starting pack is `policies/garmr/mrman/agent-submit.cue`, tested with
 `garmr test`. Copy it into your repository and set three values:
