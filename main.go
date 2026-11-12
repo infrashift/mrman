@@ -89,6 +89,9 @@ func runReview(args *cli.Args) error {
 	case cli.CommandReviewSubmit:
 		return runSubmit(store, opts, args)
 	case cli.CommandReviewThreads:
+		if args.Review.Findings {
+			return agentsubmit.Findings(store, opts, os.Stdout)
+		}
 		return agentsubmit.Threads(store, opts, os.Stdout)
 	case cli.CommandReviewResolve:
 		return runResolve(store, opts, args)

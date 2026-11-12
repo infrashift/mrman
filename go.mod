@@ -16,7 +16,7 @@ require (
 	github.com/google/go-github/v76 v76.0.0
 	github.com/google/uuid v1.6.0
 	github.com/infrashift/mrman/charmkit v0.1.0
-	github.com/infrashift/vizzini-pr-reviewer v0.0.0-20261111154544-e73d99c9d59d
+	github.com/infrashift/vizzini-pr-reviewer v0.0.0-20261112115612-0187f14d29af
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/microsoft/azure-devops-go-api/azuredevops/v7 v7.1.0
 	github.com/shurcooL/githubv4 v0.0.0-20260209031235-2402fdf4a9ed

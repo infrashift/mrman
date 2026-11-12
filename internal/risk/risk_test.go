@@ -252,8 +252,10 @@ func TestVizziniStaysBehindThisPackage(t *testing.T) {
 		pkg, imports, _ := strings.Cut(line, " ")
 		if pkg == "github.com/infrashift/mrman/internal/risk" {
 			for imp := range strings.FieldsSeq(imports) {
-				if strings.HasPrefix(imp, vizzini) && imp != vizzini+"/pkg/risk" {
-					t.Errorf("internal/risk imports %s; only pkg/risk is LLM-free", imp)
+				// Only Vizzini's LLM-free, dependency-free packages: pkg/risk and
+				// pkg/marker (the bot's comment format).
+				if strings.HasPrefix(imp, vizzini) && imp != vizzini+"/pkg/risk" && imp != vizzini+"/pkg/marker" {
+					t.Errorf("internal/risk imports %s; only pkg/risk and pkg/marker are LLM-free", imp)
 				}
 			}
 			continue

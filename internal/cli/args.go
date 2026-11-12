@@ -105,6 +105,9 @@ type ReviewOptions struct {
 	ThreadIDs []string
 	Reply     string
 	ParentID  string
+	// Findings makes `review threads` print the findings view (Vizzini
+	// ISSUE-027): vizzini-bot's threads, decoded.
+	Findings bool
 	// TimeoutSeconds and IntervalMS bound `review watch`; Since resumes it.
 	TimeoutSeconds int
 	IntervalMS     int
