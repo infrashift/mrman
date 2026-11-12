@@ -235,7 +235,16 @@ func authorizeAction(opts *Options, event string, backend forge.Forge, details *
 		Agent:    opts.Agent,
 	}
 	// The forge says who the token is; a caller's claim would authorize nothing.
-	if meta, err := backend.ReviewMetadata(ctx, details); err == nil && meta != nil {
+	// When the forge cannot be asked (a network error, an outage), nothing is
+	// evaluated and nothing is posted, and the error says why, so a caller can
+	// retry it. Evaluating with an empty identity instead would fail closed
+	// too, but as a policy denial that names no identity and that no caller
+	// retries. A forge that answers without a login is evaluated as it is.
+	meta, merr := backend.ReviewMetadata(ctx, details)
+	if merr != nil {
+		return nil, fmt.Errorf("authorization: could not ask the forge who this token is, so nothing was evaluated or posted: %w", merr)
+	}
+	if meta != nil {
 		in.Identity = meta.ViewerLogin
 	}
 	rec, err := authorize(ctx, opts, in)

@@ -23,6 +23,9 @@ type resolverForge struct {
 	outcomes map[string]forge.ResolveOutcome // missing ids fail
 	calls    []string
 	replies  []string
+	// metaErr makes ReviewMetadata fail: the forge cannot say who the
+	// token is.
+	metaErr error
 }
 
 func (f *resolverForge) ListReviewThreads(context.Context, *forge.PullRequestDetails) ([]forge.RemoteReviewThread, error) {
@@ -30,6 +33,9 @@ func (f *resolverForge) ListReviewThreads(context.Context, *forge.PullRequestDet
 }
 
 func (f *resolverForge) ReviewMetadata(context.Context, *forge.PullRequestDetails) (*forge.ReviewMetadata, error) {
+	if f.metaErr != nil {
+		return nil, f.metaErr
+	}
 	return &forge.ReviewMetadata{ViewerLogin: "vizzini-bot"}, nil
 }
 
@@ -234,5 +240,39 @@ func TestReply(t *testing.T) {
 		if err := Reply(store, bad, &bytes.Buffer{}); err == nil {
 			t.Errorf("%+v must be refused", bad)
 		}
+	}
+}
+
+// When the forge cannot say who the token is, nothing is evaluated, audited
+// or resolved, and the error is the forge's (a network error a caller can
+// retry), not a policy denial with an empty identity.
+func TestResolveByPolicy_IdentityLookupFails(t *testing.T) {
+	fake := &resolverForge{submitForge: &submitForge{head: "head1234"},
+		outcomes: map[string]forge.ResolveOutcome{"7": forge.ResolveResolved},
+		metaErr: forge.NewError(forgetypes.KindAzureDevOps, "review_metadata", "dev.azure.com", forge.ErrorNetwork,
+			errors.New("read: connection reset by peer"))}
+	store, path := sessionWithGrant(t, fake, nil)
+	input := fakeGarmr(t, `{"decision":"allow","results":[]}`, 0, nil)
+	_, err := resolve(t, store, ResolveOptions{
+		Options:   Options{Options: reviewcli.Options{Session: path}, GrantPolicy: policyDir(t), RunID: "r1", Agent: "vizzini-bot"},
+		ThreadIDs: []string{"7"},
+	})
+	if err == nil {
+		t.Fatal("an identity lookup failure must refuse")
+	}
+	if _, denied := errors.AsType[*PolicyDenied](err); denied {
+		t.Errorf("err = %v: a network error, not a policy denial", err)
+	}
+	if fe, ok := errors.AsType[*forge.Error](err); !ok || fe.Kind != forge.ErrorNetwork || !strings.Contains(err.Error(), "network error") {
+		t.Errorf("err = %v: want the forge's network error, which callers retry", err)
+	}
+	if len(*input) != 0 {
+		t.Errorf("garmr was asked: %s", *input)
+	}
+	if _, serr := os.Stat(path + ".audit.jsonl"); serr == nil {
+		t.Error("an audit record was written for a decision that was never made")
+	}
+	if len(fake.calls) != 0 {
+		t.Errorf("resolved without an identity: %v", fake.calls)
 	}
 }
