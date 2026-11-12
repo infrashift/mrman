@@ -315,6 +315,26 @@ first), author, anchor and state. The command only reads; it needs no grant.
   "in_reply_to":"","url":""}]}]}
 ```
 
+With `--findings`, it prints the **findings view** instead: vizzini-bot's
+threads only, each decoded from the hidden marker the bot writes (Vizzini's
+`pkg/marker` format), so a developer agent never parses comment text.
+People's threads are left out. A thread whose marker cannot be read is
+listed under `malformed`, and the command still succeeds.
+
+```json
+{"pr":"...","head_sha":"...","findings":[
+ {"thread":"7","path":"src/x.go","line":13,"start_line":12,"status":"open","outdated":false,
+  "severity":"Major","category":"Security","title":"SQL built by concatenation",
+  "body":"The name is concatenated into the query.","suggestion":"db.Query(\"… WHERE name = ?\", name)",
+  "fingerprint":"v1:…","run":"…","head":"…","posted_start_line":12,"posted_end_line":14,"agent":"vizzini-bot",
+  "replies":[{"id":"2","author":"dev-agent","body":"…","from_vizzini":false}]}],
+ "malformed":[]}
+```
+
+- `status` is `open` or `resolved`. `disposition` gives the forge's own state where it has one, such as Azure DevOps' `won't fix`.
+- `line` and `start_line` give where the thread sits now. `posted_*_line` give where the finding was posted, at `head`.
+- On a reply, `from_vizzini` marks the bot's own comments, and `reply_to` the command an answer answers.
+
 ### `review resolve`
 
 ```sh

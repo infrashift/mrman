@@ -274,6 +274,14 @@ memory from the forge itself, with no store of its own:
 - `mrman review threads --session "$SLUG"` lists the PR's threads, including
   resolved ones. A bot recognizes its own threads by a hidden marker it put
   in their bodies, and skips findings it already posted.
+- `mrman review threads --session "$SLUG" --findings` is the same list for a
+  **developer agent** that answers a reviewer bot: only vizzini-bot's
+  findings, decoded into fields (file, lines, category, severity, title,
+  body, suggestion, fingerprint, status, replies). Fix the code and push:
+  the bot resolves its own thread when the finding is gone. To disagree,
+  reply (`review reply`) or write `/vizzini reconsider <why>` in the thread.
+  The agent cannot resolve the bot's threads, since they are not its
+  identity's.
 - `mrman review resolve --session "$SLUG" --thread ID --reply "..."
   --grant-policy DIR` resolves threads under the same policy, with event
   `resolve`. mrman resolves only threads the token's identity started. A

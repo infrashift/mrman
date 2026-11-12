@@ -317,6 +317,7 @@ func newReviewCmd(args *Args) *cobra.Command {
 		},
 	}
 	threads.Flags().StringVar(&args.Review.Session, "session", "", "session slug or path (required)")
+	threads.Flags().BoolVar(&args.Review.Findings, "findings", false, "print vizzini-bot's findings, decoded from its threads' markers (for developer agents)")
 	_ = threads.MarkFlagRequired("session")
 
 	resolve := &cobra.Command{
