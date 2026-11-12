@@ -79,6 +79,23 @@ vizzini-bot), the identity is `Build\…`, the pipeline's build service. Grant t
 permission to **<Project> Build Service (<org>)**, or to **Project Collection
 Build Service (<org>)** when the job's authorization scope is the collection.
 
+## GitHub refuses to resolve a thread: `Resource not accessible by integration`
+
+`mrman review resolve` (or vizzini-bot resolving its fixed threads) fails on
+GitHub with `resolve_thread: permission denied … Resource not accessible by
+integration`.
+
+GitHub lets a token resolve review threads only with **Contents** write
+access. *Pull requests* write is enough to comment and reply, but not to
+resolve. The error's hint says so.
+
+- **GitHub Actions (`GITHUB_TOKEN`):** add `contents: write` to the job's
+  `permissions`. It also lets the token push to the repository, so grant it
+  only where you want the bot to resolve its threads.
+- **Fine-grained token:** give it *Contents: Read & write* on the repository.
+
+Replies are unaffected: `review reply` needs only pull requests write.
+
 ## "cannot determine the forge for host"
 
 ```

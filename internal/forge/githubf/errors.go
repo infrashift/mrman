@@ -28,6 +28,13 @@ const (
 		"Pull requests: Read & write) and try again."
 	hintPendingReview = "You already have a pending review on this MR. " +
 		"Finish or discard it on GitHub, then try again."
+	// hintResolveForbidden: GitHub lets a token resolve review threads only
+	// with contents write access; pull requests write is not enough (seen
+	// live with a workflow's GITHUB_TOKEN).
+	hintResolveForbidden = "GitHub refused to resolve the thread: resolving review threads needs " +
+		"Contents write access, which pull requests write does not give. In GitHub Actions, " +
+		"set `permissions: contents: write` for the job (it also lets GITHUB_TOKEN push); " +
+		"a fine-grained token needs Contents: Read & write."
 	hintUnknownCommit = "GitHub rejected the review: the selected commit is " +
 		"not part of this MR (it may have been removed by a force-push). " +
 		"Reload with :e and try again."

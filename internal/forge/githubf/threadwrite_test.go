@@ -219,10 +219,18 @@ func TestResolveOwnThreadMutationForbidden(t *testing.T) {
 	d := newTestDriver(t, s)
 	_, err := d.ResolveOwnThread(context.Background(), testPR(), "PRRT_7", "")
 	wantForgeErr(t, err, forge.ErrorForbidden)
-	// With a reply, the failing reply stops the call before the resolve.
+	// The refused resolve names the permission it needs.
+	if fe := mustForgeErr(t, err); fe.Hint != hintResolveForbidden || !strings.Contains(fe.Hint, "contents: write") {
+		t.Errorf("resolve hint %q", fe.Hint)
+	}
+	// With a reply, the failing reply stops the call before the resolve,
+	// and keeps the general hint: replying needs no contents access.
 	s.calls = nil
 	_, err = d.ResolveOwnThread(context.Background(), testPR(), "PRRT_7", "Fixed.")
 	wantForgeErr(t, err, forge.ErrorForbidden)
+	if fe := mustForgeErr(t, err); fe.Hint == hintResolveForbidden {
+		t.Errorf("a refused reply got the resolve hint")
+	}
 	if got := s.mutations(); len(got) != 1 || !strings.HasPrefix(got[0], "reply") {
 		t.Errorf("mutations %v, want only the failed reply", got)
 	}
