@@ -282,6 +282,9 @@ memory from the forge itself, with no store of its own:
   --input @answer.md --grant-policy DIR` answers in a thread, with event
   `reply`. A bot uses it to answer commands people write in the PR.
 
+`resolve` and `reply` work on GitHub, GitLab and Azure DevOps; on Forgejo,
+Gitea and Codeberg they report that the forge is not supported.
+
 ## Comments an agent must not touch
 
 A comment whose `lifecycle_state` is `pushed_draft` or `submitted` is already
