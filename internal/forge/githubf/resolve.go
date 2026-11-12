@@ -50,7 +50,13 @@ func (d *Driver) ResolveOwnThread(ctx context.Context, pr *forge.PullRequestDeta
 		} `graphql:"resolveReviewThread(input: $input)"`
 	}
 	if err := d.gql.Mutate(ctx, &m, githubv4.ResolveReviewThreadInput{ThreadID: githubv4.ID(threadID)}, nil); err != nil {
-		return "", d.wrap(op, err)
+		werr := d.wrap(op, err)
+		// A refused resolve, unlike a refused reply, is about one permission:
+		// say which.
+		if fe, ok := errors.AsType[*forge.Error](werr); ok && fe.Kind == forge.ErrorForbidden {
+			fe.Hint = hintResolveForbidden
+		}
+		return "", werr
 	}
 	return forge.ResolveResolved, nil
 }
