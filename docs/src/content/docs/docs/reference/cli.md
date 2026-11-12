@@ -323,9 +323,10 @@ mrman review resolve --session <slug> --thread 7 --thread 9 --reply "Fixed in ab
 
 Resolves threads, first posting `--reply` in each when it is given. mrman
 resolves only threads whose first comment **the token's own identity** wrote,
-compared by the forge's identity id, not a display name. A bot can close the
-discussions it opened and never a person's. A thread that is already
-resolved is left alone.
+compared by the forge's account identity (the identity id on Azure DevOps, the
+login on GitHub, the username on GitLab), never a display name. A bot can
+close the discussions it opened and never a person's. A thread that is
+already resolved is left alone.
 
 | Flag | Default | Meaning |
 |---|---|---|
@@ -342,8 +343,12 @@ for `review submit`. On completion it prints:
 {"resolved":["7"],"already_resolved":[],"failed":[{"thread":"9","error":"..."}]}
 ```
 
-and exits `1` when `failed` is not empty. Supported on Azure DevOps; other
-forges report that resolving is not supported.
+and exits `1` when `failed` is not empty. Supported on GitHub (and GitHub
+Enterprise Server), GitLab and Azure DevOps; Forgejo, Gitea and Codeberg report
+that resolving is not supported. Thread ids are what `review threads` prints:
+a review thread node id (`PRRT_…`) on GitHub, a discussion id on GitLab, a
+thread number on Azure DevOps. On GitLab a single comment that was never
+started as a thread cannot be resolved, and is reported as failed.
 
 ### `review reply`
 
@@ -355,19 +360,23 @@ mrman review reply --session <slug> --thread 7 --input @answer.md
 Posts a reply into an existing thread, under comment `--parent` (default:
 the thread's first comment). A reply only adds a comment, so it is not
 limited to threads the token started. A bot answering a `/vizzini` command
-in someone's thread uses it.
+in someone's thread uses it. GitHub and GitLab threads are flat, so there
+`--parent` is accepted and ignored: the reply joins the thread.
 
 | Flag | Default | Meaning |
 |---|---|---|
 | `--session <slug>` | — | **Required** |
 | `--thread <id>` | — | **Required**: the forge thread id, from `review threads` |
-| `--parent <id>` | the root comment | The comment answered |
+| `--parent <id>` | the root comment | The comment answered (Azure DevOps; ignored on GitHub and GitLab, whose threads are flat) |
 | `--input <@file\|->` | — | Read the body from a file or stdin, instead of the argument |
 | `--grant-policy`, `--grant-namespace`, `--garmr`, `--run-id`, `--agent` | | As for `review submit`; the policy sees event `reply` and one comment |
 
 It needs a human grant that names `reply`, or an allow from
-`--grant-policy`. It prints `{"thread":"7","comment_id":"55"}`. Supported on
-Azure DevOps.
+`--grant-policy`. It prints `{"thread":"7","comment_id":"55"}`, where
+`comment_id` is in the form `review threads` reports for comments (a `PRRC_…`
+node id on GitHub, a note number on GitLab, a comment number on Azure
+DevOps). Supported on GitHub (and GitHub Enterprise Server), GitLab and Azure
+DevOps; Forgejo, Gitea and Codeberg report that replying is not supported.
 
 ## Exit codes
 

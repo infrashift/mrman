@@ -48,6 +48,40 @@ func TestEveryForgeKindHasADriver(t *testing.T) {
 	}
 }
 
+// TestThreadWritersPerForge pins which drivers `mrman review reply` and
+// `mrman review resolve` reach, seen through the sanitizer every driver is
+// wrapped in, as the CLI sees them.
+func TestThreadWritersPerForge(t *testing.T) {
+	for kind, want := range map[forgetypes.Kind]bool{
+		forgetypes.KindGitHub:      true,
+		forgetypes.KindGitLab:      true,
+		forgetypes.KindAzureDevOps: true,
+		forgetypes.KindForgejo:     false,
+	} {
+		d, _ := forge.DriverFor(kind)
+		hc := forge.HostConfig{Host: "example.com", Kind: kind, Token: "t"}
+		var (
+			f   forge.Forge
+			err error
+		)
+		if d.NewForRepo != nil {
+			f, err = d.NewForRepo(hc, forgetypes.Repository{Kind: kind, Host: hc.Host, Owner: "org", Project: "proj", Name: "repo"})
+		} else {
+			f, err = d.New(hc)
+		}
+		if err != nil {
+			t.Fatalf("%s: constructing the driver: %v", kind, err)
+		}
+		f = forge.Sanitized(f)
+		if _, ok := forge.AsThreadReplier(f); ok != want {
+			t.Errorf("%s: ThreadReplier = %v, want %v", kind, ok, want)
+		}
+		if _, ok := forge.AsThreadResolver(f); ok != want {
+			t.Errorf("%s: ThreadResolver = %v, want %v", kind, ok, want)
+		}
+	}
+}
+
 // TestADOOrgURL: a legacy {org}.visualstudio.com host already names the
 // organization, so repeating it in the path made the API read it as a
 // project and fail every call.

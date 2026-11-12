@@ -66,6 +66,10 @@ func (d *Driver) wrap(op string, err error) error {
 	if status, ok := graphqlHTTPStatus(err); ok {
 		return d.err(op, forge.FromHTTPStatus(status), status, statusHint(status), err)
 	}
+	if graphqlForbidden(err) {
+		// GraphQL's 200 OK answer for a mutation the token may not run.
+		return d.err(op, forge.ErrorForbidden, 0, hintForbidden, err)
+	}
 	if strings.Contains(err.Error(), "Could not resolve to a ") {
 		// GraphQL's 200 OK answer for a repository or MR the token
 		// cannot see.
@@ -90,6 +94,17 @@ func graphqlHTTPStatus(err error) (int, bool) {
 		return 0, false
 	}
 	return status, true
+}
+
+// graphqlForbidden reports whether err is GitHub's GraphQL permission
+// refusal. It arrives with HTTP 200 and an error of type FORBIDDEN, and
+// githubv4 keeps only the message: "Resource not accessible by integration"
+// (or "... by personal access token") for a token without the scope, or
+// "... does not have the correct permissions to execute `ResolveReviewThread`".
+func graphqlForbidden(err error) bool {
+	msg := err.Error()
+	return strings.Contains(msg, "Resource not accessible by ") ||
+		strings.Contains(msg, "does not have the correct permissions to execute")
 }
 
 // statusHint picks the default actionable hint for an HTTP status.
