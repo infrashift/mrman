@@ -14,7 +14,7 @@ GOFLAGS     := -trimpath
 BIN_DIR     := bin
 DIST_DIR    := dist
 COVER_FILE  := coverage.out
-PLATFORMS   ?= linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64
+PLATFORMS   ?= linux/amd64 linux/arm64
 
 # Tool locations that survive minimal PATHs: gofmt ships in GOROOT, installed
 # dev tools land in GOBIN (default GOPATH/bin).
@@ -106,7 +106,7 @@ version: ## Print the version a build would embed
 
 # package starts from an empty dist/, so SHA256SUMS lists exactly this run's
 # archives. release.yml publishes dist/ as a GitHub release.
-package: ## Cross-compile release tarballs/zips and SHA256SUMS into ./dist
+package: ## Cross-compile the release tarballs and SHA256SUMS into ./dist
 	@rm -rf $(DIST_DIR) && mkdir -p $(DIST_DIR)
 	@for platform in $(PLATFORMS); do \
 		os=$${platform%/*}; arch=$${platform#*/}; \
