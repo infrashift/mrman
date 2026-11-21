@@ -21,10 +21,11 @@ everything else mrman stands on is credited in
 
 ## Install
 
-Download an archive for your platform from the
+On Linux (amd64 or arm64), download an archive from the
 [releases page](https://github.com/infrashift/mrman/releases), check it
-against the release's `SHA256SUMS`, and put the `mrman` binary on your `PATH`.
-Or build it:
+against the release's `SHA256SUMS` (and, optionally, with
+`gh attestation verify <archive> --repo infrashift/mrman`), and put the
+`mrman` binary on your `PATH`. On any platform, build it:
 
 ```sh
 go install github.com/infrashift/mrman@latest
@@ -218,7 +219,7 @@ defaults. Override them via `[templates]` (`notes`, `review_body`,
 ```sh
 make check      # fmt + vet + lint + tests + 85% coverage gate
 make build      # ./bin/mrman
-make package    # cross-platform release artifacts in ./dist
+make package    # Linux release archives in ./dist
 make docs-dev   # the documentation site at localhost:4321/mrman/
 ```
 

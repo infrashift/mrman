@@ -22,14 +22,16 @@ import { Steps, Aside, Tabs, TabItem } from '@astrojs/starlight/components';
 <Tabs>
 	<TabItem label="Release archive">
 		Each [release](https://github.com/infrashift/mrman/releases) carries a
-		tarball for Linux and macOS (amd64 and arm64), a zip for Windows, and a
-		`SHA256SUMS` manifest. For example, on Linux amd64:
+		Linux tarball for amd64 and arm64, a `SHA256SUMS` manifest, and a
+		build provenance attestation. On other platforms, use `go install`.
+		For example, on Linux amd64:
 
 		```sh
 		v=vX.Y.Z    # the release you want
 		base=https://github.com/infrashift/mrman/releases/download/$v
 		curl -fsSLO "$base/mrman_${v}_linux_amd64.tar.gz"
 		curl -fsSL "$base/SHA256SUMS" | grep "mrman_${v}_linux_amd64.tar.gz" | sha256sum -c -
+		gh attestation verify "mrman_${v}_linux_amd64.tar.gz" --repo infrashift/mrman  # optional
 		tar -xzf "mrman_${v}_linux_amd64.tar.gz"
 		install "mrman_${v}_linux_amd64/mrman" ~/.local/bin/
 		```

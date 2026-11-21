@@ -47,7 +47,7 @@ Other targets worth knowing:
 | `make test-race` | Tests under the race detector |
 | `make bench` | Benchmarks |
 | `make tidy` | `go mod tidy`, failing if it changes anything |
-| `make package` | Cross-compiled release artifacts into `./dist` |
+| `make package` | Linux amd64/arm64 release archives into `./dist` (`PLATFORMS=` to override) |
 | `make docs-dev` | This documentation site, live-reloading |
 | `make docs-build` | Production build of this site |
 
@@ -152,9 +152,9 @@ The tag runs `.github/workflows/release.yml`:
 | Job | Does |
 |---|---|
 | `verify` | Refuses a tag that is not `vMAJOR.MINOR.PATCH[-PRERELEASE]` or not on `main`; checks the build embeds the tag as its version; builds with the workspace off, as `go install` will; runs `make vet test` |
-| `package` | `make package VERSION=<tag>`: tarballs for Linux and macOS (amd64, arm64), a zip for Windows, and `SHA256SUMS` |
-| `smoke` | Verifies each archive's checksum, unpacks it and runs `mrman --version` on its own platform (Linux amd64/arm64, macOS arm64, Windows) |
-| `publish` | The only job that can write: creates the GitHub release with the archives and `SHA256SUMS`, and notes generated from the merged pull requests |
+| `package` | `make package VERSION=<tag>`: Linux tarballs (amd64, arm64) and `SHA256SUMS` |
+| `smoke` | Verifies each archive's checksum, unpacks it and runs `mrman --version` on its own architecture (Linux amd64 and arm64 runners) |
+| `publish` | The only job that can write: attests the archives' build provenance (SLSA, checked with `gh attestation verify`), then creates the GitHub release with the archives and `SHA256SUMS`, and notes generated from the merged pull requests |
 
 `make version` prints the version a build would embed: the nearest `vX.Y.Z`
 tag, or the commit until there is one. charmkit's `charmkit/vX.Y.Z` tags

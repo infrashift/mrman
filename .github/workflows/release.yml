@@ -7,9 +7,12 @@ name: Release
 #
 # charmkit's own module tags (charmkit/vX.Y.Z) do not match the trigger.
 #
-# Every build job is read-only. Only `publish` can write, and it only creates
-# this tag's GitHub release, with the archives `make package` builds and the
-# SHA256SUMS manifest that lists them.
+# Releases ship Linux only: amd64 and arm64.
+#
+# Every build job is read-only. Only `publish` can write: it attests the
+# archives' build provenance (SLSA, verifiable with `gh attestation verify`)
+# and creates this tag's GitHub release, with the archives `make package`
+# builds and the SHA256SUMS manifest that lists them.
 on:
   push:
     tags: ['v*.*.*']
@@ -25,11 +28,11 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
           fetch-depth: 0
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
           cache: true
@@ -55,27 +58,25 @@ jobs:
     needs: verify
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
           cache: true
-      # Pure Go with CGO off, so one runner cross-compiles every platform.
+      # Pure Go with CGO off, so one runner cross-compiles both architectures.
       - run: make package VERSION="${GITHUB_REF_NAME}"
       - run: cat dist/SHA256SUMS
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: dist
           path: dist/
           if-no-files-found: error
 
   smoke:
-    # Each archive is unpacked and run on the platform it is for, so a
-    # binary that cannot start never reaches the release. darwin_amd64 is
-    # built and checksummed but not run: GitHub is retiring its Intel macOS
-    # runners, and a job waiting on a missing runner would block the release.
+    # Each archive is unpacked and run on the architecture it is for, so a
+    # binary that cannot start never reaches the release.
     name: smoke (${{ matrix.platform }})
     needs: package
     strategy:
@@ -86,49 +87,37 @@ jobs:
             os: ubuntu-latest
           - platform: linux_arm64
             os: ubuntu-24.04-arm
-          - platform: darwin_arm64
-            os: macos-latest
-          - platform: windows_amd64
-            os: windows-latest
     runs-on: ${{ matrix.os }}
-    # Each smoke test takes a minute or two. A job GitHub never starts (no
-    # macOS runner) is re-run by retry-runner-loss.yml.
+    # Each smoke test takes a minute or two.
     timeout-minutes: 15
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: dist
           path: dist
-      - name: Run the archived binary (Unix)
-        if: runner.os != 'Windows'
+      - name: Run the archived binary
         run: |
           name="mrman_${GITHUB_REF_NAME}_${{ matrix.platform }}"
-          (cd dist && grep " ${name}.tar.gz\$" SHA256SUMS | shasum -a 256 -c -)
+          (cd dist && grep " ${name}.tar.gz\$" SHA256SUMS | sha256sum -c -)
           tar -xzf "dist/${name}.tar.gz" -C "$RUNNER_TEMP"
           "$RUNNER_TEMP/${name}/mrman" --version | grep -F "${GITHUB_REF_NAME}"
-      - name: Run the archived binary (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $name = "mrman_$($env:GITHUB_REF_NAME)_${{ matrix.platform }}"
-          $zip = "dist/$name.zip"
-          $want = (Select-String -Path dist/SHA256SUMS -Pattern " $name.zip$").Line.Split(' ')[0]
-          $got = (Get-FileHash -Algorithm SHA256 $zip).Hash.ToLower()
-          if ($got -ne $want) { throw "checksum mismatch for $zip" }
-          Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP
-          $out = & "$env:RUNNER_TEMP/$name/mrman.exe" --version
-          if ($out -notmatch [regex]::Escape($env:GITHUB_REF_NAME)) { throw "unexpected version: $out" }
 
   publish:
     needs: [package, smoke]
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write
+      attestations: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: dist
           path: dist
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: dist/mrman_*.tar.gz
       - name: Create the GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
