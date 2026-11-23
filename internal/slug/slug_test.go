@@ -168,6 +168,8 @@ func TestRoundtripPrSlugVariants(t *testing.T) {
 		"gl:gitlab.com/org/svc/pr/12",
 		"gl:gitlab.example.com/group/subgroup/proj/pr/34",
 		"ado:dev.azure.com/org/project/repo/pr/7",
+		// Azure DevOps Server: the org slot holds the collection path.
+		"ado:tfs.example.com/tfs/DefaultCollection/project/repo/pr/7",
 		"fj:codeberg.org/owner/repo/pr/9",
 	} {
 		assertRoundtrip(t, s)

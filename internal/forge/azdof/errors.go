@@ -14,9 +14,10 @@ import (
 
 // Actionable hints attached to translated errors.
 const (
-	hintAuth = "Azure DevOps authentication failed. Set AZURE_DEVOPS_EXT_PAT " +
-		"(or configure a token for this host) to a PAT with the " +
-		"Code (Read & Write) scope."
+	hintAuth = "Azure DevOps authentication failed. Use a PAT with the " +
+		"Code (Read & Write) scope: on Azure DevOps Services set " +
+		"AZURE_DEVOPS_EXT_PAT; on Azure DevOps Server set token or " +
+		"token_cmd in the host's [[forge.hosts]] entry."
 	hintForbidden = "The PAT was accepted but this operation is forbidden — " +
 		"make sure the PAT carries the Code (Read & Write) scope and has " +
 		"access to this organization and project."

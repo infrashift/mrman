@@ -33,22 +33,49 @@ If the PAT is wrong or missing, mrman says so in those terms rather than
 showing you a bare 401:
 
 ```
-Azure DevOps authentication failed. Set AZURE_DEVOPS_EXT_PAT (or configure a
-token for this host) to a PAT with the Code (Read & Write) scope.
+Azure DevOps authentication failed. Use a PAT with the Code (Read & Write)
+scope: on Azure DevOps Services set AZURE_DEVOPS_EXT_PAT; on Azure DevOps
+Server set token or token_cmd in the host's [[forge.hosts]] entry.
 ```
 
 ### On-premise Azure DevOps Server
 
-Point `api_base` at the collection URL:
+Azure DevOps Server 2022.1 or later is required: mrman speaks REST
+api-version 7.1. Declare the host, and give it a token — `AZURE_DEVOPS_EXT_PAT`
+is not read for on-premise hosts unless you name it:
 
 ```toml
 [[forge.hosts]]
 host = "tfs.mycorp.com"
 forge = "azuredevops"
-api_base = "https://tfs.mycorp.com/DefaultCollection"
-token_cmd = "pass show tfs-pat"
+token = "$AZURE_DEVOPS_EXT_PAT"   # or token_cmd = "pass show tfs-pat"
 ca_file = "/etc/ssl/corp-root.pem"
 ```
+
+Server URLs put a **collection** where Services puts the organization, often
+behind a virtual directory:
+
+```
+https://dev.azure.com/{org}/{project}/_git/{repo}
+https://tfs.mycorp.com/tfs/DefaultCollection/{project}/_git/{repo}
+```
+
+mrman treats everything before `{project}/_git/` as the organization — here
+`tfs/DefaultCollection` — so the API base is the collection URL,
+`https://tfs.mycorp.com/tfs/DefaultCollection`, with no `api_base` needed.
+Servers without a virtual directory (`https://tfs.mycorp.com/DefaultCollection/...`)
+work the same way.
+
+Set `api_base` to the collection URL only when the server is reached over plain
+`http` or on a non-default port — mrman drops ports from remote URLs and
+assumes `https`:
+
+```toml
+api_base = "http://tfs.mycorp.com:8080/tfs/DefaultCollection"
+```
+
+`api_base` applies to every repository on the host, so with it set, all of
+them must live in that one collection.
 
 `forge = "azuredevops"` is the canonical name; `azure_devops` and `ado` are
 accepted too, for `forge` here and for `[forge] default`.
@@ -71,6 +98,13 @@ Legacy `*.visualstudio.com` URLs work too, including the
 
 ```sh
 mrman pr https://org.visualstudio.com/DefaultCollection/project/_git/repo/pullrequest/7
+```
+
+On Azure DevOps Server the collection path takes the organization's place:
+
+```sh
+mrman pr tfs.mycorp.com/tfs/DefaultCollection/project/repo#7
+mrman pr https://tfs.mycorp.com/tfs/DefaultCollection/project/_git/repo/pullrequest/7
 ```
 
 SSH remotes in the `v3` form (`git@ssh.dev.azure.com:v3/org/project/repo`) are

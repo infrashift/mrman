@@ -3,6 +3,7 @@ package forge
 import (
 	"fmt"
 	"net/url"
+	"slices"
 	"strings"
 
 	"github.com/infrashift/mrman/internal/config"
@@ -278,7 +279,8 @@ func repoFromSegments(kind forgetypes.Kind, host string, segments []string) (*fo
 }
 
 // adoRepoFromSegments interprets Azure DevOps remote path shapes:
-// dev.azure.com/{org}/{project}/_git/{repo}, the v3 SSH form
+// dev.azure.com/{org}/{project}/_git/{repo}, Azure DevOps Server
+// {host}/[{virtual dir}/]{collection}/{project}/_git/{repo}, the v3 SSH form
 // {v3}/{org}/{project}/{repo}, and legacy
 // {org}.visualstudio.com/[DefaultCollection/]{project}/_git/{repo}, whose
 // SSH form is vs-ssh.visualstudio.com:v3/{org}/{project}/{repo}.
@@ -310,13 +312,30 @@ func adoRepoFromSegments(host string, segments []string) (*forgetypes.Repository
 			Owner: segments[1], Project: segments[2], Name: segments[3],
 		}, true
 	}
-	if len(segments) == 4 && segments[2] == "_git" {
+	if owner, project, name, _, ok := adoSplitAtGit(segments, 0); ok {
 		return &forgetypes.Repository{
 			Kind: forgetypes.KindAzureDevOps, Host: host,
-			Owner: segments[0], Project: segments[1], Name: segments[3],
+			Owner: owner, Project: project, Name: name,
 		}, true
 	}
 	return nil, false
+}
+
+// adoSplitAtGit splits an Azure DevOps path
+// {collection path...}/{project}/_git/{repo}[/{tail...}], where tail has
+// exactly tailLen segments. The collection path is one segment on Azure
+// DevOps Services ({org}) and one or more on Azure DevOps Server
+// ([{virtual dir}/]{collection}, e.g. tfs/DefaultCollection); it becomes the
+// owner as-is, so the org URL https://{host}/{owner} is the collection URL.
+func adoSplitAtGit(segments []string, tailLen int) (owner, project, name string, tail []string, ok bool) {
+	g := len(segments) - tailLen - 2
+	if g < 2 || segments[g] != "_git" {
+		return "", "", "", nil, false
+	}
+	if slices.Contains(segments[:g], "_git") {
+		return "", "", "", nil, false
+	}
+	return strings.Join(segments[:g-1], "/"), segments[g-1], segments[g+1], segments[g+2:], true
 }
 
 // ResolveRepository detects the forge repository from a checkout's remote
@@ -503,7 +522,8 @@ func isPRTabSuffix(rest []string, tabs map[string]bool) bool {
 	return false
 }
 
-// parseADOTargetURL recognizes dev.azure.com and visualstudio.com PR URLs.
+// parseADOTargetURL recognizes dev.azure.com, visualstudio.com and Azure
+// DevOps Server ({collection path}/{project}/_git/{repo}/pullrequest/{n}) PR URLs.
 func parseADOTargetURL(host string, segments []string, original string) (*Target, bool) {
 	if org, isLegacy := strings.CutSuffix(host, ".visualstudio.com"); isLegacy {
 		if len(segments) > 0 && strings.EqualFold(segments[0], "DefaultCollection") {
@@ -525,17 +545,18 @@ func parseADOTargetURL(host string, segments []string, original string) (*Target
 			Original: original,
 		}, true
 	}
-	if len(segments) != 6 || segments[2] != "_git" || segments[4] != "pullrequest" {
+	owner, project, name, tail, ok := adoSplitAtGit(segments, 2)
+	if !ok || tail[0] != "pullrequest" {
 		return nil, false
 	}
-	number, ok := parsePRNumber(segments[5])
+	number, ok := parsePRNumber(tail[1])
 	if !ok {
 		return nil, false
 	}
 	return &Target{
 		Repository: &forgetypes.Repository{
 			Kind: forgetypes.KindAzureDevOps, Host: host,
-			Owner: segments[0], Project: segments[1], Name: segments[3],
+			Owner: owner, Project: project, Name: name,
 		},
 		Number:   number,
 		Original: original,
@@ -544,10 +565,11 @@ func parseADOTargetURL(host string, segments []string, original string) (*Target
 
 // parseCoordinateTarget parses owner/repo#N (or !N) coordinates, optionally
 // host-qualified: host/owner/repo#N, host/group/sub/repo#N (GitLab), or
-// host/org/project/repo#N (Azure DevOps). Two-segment coordinates take the
-// checkout's forge and host when one is detected, else the default forge's
-// SaaS host; for an Azure DevOps checkout the two segments read as
-// project/repo within the checkout's organization.
+// host/org/project/repo#N (Azure DevOps; on Azure DevOps Server the org is
+// the collection path, e.g. host/tfs/DefaultCollection/project/repo#N).
+// Two-segment coordinates take the checkout's forge and host when one is
+// detected, else the default forge's SaaS host; for an Azure DevOps checkout
+// the two segments read as project/repo within the checkout's organization.
 func parseCoordinateTarget(s string, checkoutRepo *forgetypes.Repository, cfg config.ForgeConfig) (*Target, bool) {
 	sep := strings.IndexAny(s, "#!")
 	if sep < 0 {
@@ -601,8 +623,11 @@ func parseCoordinateTarget(s string, checkoutRepo *forgetypes.Repository, cfg co
 		rest := segments[1:]
 		rest[len(rest)-1] = stripGitSuffix(rest[len(rest)-1])
 		switch {
-		case kind == forgetypes.KindAzureDevOps && len(rest) == 3:
-			repo = &forgetypes.Repository{Kind: kind, Host: host, Owner: rest[0], Project: rest[1], Name: rest[2]}
+		case kind == forgetypes.KindAzureDevOps && len(rest) >= 3:
+			// host/{org}/{project}/{repo}, or on Azure DevOps Server
+			// host/[{virtual dir}/]{collection}/{project}/{repo}.
+			repo = &forgetypes.Repository{Kind: kind, Host: host,
+				Owner: strings.Join(rest[:len(rest)-2], "/"), Project: rest[len(rest)-2], Name: rest[len(rest)-1]}
 		case kind == forgetypes.KindGitLab && len(rest) >= 2:
 			repo = &forgetypes.Repository{Kind: kind, Host: host, Owner: strings.Join(rest[:len(rest)-1], "/"), Name: rest[len(rest)-1]}
 		case kind != forgetypes.KindAzureDevOps && len(rest) == 2:

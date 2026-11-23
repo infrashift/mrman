@@ -103,6 +103,21 @@ func TestADOOrgURL(t *testing.T) {
 	}
 }
 
+// TestADOOrgURLServerCollectionPath: on Azure DevOps Server the owner holds
+// the collection path, virtual directory included, so the default org URL is
+// the collection URL with no api_base.
+func TestADOOrgURLServerCollectionPath(t *testing.T) {
+	for owner, want := range map[string]string{
+		"tfs/DefaultCollection": "https://tfs.example.com/tfs/DefaultCollection",
+		"DefaultCollection":     "https://tfs.example.com/DefaultCollection",
+	} {
+		repo := forgetypes.Repository{Kind: forgetypes.KindAzureDevOps, Owner: owner, Project: "p", Name: "r"}
+		if got := adoOrgURL(forge.HostConfig{Host: "tfs.example.com"}, repo); got != want {
+			t.Errorf("adoOrgURL(owner %q) = %q, want %q", owner, got, want)
+		}
+	}
+}
+
 // TestEveryDriverSendsItsToken: a driver built through the registry must
 // put the host's token on its requests, in its forge's own scheme. Nothing
 // else checked the wiring between HostConfig.Token and the SDK clients.
