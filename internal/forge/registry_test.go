@@ -560,3 +560,116 @@ func TestKindFromConfigNameAliases(t *testing.T) {
 		t.Error("an unknown forge name must not resolve")
 	}
 }
+
+// Azure DevOps Server
+
+// serverConfig declares an on-premises Azure DevOps Server host, as a user
+// does with a [[forge.hosts]] entry.
+func serverConfig() config.ForgeConfig {
+	cfg := defaultForgeConfig()
+	cfg.Hosts = []config.ForgeHost{{Host: "tfs.example.com", Forge: "azuredevops"}}
+	return cfg
+}
+
+// TestAzureDevOpsServerRemotes: a Server remote may carry a virtual
+// directory before the collection (tfs/DefaultCollection). The whole
+// collection path is the owner, so the org URL is the collection URL.
+func TestAzureDevOpsServerRemotes(t *testing.T) {
+	withEmptyRegistry(t)
+	withoutSSHConfig(t)
+	cfg := serverConfig()
+	cases := []struct {
+		name string
+		url  string
+		want *forgetypes.Repository
+	}{
+		{"https with virtual dir", "https://tfs.example.com/tfs/DefaultCollection/project/_git/repo",
+			adoRepo("tfs.example.com", "tfs/DefaultCollection", "project", "repo")},
+		{"https without virtual dir", "https://tfs.example.com/DefaultCollection/project/_git/repo",
+			adoRepo("tfs.example.com", "DefaultCollection", "project", "repo")},
+		{"https with user and port", "https://user@tfs.example.com:443/tfs/Coll/project/_git/repo.git",
+			adoRepo("tfs.example.com", "tfs/Coll", "project", "repo")},
+		{"ssh with port", "ssh://tfs.example.com:22/tfs/DefaultCollection/project/_git/repo",
+			adoRepo("tfs.example.com", "tfs/DefaultCollection", "project", "repo")},
+		{"spaces", "https://tfs.example.com/tfs/DefaultCollection/My%20Project/_git/My%20Repo",
+			adoRepo("tfs.example.com", "tfs/DefaultCollection", "My Project", "My Repo")},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := ResolveRepository([]string{tc.url}, cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Fatalf("got %+v, want %+v", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestAzureDevOpsServerRemotesRejected: shapes with no project before
+// _git, or nothing after it, are not repositories.
+func TestAzureDevOpsServerRemotesRejected(t *testing.T) {
+	withEmptyRegistry(t)
+	withoutSSHConfig(t)
+	cfg := serverConfig()
+	for _, url := range []string{
+		"https://tfs.example.com/DefaultCollection/_git/repo", // project-named repo shorthand
+		"https://tfs.example.com/tfs/DefaultCollection/project/_git",
+		"https://tfs.example.com/tfs/DefaultCollection/project/repo",
+		"https://tfs.example.com/a/_git/project/_git/repo",
+	} {
+		if got, err := ResolveRepository([]string{url}, cfg); err == nil {
+			t.Errorf("ResolveRepository(%q) = %+v, want an error", url, got)
+		}
+	}
+}
+
+// TestAzureDevOpsServerTargets: PR web URLs and host-qualified coordinates
+// carry the collection path too.
+func TestAzureDevOpsServerTargets(t *testing.T) {
+	withEmptyRegistry(t)
+	cfg := serverConfig()
+	serverCheckout := adoRepo("tfs.example.com", "tfs/DefaultCollection", "project", "repo")
+	cases := []struct {
+		name     string
+		input    string
+		checkout *forgetypes.Repository
+		want     *forgetypes.Repository
+		number   uint64
+	}{
+		{"pr url with virtual dir", "https://tfs.example.com/tfs/DefaultCollection/project/_git/repo/pullrequest/12", nil,
+			adoRepo("tfs.example.com", "tfs/DefaultCollection", "project", "repo"), 12},
+		{"pr url without virtual dir", "https://tfs.example.com/DefaultCollection/project/_git/repo/pullrequest/3", nil,
+			adoRepo("tfs.example.com", "DefaultCollection", "project", "repo"), 3},
+		{"pr url files tab is a query", "https://tfs.example.com/tfs/Coll/project/_git/repo/pullrequest/4?_a=files", nil,
+			adoRepo("tfs.example.com", "tfs/Coll", "project", "repo"), 4},
+		{"host-qualified coordinate", "tfs.example.com/tfs/DefaultCollection/project/repo#5", nil,
+			adoRepo("tfs.example.com", "tfs/DefaultCollection", "project", "repo"), 5},
+		{"project/repo inside a Server checkout", "other/repo2#6", serverCheckout,
+			adoRepo("tfs.example.com", "tfs/DefaultCollection", "other", "repo2"), 6},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			target, err := ParseTarget(tc.input, tc.checkout, cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if target.Number != tc.number {
+				t.Fatalf("number = %d, want %d", target.Number, tc.number)
+			}
+			if !reflect.DeepEqual(target.Repository, tc.want) {
+				t.Fatalf("repository = %+v, want %+v", target.Repository, tc.want)
+			}
+		})
+	}
+	for _, input := range []string{
+		"https://tfs.example.com/tfs/DefaultCollection/project/_git/repo/pullrequest/x",
+		"https://tfs.example.com/tfs/DefaultCollection/project/_git/repo/commits/5",
+		"https://tfs.example.com/DefaultCollection/_git/repo/pullrequest/5",
+	} {
+		if _, err := ParseTarget(input, nil, cfg); err == nil {
+			t.Errorf("ParseTarget(%q) unexpectedly succeeded", input)
+		}
+	}
+}
