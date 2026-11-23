@@ -308,7 +308,18 @@ func TestParseReviewThreadsResolveReply(t *testing.T) {
 	if _, err := Parse([]string{"review", "reply", "--session", "s", "body"}); err == nil {
 		t.Error("a reply without --thread must not parse")
 	}
-	if events, err := ParseAutoGrant("comment,reply,resolve"); err != nil || len(events) != 3 {
-		t.Errorf("--auto=comment,reply,resolve: %v %v", events, err)
+	args, err = Parse([]string{"review", "edit", "--session", "s", "--summary", "9", "--grant-policy", "p", "new status"})
+	if err != nil || args.Command != CommandReviewEdit || args.Review.SummaryID != "9" || args.Review.Comment != "new status" ||
+		args.Review.GrantPolicy != "p" {
+		t.Errorf("edit: %+v %v", args.Review, err)
+	}
+	if _, err := Parse([]string{"review", "edit", "--session", "s", "--summary", "9"}); err == nil {
+		t.Error("an edit without a body must not parse")
+	}
+	if _, err := Parse([]string{"review", "edit", "--session", "s", "body"}); err == nil {
+		t.Error("an edit without --summary must not parse")
+	}
+	if events, err := ParseAutoGrant("comment,reply,resolve,edit"); err != nil || len(events) != 4 {
+		t.Errorf("--auto=comment,reply,resolve,edit: %v %v", events, err)
 	}
 }

@@ -17,9 +17,14 @@ import (
 const hintNotOwnThread = "Only threads whose first comment this token's identity wrote can be " +
 	"resolved from the command line; resolve other people's threads in the web UI."
 
+// hintNotOwnSummary explains a refused edit.
+const hintNotOwnSummary = "Only merge-request-level comments this token's identity wrote can be " +
+	"edited from the command line."
+
 var (
 	_ forge.ThreadReplier  = (*Driver)(nil)
 	_ forge.ThreadResolver = (*Driver)(nil)
+	_ forge.SummaryEditor  = (*Driver)(nil)
 )
 
 // discussionIDPattern is the shape of a GitLab discussion id (a hex SHA on
@@ -114,4 +119,46 @@ func (d *Driver) ResolveOwnThread(ctx context.Context, pr *forge.PullRequestDeta
 		return "", d.wrap(op, err)
 	}
 	return forge.ResolveResolved, nil
+}
+
+// EditOwnSummary replaces the body of the first note of discussion
+// summaryID, the form ListReviewSummaries reports a general (unpositioned)
+// merge request comment in. That note must be the viewer's own, compared by
+// username like ResolveOwnThread does. A positioned discussion is a review
+// thread, not a summary, and is refused.
+func (d *Driver) EditOwnSummary(ctx context.Context, pr *forge.PullRequestDetails, summaryID, body string) error {
+	const op = "edit_summary"
+	if err := d.checkDiscussionID(op, summaryID); err != nil {
+		return err
+	}
+	if strings.TrimSpace(body) == "" {
+		return d.err(op, forge.ErrorValidation, 0, "", errors.New("an empty body"))
+	}
+	viewer, err := d.currentUsername(ctx, op)
+	if err != nil {
+		return err
+	}
+	pid, iid := projectID(pr.Repository), int64(pr.Number) //nolint:gosec // G115: pull request numbers are small forge-assigned integers
+	disc, _, err := d.client.Discussions.GetMergeRequestDiscussion(pid, iid, summaryID, gitlab.WithContext(ctx))
+	if err != nil {
+		return d.wrap(op, err)
+	}
+	if disc == nil || len(disc.Notes) == 0 || disc.Notes[0] == nil || disc.Notes[0].System {
+		return d.err(op, forge.ErrorNotFound, 0, "",
+			fmt.Errorf("discussion %s not found on merge request !%d", summaryID, pr.Number))
+	}
+	root := disc.Notes[0]
+	if root.Position != nil {
+		return d.err(op, forge.ErrorValidation, 0, "",
+			fmt.Errorf("discussion %s is anchored to a file, not a merge-request-level comment", summaryID))
+	}
+	if root.Author.Username == "" || !strings.EqualFold(root.Author.Username, viewer) {
+		return d.err(op, forge.ErrorForbidden, 0, hintNotOwnSummary,
+			errors.New("summary "+summaryID+" was not written by this token's identity"))
+	}
+	if _, _, err := d.client.Discussions.UpdateMergeRequestDiscussionNote(pid, iid, summaryID, root.ID,
+		&gitlab.UpdateMergeRequestDiscussionNoteOptions{Body: &body}, gitlab.WithContext(ctx)); err != nil {
+		return d.wrap(op, err)
+	}
+	return nil
 }

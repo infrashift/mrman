@@ -110,6 +110,20 @@ type ThreadReplier interface {
 // AsThreadReplier returns f's ThreadReplier, looking beneath wrappers.
 func AsThreadReplier(f Forge) (ThreadReplier, bool) { return unwrapAs[ThreadReplier](f) }
 
+// SummaryEditor is implemented by drivers that can edit a review summary:
+// a pull-request-level comment, as ListReviewSummaries reports it. Optional,
+// like ThreadResolver.
+type SummaryEditor interface {
+	// EditOwnSummary replaces the body of summary summaryID on pr (an id
+	// ListReviewSummaries reports). It refuses (ErrorForbidden) a summary
+	// the token's own identity did not write, so a bot can keep its own
+	// status comment current and never change anyone else's words.
+	EditOwnSummary(ctx context.Context, pr *PullRequestDetails, summaryID, body string) error
+}
+
+// AsSummaryEditor returns f's SummaryEditor, looking beneath wrappers.
+func AsSummaryEditor(f Forge) (SummaryEditor, bool) { return unwrapAs[SummaryEditor](f) }
+
 // unwrapAs finds an optional interface on f or beneath the wrappers around
 // it that expose Unwrap.
 func unwrapAs[T any](f Forge) (T, bool) {

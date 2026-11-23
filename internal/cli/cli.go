@@ -310,7 +310,7 @@ func newReviewCmd(args *Args) *cobra.Command {
 
 	threads := &cobra.Command{
 		Use:   "threads",
-		Short: "Print the pull request's existing review threads as JSON (read-only)",
+		Short: "Print the pull request's existing review threads and pull-request-level comments as JSON (read-only)",
 		RunE: func(_ *cobra.Command, _ []string) error {
 			args.Command = CommandReviewThreads
 			return nil
@@ -368,7 +368,34 @@ func newReviewCmd(args *Args) *cobra.Command {
 	_ = reply.MarkFlagRequired("session")
 	_ = reply.MarkFlagRequired("thread")
 
-	review.AddCommand(list, add, comments, watch, submit, threads, resolve, reply)
+	edit := &cobra.Command{
+		Use:   "edit [body]",
+		Short: "Edit a pull-request-level comment this token's identity wrote (requires a grant naming edit, or --grant-policy)",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(_ *cobra.Command, positional []string) error {
+			args.Command = CommandReviewEdit
+			if len(positional) == 1 {
+				args.Review.Comment = positional[0]
+			}
+			if args.Review.Comment == "" && args.Review.Input == "" {
+				return fmt.Errorf("a body argument or --input is required")
+			}
+			return nil
+		},
+	}
+	editFlags := edit.Flags()
+	editFlags.StringVar(&args.Review.Session, "session", "", "session slug or path (required)")
+	editFlags.StringVar(&args.Review.SummaryID, "summary", "", "id of the pull-request-level comment, as `review threads` lists it under summaries (required)")
+	editFlags.StringVar(&args.Review.Input, "input", "", "read the body from @file, or - for stdin")
+	editFlags.StringVar(&args.Review.GrantPolicy, "grant-policy", "", "authorize by this committed garmr policy directory instead of a human grant (unattended use)")
+	editFlags.StringVar(&args.Review.GrantNamespace, "grant-namespace", "mrman", "policy namespace for --grant-policy")
+	editFlags.StringVar(&args.Review.Garmr, "garmr", "garmr", "garmr binary for --grant-policy")
+	editFlags.StringVar(&args.Review.RunID, "run-id", "", "the caller's run id, recorded with the authorization")
+	editFlags.StringVar(&args.Review.Agent, "agent", "", "the calling tool, recorded with the authorization")
+	_ = edit.MarkFlagRequired("session")
+	_ = edit.MarkFlagRequired("summary")
+
+	review.AddCommand(list, add, comments, watch, submit, threads, resolve, reply, edit)
 	return review
 }
 
