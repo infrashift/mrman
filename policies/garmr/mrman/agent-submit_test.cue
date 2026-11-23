@@ -33,6 +33,11 @@ tests: [
 		expect: {decision: "allow", noViolations: true}
 	},
 	{
+		name:  "the bot may edit its own pull-request-level comment"
+		input: _input & {event: "edit", comments: 1}
+		expect: {decision: "allow", noViolations: true}
+	},
+	{
 		name:  "draft is not allowed unattended by default"
 		input: _input & {event: "draft"}
 		expect: {decision: "deny", violations: [{id: "MRM-001"}]}

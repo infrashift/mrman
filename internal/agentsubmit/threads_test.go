@@ -19,10 +19,11 @@ import (
 // resolverForge adds threads and resolution to the fake submit forge.
 type resolverForge struct {
 	*submitForge
-	threads  []forge.RemoteReviewThread
-	outcomes map[string]forge.ResolveOutcome // missing ids fail
-	calls    []string
-	replies  []string
+	threads   []forge.RemoteReviewThread
+	summaries []forge.RemoteReviewSummary
+	outcomes  map[string]forge.ResolveOutcome // missing ids fail
+	calls     []string
+	replies   []string
 	// metaErr makes ReviewMetadata fail: the forge cannot say who the
 	// token is.
 	metaErr error
@@ -43,6 +44,16 @@ func (f *resolverForge) ReplyToThread(_ context.Context, _ *forge.PullRequestDet
 	f.calls = append(f.calls, "reply:"+thread+":"+parent)
 	f.replies = append(f.replies, body)
 	return "55", nil
+}
+
+func (f *resolverForge) ListReviewSummaries(context.Context, *forge.PullRequestDetails) ([]forge.RemoteReviewSummary, error) {
+	return f.summaries, nil
+}
+
+func (f *resolverForge) EditOwnSummary(_ context.Context, _ *forge.PullRequestDetails, id, body string) error {
+	f.calls = append(f.calls, "edit:"+id)
+	f.replies = append(f.replies, body)
+	return nil
 }
 
 func (f *resolverForge) ResolveOwnThread(_ context.Context, _ *forge.PullRequestDetails, id, reply string) (forge.ResolveOutcome, error) {
@@ -87,6 +98,7 @@ func TestThreadsListsThePRsThreads(t *testing.T) {
 	fake := &resolverForge{submitForge: &submitForge{head: "head1234"}, threads: []forge.RemoteReviewThread{
 		{ID: "7", Path: "src/x.go", Line: &line, Comments: []forge.RemoteReviewComment{{ID: "1", Author: "vizzini-bot", Body: "b <!-- vizzini:fp=v1:ab -->"}}},
 	}}
+	fake.summaries = []forge.RemoteReviewSummary{{ID: "9", Author: "vizzini-bot", Body: "status"}}
 	store, path := sessionWithGrant(t, fake, nil)
 	var out bytes.Buffer
 	if err := Threads(store, reviewcli.Options{Session: path}, &out); err != nil {
@@ -97,11 +109,15 @@ func TestThreadsListsThePRsThreads(t *testing.T) {
 		got.Threads[0].ID != "7" || got.Threads[0].Comments[0].Author != "vizzini-bot" || got.PR == "" {
 		t.Errorf("threads %s (%v)", out.String(), err)
 	}
+	if len(got.Summaries) != 1 || got.Summaries[0].ID != "9" || got.Summaries[0].Body != "status" {
+		t.Errorf("summaries %+v", got.Summaries)
+	}
 
-	// No threads is an empty list, not null.
-	fake.threads = nil
+	// No threads or summaries are empty lists, not null.
+	fake.threads, fake.summaries = nil, nil
 	out.Reset()
-	if err := Threads(store, reviewcli.Options{Session: path}, &out); err != nil || !bytes.Contains(out.Bytes(), []byte(`"threads":[]`)) {
+	if err := Threads(store, reviewcli.Options{Session: path}, &out); err != nil ||
+		!bytes.Contains(out.Bytes(), []byte(`"threads":[]`)) || !bytes.Contains(out.Bytes(), []byte(`"summaries":[]`)) {
 		t.Errorf("empty threads %s (%v)", out.String(), err)
 	}
 }
@@ -238,6 +254,52 @@ func TestReply(t *testing.T) {
 	}
 	for _, bad := range []ReplyOptions{{Options: opts.Options, Body: "x"}, {Options: opts.Options, ThreadID: "7", Body: " "}} {
 		if err := Reply(store, bad, &bytes.Buffer{}); err == nil {
+			t.Errorf("%+v must be refused", bad)
+		}
+	}
+}
+
+func TestEdit(t *testing.T) {
+	fake := &resolverForge{submitForge: &submitForge{head: "head1234"}}
+	store, path := sessionWithGrant(t, fake, []string{"comment", "reply"})
+	opts := EditOptions{Options: Options{Options: reviewcli.Options{Session: path}}, SummaryID: "9", Body: "new status"}
+
+	// Neither a comment nor a reply grant covers an edit.
+	err := Edit(store, opts, &bytes.Buffer{})
+	if denied, ok := errors.AsType[*SubmitDenied](err); !ok || denied.Reason != string(persistence.GrantEventNotAllowed) {
+		t.Fatalf("err = %v, want event not allowed", err)
+	}
+	if len(fake.calls) != 0 {
+		t.Fatalf("edited without a grant: %v", fake.calls)
+	}
+
+	// By policy: authorized as event edit, one comment.
+	input := fakeGarmr(t, `{"decision":"allow","results":[]}`, 0, nil)
+	opts.GrantPolicy, opts.RunID = policyDir(t), "r1"
+	var out bytes.Buffer
+	if err := Edit(store, opts, &out); err != nil {
+		t.Fatal(err)
+	}
+	var got EditOutput
+	if err := json.Unmarshal(out.Bytes(), &got); err != nil || got.Summary != "9" || got.Authorization == nil {
+		t.Errorf("output %s (%v)", out.String(), err)
+	}
+	var sent PolicyInput
+	if err := json.Unmarshal(*input, &sent); err != nil || sent.Event != "edit" || sent.Comments != 1 {
+		t.Errorf("policy input %s", *input)
+	}
+	if !slices.Equal(fake.calls, []string{"edit:9"}) || fake.replies[0] != "new status" {
+		t.Errorf("calls %v bodies %v", fake.calls, fake.replies)
+	}
+
+	// A deny edits nothing; a missing body or summary is refused up front.
+	fake.calls = nil
+	fakeGarmr(t, `{"decision":"deny","results":[{"rule_id":"MRM-001","passed":false,"message":"no"}]}`, 1, nil)
+	if err := Edit(store, opts, &bytes.Buffer{}); err == nil || len(fake.calls) != 0 {
+		t.Errorf("deny: %v, calls %v", err, fake.calls)
+	}
+	for _, bad := range []EditOptions{{Options: opts.Options, Body: "x"}, {Options: opts.Options, SummaryID: "9", Body: " "}} {
+		if err := Edit(store, bad, &bytes.Buffer{}); err == nil {
 			t.Errorf("%+v must be refused", bad)
 		}
 	}

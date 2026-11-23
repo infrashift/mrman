@@ -33,7 +33,9 @@ import (
 // (`mrman review resolve`) closes threads the token's own identity started;
 // it is named explicitly too, since it changes what the author sees open.
 // reply (`mrman review reply`) answers in an existing thread, e.g. a bot
-// answering a /vizzini command; also explicit.
+// answering a /vizzini command; also explicit. edit (`mrman review edit`)
+// changes a pull-request-level comment the token's own identity wrote, e.g.
+// a bot's status comment; also explicit.
 var grantableEvents = map[string]bool{
 	"comment":         true,
 	"draft":           true,
@@ -41,6 +43,7 @@ var grantableEvents = map[string]bool{
 	"request-changes": false,
 	"resolve":         false,
 	"reply":           false,
+	"edit":            false,
 }
 
 // DefaultGrantedEvents is what a bare --auto authorizes.

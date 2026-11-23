@@ -304,16 +304,24 @@ exactly those.
 mrman review threads --session <slug>
 ```
 
-Prints the pull request's file-anchored review threads as one JSON object.
-That includes resolved and outdated threads, each with its comments (root
-first), author, anchor and state. The command only reads; it needs no grant.
+Prints the pull request's review threads and its pull-request-level comments
+as one JSON object. `threads` includes resolved and outdated threads, each
+with its comments (root first), author, anchor and state. `summaries` lists
+the comments on the pull request as a whole: review bodies on GitHub,
+threads without a file on Azure DevOps, general notes on GitLab. Their `id`
+is what `review edit --summary` takes. The command only reads; it needs no
+grant.
 
 ```json
 {"pr":"ado:dev.azure.com/org/proj/repo/pr/42","head_sha":"...","threads":[
  {"id":"7","path":"src/x.go","line":12,"side":"new","start_line":null,"is_resolved":false,
   "is_outdated":false,"comments":[{"id":"1","author":"vizzini-bot","body":"...","created_at":"...",
-  "in_reply_to":"","url":""}]}]}
+  "in_reply_to":"","url":""}]}],
+ "summaries":[{"id":"9","author":"vizzini-bot","body":"...","state":"COMMENTED","created_at":"...","url":""}]}
 ```
+
+On GitLab a general note is also a thread without a `path`, so it shows in
+both lists.
 
 With `--findings`, it prints the **findings view** instead: vizzini-bot's
 threads only, each decoded from the hidden marker the bot writes (Vizzini's
@@ -397,6 +405,32 @@ It needs a human grant that names `reply`, or an allow from
 node id on GitHub, a note number on GitLab, a comment number on Azure
 DevOps). Supported on GitHub (and GitHub Enterprise Server), GitLab and Azure
 DevOps; Forgejo, Gitea and Codeberg report that replying is not supported.
+
+### `review edit`
+
+```sh
+mrman review edit --session <slug> --summary 9 "Reviewed through abc1234."
+mrman review edit --session <slug> --summary 9 --input @status.md
+```
+
+Replaces the body of a pull-request-level comment. mrman edits only comments
+**the token's own identity** wrote, compared by account identity as for
+`review resolve`. A bot can keep its own status comment current and never
+change a person's words. A comment anchored to a file is refused.
+
+| Flag | Default | Meaning |
+|---|---|---|
+| `--session <slug>` | — | **Required** |
+| `--summary <id>` | — | **Required**: the comment's id, from `summaries` in `review threads` |
+| `--input <@file\|->` | — | Read the body from a file or stdin, instead of the argument |
+| `--grant-policy`, `--grant-namespace`, `--garmr`, `--run-id`, `--agent` | | As for `review submit`; the policy sees event `edit` and one comment |
+
+It needs a human grant that names `edit`, or an allow from `--grant-policy`.
+Refusals print as for `review submit`. It prints `{"summary":"9"}`. The id is
+a review node id (`PRR_…`) on GitHub, a discussion id on GitLab and a thread
+number on Azure DevOps. Supported on GitHub (and GitHub Enterprise Server),
+GitLab and Azure DevOps; Forgejo, Gitea and Codeberg report that editing is
+not supported.
 
 ## Exit codes
 

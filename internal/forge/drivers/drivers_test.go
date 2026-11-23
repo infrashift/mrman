@@ -48,8 +48,8 @@ func TestEveryForgeKindHasADriver(t *testing.T) {
 	}
 }
 
-// TestThreadWritersPerForge pins which drivers `mrman review reply` and
-// `mrman review resolve` reach, seen through the sanitizer every driver is
+// TestThreadWritersPerForge pins which drivers `mrman review reply`,
+// `mrman review resolve` and `mrman review edit` reach, seen through the sanitizer every driver is
 // wrapped in, as the CLI sees them.
 func TestThreadWritersPerForge(t *testing.T) {
 	for kind, want := range map[forgetypes.Kind]bool{
@@ -78,6 +78,9 @@ func TestThreadWritersPerForge(t *testing.T) {
 		}
 		if _, ok := forge.AsThreadResolver(f); ok != want {
 			t.Errorf("%s: ThreadResolver = %v, want %v", kind, ok, want)
+		}
+		if _, ok := forge.AsSummaryEditor(f); ok != want {
+			t.Errorf("%s: SummaryEditor = %v, want %v", kind, ok, want)
 		}
 	}
 }

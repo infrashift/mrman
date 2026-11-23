@@ -35,6 +35,9 @@ const (
 	// CommandReviewReply answers in an existing thread, behind the same
 	// grant as a submit.
 	CommandReviewReply
+	// CommandReviewEdit edits a pull-request-level comment the token's
+	// identity wrote, behind the same grant as a submit.
+	CommandReviewEdit
 	// CommandVersion prints the version line.
 	CommandVersion
 )
@@ -105,6 +108,8 @@ type ReviewOptions struct {
 	ThreadIDs []string
 	Reply     string
 	ParentID  string
+	// SummaryID and Comment drive `review edit`.
+	SummaryID string
 	// Findings makes `review threads` print the findings view (Vizzini
 	// ISSUE-027): vizzini-bot's threads, decoded.
 	Findings bool

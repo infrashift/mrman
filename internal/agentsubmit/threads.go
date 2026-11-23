@@ -1,7 +1,9 @@
 // threads.go gives a bot memory of what it already said on a pull request
 // (Vizzini ADR-0016, ISSUE-024 slice 2): `review threads` lists the PR's
-// existing threads, read-only, and `review resolve` closes threads the
-// token's own identity started, behind the same interlock as a submit.
+// existing threads and pull-request-level comments, read-only; `review
+// resolve` closes threads the token's own identity started, and `review
+// edit` changes a pull-request-level comment it wrote, each behind the same
+// interlock as a submit.
 
 package agentsubmit
 
@@ -22,11 +24,12 @@ import (
 	"github.com/infrashift/mrman/internal/slug"
 )
 
-// resolveEvent and replyEvent are the grant and policy events for
-// `review resolve` and `review reply`.
+// resolveEvent, replyEvent and editEvent are the grant and policy events
+// for `review resolve`, `review reply` and `review edit`.
 const (
 	resolveEvent = "resolve"
 	replyEvent   = "reply"
+	editEvent    = "edit"
 )
 
 // ErrPartialResolve reports that some threads were not resolved; the JSON
@@ -38,10 +41,15 @@ type ThreadsOutput struct {
 	PR      string                     `json:"pr"`
 	HeadSHA string                     `json:"head_sha"`
 	Threads []forge.RemoteReviewThread `json:"threads"`
+	// Summaries are the pull-request-level comments (review bodies on
+	// GitHub, context-less threads on Azure DevOps, general notes on
+	// GitLab), with the ids `review edit --summary` takes.
+	Summaries []forge.RemoteReviewSummary `json:"summaries"`
 }
 
-// Threads prints the pull request's file-anchored review threads (resolved
-// and outdated ones included) for the session's PR. It only reads.
+// Threads prints the pull request's review threads (resolved and outdated
+// ones included) and its pull-request-level comments for the session's PR.
+// It only reads.
 func Threads(store *persistence.Store, opts reviewcli.Options, out io.Writer) error {
 	path, err := reviewcli.ResolveSessionPath(store, opts.Repo, opts.Session)
 	if err != nil {
@@ -58,7 +66,14 @@ func Threads(store *persistence.Store, opts reviewcli.Options, out io.Writer) er
 	if threads == nil {
 		threads = []forge.RemoteReviewThread{}
 	}
-	return json.NewEncoder(out).Encode(ThreadsOutput{PR: pr, HeadSHA: details.HeadSHA, Threads: threads})
+	summaries, err := backend.ListReviewSummaries(context.Background(), details)
+	if err != nil {
+		return err
+	}
+	if summaries == nil {
+		summaries = []forge.RemoteReviewSummary{}
+	}
+	return json.NewEncoder(out).Encode(ThreadsOutput{PR: pr, HeadSHA: details.HeadSHA, Threads: threads, Summaries: summaries})
 }
 
 // ResolveOptions configures `review resolve`.
@@ -197,6 +212,66 @@ func Reply(store *persistence.Store, opts ReplyOptions, out io.Writer) error {
 		}
 	}
 	if output.CommentID, err = replier.ReplyToThread(context.Background(), details, opts.ThreadID, opts.ParentID, opts.Body); err != nil {
+		return err
+	}
+	return json.NewEncoder(out).Encode(output)
+}
+
+// EditOptions configures `review edit`.
+type EditOptions struct {
+	// Options carries the session and the grant settings (Event is ignored).
+	Options
+	// SummaryID is the pull-request-level comment to edit, as `review
+	// threads` reports it under summaries.
+	SummaryID string
+	// Body is the comment's new Markdown.
+	Body string
+}
+
+// EditOutput is what `review edit` prints.
+type EditOutput struct {
+	Summary       string               `json:"summary"`
+	Authorization *AuthorizationRecord `json:"authorization,omitempty"`
+}
+
+// Edit replaces the body of a pull-request-level comment on the session's
+// PR, behind the same interlock as a submit (event edit). The driver itself
+// refuses a comment the token's identity did not write.
+func Edit(store *persistence.Store, opts EditOptions, out io.Writer) error {
+	if opts.SummaryID == "" {
+		return errors.New("--summary is required")
+	}
+	if strings.TrimSpace(opts.Body) == "" {
+		return errors.New("a body is required")
+	}
+	path, err := reviewcli.ResolveSessionPath(store, opts.Repo, opts.Session)
+	if err != nil {
+		return err
+	}
+	if opts.GrantPolicy == "" {
+		granted, reason, gerr := store.AgentSubmitGrant(path, editEvent)
+		if gerr != nil {
+			return gerr
+		}
+		if reason != persistence.GrantOK {
+			return denial(reason, editEvent, granted)
+		}
+	}
+	backend, details, pr, err := prForSession(store, path, opts.Session)
+	if err != nil {
+		return err
+	}
+	editor, ok := forge.AsSummaryEditor(backend)
+	if !ok {
+		return fmt.Errorf("%s: editing comments from the command line is not supported on this forge", backend.ID())
+	}
+	output := EditOutput{Summary: opts.SummaryID}
+	if opts.GrantPolicy != "" {
+		if output.Authorization, err = authorizeAction(&opts.Options, editEvent, backend, details, pr, path, 1); err != nil {
+			return err
+		}
+	}
+	if err := editor.EditOwnSummary(context.Background(), details, opts.SummaryID, opts.Body); err != nil {
 		return err
 	}
 	return json.NewEncoder(out).Encode(output)

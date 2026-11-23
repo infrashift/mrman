@@ -121,14 +121,15 @@ threads. mrman groups them into threads itself and infers:
 These are good heuristics, not ground truth. `:comments unresolved` / `all` /
 `hide` all work; if a resolved state looks wrong, believe the web UI.
 
-### Replying and resolving from the command line
+### Replying, resolving and editing from the command line
 
 `mrman review reply` and `mrman review resolve` (see the [CLI
-reference](../cli/#review-resolve)) write to existing threads. They work on
+reference](../cli/#review-resolve)) write to existing threads, and `mrman
+review edit` changes a pull-request-level comment. They work on
 GitHub, GitHub Enterprise Server, GitLab and Azure DevOps. Forgejo, Gitea and
 Codeberg report them as not supported: that driver synthesizes threads from
 loose comments, so there is no forge thread to write to. Everywhere, `resolve` closes only threads the token's own identity
-started.
+started, and `edit` changes only comments it wrote.
 
 ### Multi-line comments
 
